@@ -224,6 +224,14 @@ class Timeline {
       const track = e.target.closest(".timeline-track");
       if (!track) return;
 
+      // 조명 트랙(및 타겟 서브트랙) — 삭제 메뉴 비활성
+      if (
+        track.classList.contains("light-timeline") ||
+        e.target.closest(".tl-section-light")
+      ) {
+        return;
+      }
+
       const existingMenu = document.querySelector(".context-menu");
       if (existingMenu) {
         existingMenu.remove();
@@ -1266,6 +1274,82 @@ class Timeline {
         });
       }
     }
+
+    this.setupKeyframeTimeTooltip();
+  }
+
+  /** 키프레임 호버 시간 — body 고정 툴팁 (트랙 overflow·z-index 클리핑 회피) */
+  setupKeyframeTimeTooltip() {
+    if (this._kfTooltipSetup) return;
+    this._kfTooltipSetup = true;
+
+    const tip = document.createElement("div");
+    tip.className = "kf-time-tooltip";
+    tip.hidden = true;
+    document.body.appendChild(tip);
+    this._kfTimeTooltip = tip;
+    this._kfTooltipTarget = null;
+
+    const hide = () => {
+      tip.hidden = true;
+      this._kfTooltipTarget = null;
+    };
+
+    const position = (kf) => {
+      const rect = kf.getBoundingClientRect();
+      tip.style.left = `${rect.left + rect.width / 2}px`;
+      tip.style.top = `${rect.top - 4}px`;
+    };
+
+    const show = (kf) => {
+      const time = kf.dataset?.time;
+      if (time == null || time === "") return;
+      tip.textContent = `${time}s`;
+      this._kfTooltipTarget = kf;
+      tip.hidden = false;
+      position(kf);
+    };
+
+    const root = this.container;
+    if (!root) return;
+
+    root.addEventListener(
+      "mouseover",
+      (e) => {
+        const kf = e.target.closest?.(".keyframe");
+        if (!kf || !root.contains(kf)) return;
+        if (kf.classList.contains("dragging")) return;
+        show(kf);
+      },
+      true,
+    );
+
+    root.addEventListener(
+      "mouseout",
+      (e) => {
+        const kf = e.target.closest?.(".keyframe");
+        if (!kf || this._kfTooltipTarget !== kf) return;
+        const next = e.relatedTarget;
+        if (next && kf.contains(next)) return;
+        hide();
+      },
+      true,
+    );
+
+    root.addEventListener(
+      "mousedown",
+      (e) => {
+        if (e.target.closest?.(".keyframe")) hide();
+      },
+      true,
+    );
+
+    const viewport = root.querySelector(".timeline-viewport");
+    const onReposition = () => {
+      if (this._kfTooltipTarget) position(this._kfTooltipTarget);
+    };
+    viewport?.addEventListener("scroll", onReposition, { passive: true });
+    window.addEventListener("resize", onReposition, { passive: true });
   }
 
   onSceneChanged() {

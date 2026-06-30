@@ -5955,6 +5955,205 @@ export class LightTimeline extends BaseTimeline {
     }
   }
 
+  _resolveTrackObjectIdFromLightId(lightId) {
+    if (!lightId) return null;
+    if (lightId.includes("_Target")) {
+      const match = lightId.match(/^(.+_Target)/);
+      return match ? match[1] : lightId;
+    }
+    const suffixes = [
+      "intensity",
+      "color",
+      "position",
+      "distance",
+      "angle",
+      "penumbra",
+      "decay",
+    ];
+    for (const suffix of suffixes) {
+      if (lightId.endsWith(`_${suffix}`)) {
+        return lightId.slice(0, -(suffix.length + 1));
+      }
+    }
+    return lightId;
+  }
+
+  _getLightKeyframePropertiesForTrack(track) {
+    if (!track?.objectId) return [];
+    if (track.objectId.includes("_Target")) return ["position"];
+    return Object.keys(
+      LIGHT_PROPERTIES[track.lightType] || LIGHT_PROPERTIES.SpotLight,
+    );
+  }
+
+  _deleteKeyframesAtTimeForTrack(
+    track,
+    time,
+    { keyframeElement = null, clearSelection = true } = {},
+  ) {
+    if (!track?.objectId) return false;
+
+    const trackRoot = this._getTrackRootElement(track.objectId);
+    if (this._isTrackLocked(trackRoot)) return false;
+
+    const properties = this._getLightKeyframePropertiesForTrack(track);
+    let removed = false;
+
+    properties.forEach((prop) => {
+      const timelineDataLightId = track.objectId.includes("_Target")
+        ? track.objectId
+        : `${track.objectId}_${prop}`;
+
+      const trackData = this.timelineData.tracksById
+        .get(timelineDataLightId)
+        ?.get(prop);
+      if (!trackData) return;
+
+      if (
+        trackData.removeKeyframe(time) ||
+        trackData.removeKeyframe(parseFloat(time.toFixed(2)))
+      ) {
+        removed = true;
+      }
+    });
+
+    const lightIdBase = track.objectId.includes("_Target")
+      ? track.objectId.replace(/_Target$/, "")
+      : track.objectId;
+    this.syncDeletePartnerKeyframes(lightIdBase, time, track);
+
+    const tol = 0.02;
+    const removeUiAtTime = (sprite) => {
+      if (!sprite) return;
+      sprite.querySelectorAll(".keyframe").forEach((el) => {
+        const t = parseFloat(el.dataset.time);
+        if (!Number.isNaN(t) && Math.abs(t - time) < tol) {
+          el.remove();
+        }
+      });
+    };
+
+    if (keyframeElement?.parentNode) {
+      keyframeElement.remove();
+    } else {
+      removeUiAtTime(track.sprite);
+    }
+
+    const partnerEls = this.findPartnerKeyframeElements(
+      track,
+      time,
+      track.objectId.includes("_Target"),
+    );
+    partnerEls.forEach((el) => el.remove());
+
+    if (removed) {
+      this.timelineData.dirty = true;
+      this.timelineData.precomputeAnimationData();
+      this.updateAnimation?.();
+      if (this.editor.signals?.sceneGraphChanged) {
+        this.editor.signals.sceneGraphChanged.dispatch();
+      }
+    }
+
+    if (clearSelection) {
+      this.clearSelectedKeyframe();
+    }
+
+    return removed;
+  }
+
+  deleteSelectedKeyframe() {
+    const selected =
+      this.selectedKeyframe ||
+      this.editor?.scene?.userData?.lightTimeline?.selectedKeyframe;
+    if (!selected) return false;
+
+    const trackObjectId = this._resolveTrackObjectIdFromLightId(
+      selected.lightId,
+    );
+    const track = this.tracks.get(trackObjectId);
+    if (!track) {
+      console.warn("조명 키프레임 삭제: 트랙을 찾을 수 없습니다.", trackObjectId);
+      return false;
+    }
+
+    return this._deleteKeyframesAtTimeForTrack(track, selected.time, {
+      keyframeElement: selected.element || null,
+      clearSelection: true,
+    });
+  }
+
+  _bindKeyframeContextMenu(keyframeElement, track, time, property) {
+    if (keyframeElement._contextMenuBound) return;
+    keyframeElement._contextMenuBound = true;
+
+    keyframeElement.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const trackRoot = keyframeElement.closest(".timeline-track.light-timeline");
+      if (this._isTrackLocked(trackRoot)) return;
+
+      let timelineDataLightId;
+      if (track.objectId.includes("_Target")) {
+        timelineDataLightId = track.objectId;
+      } else {
+        timelineDataLightId = `${track.objectId}_${property}`;
+      }
+      this.selectKeyframe(
+        timelineDataLightId,
+        parseFloat(keyframeElement.dataset.time) || time,
+        keyframeElement,
+        property,
+      );
+
+      document
+        .querySelectorAll(".keyframe-context-menu")
+        .forEach((menu) => menu.remove());
+
+      const menu = document.createElement("div");
+      menu.className = "keyframe-context-menu";
+      menu.style.cssText = `
+        position: fixed;
+        left: ${e.clientX}px;
+        top: ${e.clientY}px;
+        z-index: 10000;
+      `;
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "timeline-btn";
+      deleteBtn.innerHTML =
+        '<i class="fa fa-trash" style="color: #ff6b6b;"></i> 키프레임 삭제';
+
+      deleteBtn.addEventListener("click", () => {
+        const keyTime =
+          parseFloat(keyframeElement.dataset.time) ||
+          parseFloat(keyframeElement.dataset.originalTime) ||
+          time;
+        this._deleteKeyframesAtTimeForTrack(track, keyTime, {
+          keyframeElement,
+          clearSelection: true,
+        });
+        menu.remove();
+      });
+
+      menu.appendChild(deleteBtn);
+      document.body.appendChild(menu);
+
+      const closeMenu = (evt) => {
+        if (!menu.contains(evt.target)) {
+          menu.remove();
+          document.removeEventListener("click", closeMenu);
+          document.removeEventListener("contextmenu", closeMenu);
+        }
+      };
+      setTimeout(() => {
+        document.addEventListener("click", closeMenu);
+        document.addEventListener("contextmenu", closeMenu);
+      }, 0);
+    });
+  }
+
   // 키프레임을 드래그 가능하게 만드는 메서드 (MotionTimeline과 동일한 기능)
   makeKeyframeDraggable(keyframeElement, track, time, property) {
     let isDragging = false;
@@ -6046,88 +6245,11 @@ export class LightTimeline extends BaseTimeline {
 
         // 클립 밖에서 마우스를 놓았으면 키프레임 삭제
         if (isOutsideClip) {
-          console.log("=== 키프레임 드래그 삭제 시작 ===");
-
-          // 모든 속성의 키프레임 삭제
-          if (track.objectId) {
-            const properties = track.objectId.includes('_Target') ? ['position'] : ['intensity', 'color', 'position', 'distance', 'angle', 'penumbra', 'decay'];
-            let allDeleted = true;
-
-            // 시간 기반으로 키프레임 삭제 (원래 시간 사용)
-            const originalTime = parseFloat(keyframeElement.dataset.originalTime);
-            const currentTime = parseFloat(keyframeElement.dataset.time);
-
-            console.log("🔍 키프레임 삭제 시작:", {
-              originalTime: originalTime,
-              currentTime: currentTime,
-              lightId: track.objectId,
-              properties: properties
-            });
-
-            properties.forEach(prop => {
-              // selectKeyframe과 동일한 방식으로 timelineDataLightId 생성
-              let timelineDataLightId;
-              if (track.objectId.includes('_Target')) {
-                // 타겟 키프레임인 경우 이미 올바른 형태 (light_0_Target)
-                timelineDataLightId = track.objectId;
-              } else {
-                // 조명 키프레임인 경우 propertyName 추가 (light_0_intensity)
-                timelineDataLightId = `${track.objectId}_${prop}`;
-              }
-
-              console.log(`🔍 ${prop} 키프레임 삭제 시도:`, {
-                timelineDataLightId: timelineDataLightId,
-                originalTime: originalTime,
-                currentTime: currentTime
-              });
-
-              const trackData = this.timelineData.tracksById.get(timelineDataLightId)?.get(prop);
-              if (trackData) {
-                console.log(`🔍 ${prop} trackData 찾음:`, {
-                  keyframeCount: trackData.keyframeCount,
-                  times: Array.from(trackData.times.slice(0, trackData.keyframeCount))
-                });
-
-                // 원래 시간으로 키프레임 삭제 시도
-                if (trackData.removeKeyframe(originalTime)) {
-                  console.log(`✅ ${prop} 키프레임 삭제 완료:`, originalTime);
-                } else {
-                  console.warn(`❌ ${prop} 키프레임 삭제 실패 (원래 시간):`, originalTime);
-
-                  // 현재 시간으로도 시도
-                  if (trackData.removeKeyframe(currentTime)) {
-                    console.log(`✅ ${prop} 키프레임 삭제 완료 (현재 시간):`, currentTime);
-                  } else {
-                    console.warn(`❌ ${prop} 키프레임 삭제 실패 (현재 시간):`, currentTime);
-                    allDeleted = false;
-                  }
-                }
-              } else {
-                console.warn(`❌ ${prop} trackData를 찾을 수 없음:`, timelineDataLightId);
-                allDeleted = false;
-              }
-            });
-
-            if (allDeleted) {
-              console.log("모든 속성의 키프레임 삭제 완료");
-            } else {
-              console.error("일부 속성의 키프레임 삭제에 실패했습니다");
-            }
-
-            // SpotLight/DirectionalLight: 반대 트랙 같은 시간 키프레임도 삭제 + UI 제거
-            const lightIdBase = track.objectId.includes('_Target') ? track.objectId.replace(/_Target$/, '') : track.objectId;
-            this.syncDeletePartnerKeyframes(lightIdBase, originalTime, track);
-          }
-
-          // UI에서 키프레임 제거
-          keyframeElement.remove();
-
-          // TimelineData 업데이트
-          this.timelineData.dirty = true;
-          this.timelineData.precomputeAnimationData();
-          this.updateAnimation();
-
-          console.log("=== 키프레임 드래그 삭제 완료 ===");
+          const originalTime = parseFloat(keyframeElement.dataset.originalTime);
+          this._deleteKeyframesAtTimeForTrack(track, originalTime, {
+            keyframeElement,
+            clearSelection: false,
+          });
         } else {
           // 클립 안에서 놓았으면 TimelineData 업데이트
           const finalTime = parseFloat(keyframeElement.dataset.time);
@@ -6286,6 +6408,8 @@ export class LightTimeline extends BaseTimeline {
 
       console.log("이벤트 리스너 등록 완료");
     });
+
+    this._bindKeyframeContextMenu(keyframeElement, track, time, property);
   }
 
   // 키프레임 선택 시 속성 변경 감지 및 저장

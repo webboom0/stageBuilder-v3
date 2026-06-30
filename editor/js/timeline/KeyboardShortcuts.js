@@ -558,22 +558,40 @@ export class KeyboardShortcuts {
     deleteSelectedKeyframe() {
         console.log("KeyboardShortcuts - 선택된 키프레임 삭제");
 
-        // 선택된 키프레임이 있는지 확인
-        if (!this.motionTimeline.selectedKeyframe) {
+        const lightTimeline = this.getLightTimeline();
+        const lightKeyframeSelected = !!(
+            lightTimeline?.selectedKeyframe ||
+            document.querySelector(
+                ".light-timeline .keyframe.selected, .tl-section-light .keyframe.selected",
+            )
+        );
+        const motionKeyframeSelected = !!this.motionTimeline.selectedKeyframe;
+
+        if (lightKeyframeSelected && lightTimeline?.deleteSelectedKeyframe) {
+            const deleted = lightTimeline.deleteSelectedKeyframe();
+            if (deleted) {
+                this.showSuccess("선택된 키프레임이 삭제되었습니다.");
+            } else if (
+                lightTimeline.selectedKeyframe ||
+                document.querySelector(".light-timeline .keyframe.selected")
+            ) {
+                this.showWarning("키프레임 삭제에 실패했습니다.");
+            } else {
+                this.showSuccess("선택된 키프레임이 삭제되었습니다.");
+            }
+            return;
+        }
+
+        if (!motionKeyframeSelected) {
             console.warn("삭제할 키프레임이 선택되지 않았습니다.");
             this.showWarning("삭제할 키프레임을 선택하세요.");
             return;
         }
 
-        // 삭제 전에 선택된 키프레임 정보 저장
         const wasSelected = !!this.motionTimeline.selectedKeyframe;
-
-        // 키프레임 삭제 실행
         this.motionTimeline.deleteSelectedKeyframeByIndex();
 
-        // 삭제가 성공했는지 확인 (selectedKeyframe이 null이 되었는지)
         if (wasSelected && !this.motionTimeline.selectedKeyframe) {
-            // 성공 메시지 표시
             this.showSuccess("선택된 키프레임이 삭제되었습니다.");
         }
     }

@@ -962,6 +962,20 @@ body {
   inset: 0 !important;
   pointer-events: none !important;
   z-index: 5 !important;
+  overflow: visible !important;
+}
+
+.sb-tl .light-sprite,
+.sb-tl .target-sprite {
+  overflow: visible !important;
+}
+
+.sb-tl .timeline-track:has(.keyframe:hover),
+.sb-tl .motion-tracks:has(.keyframe:hover),
+.sb-tl .target-tracks:has(.keyframe:hover) {
+  position: relative !important;
+  z-index: 40 !important;
+  overflow: visible !important;
 }
 
 .sb-tl .track-header select {
@@ -1148,7 +1162,7 @@ body {
   border: 2px solid #ff9800;
   border-radius: 6px;
   pointer-events: none;
-  z-index: 5;
+  z-index: 1;
 }
 
 .sb-tl .timeline-track.light-timeline.timeline-track--selected .track-content {
@@ -1458,6 +1472,7 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   background: #fff !important;
   transform: translate(-50%, -50%) rotate(45deg) scale(1.15) !important;
   box-shadow: 0 0 4px rgba(223, 230, 238, 0.9) !important;
+  z-index: 20 !important;
 }
 
 .sb-tl .keyframe.selected {
@@ -1477,27 +1492,27 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   content: none !important;
 }
 
+/* 호버 시간은 Timeline.js .kf-time-tooltip (body fixed) 사용 */
 .sb-tl .keyframe:hover::after {
-  content: attr(data-time) "s" !important;
-  display: block !important;
-  position: absolute;
-  bottom: 12px;
-  top: auto;
-  left: 50%;
-  transform: translateX(-50%) rotate(-45deg) !important;
+  display: none !important;
+  content: none !important;
+}
+
+/* body 고정 키프레임 시간 툴팁 */
+.kf-time-tooltip {
+  position: fixed;
+  z-index: 10002;
+  pointer-events: none;
+  font-family: var(--ui, system-ui, sans-serif);
   font-size: 10px;
   line-height: 1.4;
-  color: #fff !important;
-  background: rgba(0, 0, 0, 0.88) !important;
-  padding: 2px 6px !important;
-  border-radius: 3px !important;
-  white-space: nowrap !important;
-  z-index: 100 !important;
-  pointer-events: none !important;
-  box-shadow: none !important;
-  border: none !important;
-  width: auto !important;
-  height: auto !important;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.88);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -100%);
 }
 
 .timeline-track--selected .track-header {
@@ -2274,7 +2289,7 @@ body.sb-panel-resize-active * {
 /* Non-slider rows: name, color, checkbox — same label column width */
 #sidebar-properties-host .Row:not(.ec-row):not(.ec-row-group) {
   gap: 8px !important;
-  padding: 0 8px !important;
+  /* padding: 0 8px !important; */
 }
 
 #sidebar-properties-host .Row:not(.ec-row):not(.ec-row-group) > .Label,
