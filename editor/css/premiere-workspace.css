@@ -109,11 +109,22 @@ body {
 
 #menubar .menu .options.options--submenu {
   z-index: 10001 !important;
+  display: none;
 }
 
-#menubar .menu.submenu-active > .options,
-#menubar .menu:hover > .options {
+/* 1차 드롭다운만 hover 시 표시 — 3차(.options--submenu)는 JS hover로만 */
+#menubar .menu.submenu-active > .options:not(.options--submenu),
+#menubar .menu:hover > .options:not(.options--submenu) {
   display: block !important;
+}
+
+#menubar .menu .options hr {
+  border: none !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  margin: 4px 8px !important;
+  height: 0 !important;
+  background: transparent !important;
+  opacity: 1 !important;
 }
 
 /* ── Viewer area ── */
