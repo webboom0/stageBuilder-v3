@@ -1831,7 +1831,7 @@ export class AudioTimeline extends BaseTimeline {
     // 파형을 그릴 캔버스 추가
     const waveformCanvas = document.createElement("canvas");
     waveformCanvas.className = "waveform-canvas";
-    waveformCanvas.height = 30; // 클립 높이와 동일하게
+    waveformCanvas.height = 26; // 클립 높이와 동일하게
 
     const spriteContent = document.createElement("div");
     spriteContent.className = "sprite-content";
@@ -1886,8 +1886,8 @@ export class AudioTimeline extends BaseTimeline {
       ctx.clearRect(0, 0, width, height);
 
       // 파형 그리기 스타일 설정
-      ctx.fillStyle = "rgba(255, 255, 255, 0.5)"; // 더 밝은 색상으로 변경
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.7)"; // 외곽선 추가
+      ctx.fillStyle = "rgba(180, 230, 190, 0.55)";
+      ctx.strokeStyle = "rgba(200, 245, 210, 0.7)";
       ctx.lineWidth = 1;
 
       // 중앙선 기준으로 위아래로 파형 그리기
@@ -2135,7 +2135,7 @@ export class AudioTimeline extends BaseTimeline {
   // UI 관련 메서드들
   createPropertyPanel() {
     const panel = new UIPanel();
-    panel.setClass("property-edit-panel");
+    panel.setClass("property-edit-panel audio-property-panel");
 
     // 음악 추가 버튼
     const addMusicRow = new UIRow();
@@ -2303,35 +2303,22 @@ export class AudioTimeline extends BaseTimeline {
 
     // 시작/끝 지점 편집 모드 토글 버튼
     const editModeButton = document.createElement("button");
-    editModeButton.textContent = "편집 모드";
-    editModeButton.className = "edit-mode-button";
-    editModeButton.style.marginRight = "5px";
-    editModeButton.style.padding = "5px 10px";
-    editModeButton.style.backgroundColor = "#4CAF50";
-    editModeButton.style.color = "white";
-    editModeButton.style.border = "none";
-    editModeButton.style.borderRadius = "3px";
-    editModeButton.style.cursor = "pointer";
+    editModeButton.type = "button";
+    editModeButton.textContent = "편집 ON";
+    editModeButton.className = "sb-audio-btn edit-mode-button is-active";
 
     editModeButton.addEventListener("click", () => {
       this.toggleEditMode();
     });
 
-    // 편집 모드 상태 변수
-    this.isEditMode = false;
+    this.isEditMode = true;
     this.editModeButton = editModeButton;
 
     // 타임라인 맞춤 버튼 추가
     const timelineFitButton = document.createElement("button");
+    timelineFitButton.type = "button";
     timelineFitButton.textContent = "타임라인 맞춤";
-    timelineFitButton.className = "timeline-fit-button";
-    timelineFitButton.style.marginRight = "5px";
-    timelineFitButton.style.padding = "5px 10px";
-    timelineFitButton.style.backgroundColor = "#2196F3";
-    timelineFitButton.style.color = "white";
-    timelineFitButton.style.border = "none";
-    timelineFitButton.style.borderRadius = "3px";
-    timelineFitButton.style.cursor = "pointer";
+    timelineFitButton.className = "sb-audio-btn timeline-fit-button";
     timelineFitButton.title = "클립을 타임라인 크기에 맞춤 / 원본 크기로 복원 (토글)";
 
     timelineFitButton.addEventListener("click", () => {
@@ -2346,166 +2333,7 @@ export class AudioTimeline extends BaseTimeline {
     clipToolsRow.add(new UIElement(timelineFitButton));
     panel.add(clipToolsRow);
 
-    // 볼륨 컨트롤 스타일 추가
-    const style = document.createElement("style");
-    style.textContent = `
-      .volume-control {
-        display: flex;
-        align-items: center;
-        width: 150px;
-      }
-      
-      .volume-slider {
-        flex: 1;
-        height: 4px;
-        -webkit-appearance: none;
-        background: #ddd;
-        border-radius: 2px;
-        outline: none;
-      }
-      
-      .volume-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        width: 12px;
-        height: 12px;
-        background: #4CAF50;
-        border-radius: 50%;
-        cursor: pointer;
-      }
-      
-      .volume-value {
-        text-align: right;
-        color: #fff;
-        width: 30px;
-      }
-
-      .add-music-btn {
-        background: #4CAF50;
-        color: white;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 12px;
-      }
-
-      .add-music-btn:hover {
-        background: #45a049;
-      }
-
-      .add-music-btn:disabled {
-        background: #666;
-        cursor: not-allowed;
-        opacity: 0.6;
-      }
-
-      .add-music-btn:disabled:hover {
-        background: #666;
-      }
-
-      .time-input {
-        background: #333;
-        border: 1px solid #555;
-        color: #fff;
-        padding: 4px 8px;
-        border-radius: 4px;
-        width: 120px;
-        font-size: 12px;
-        font-family: 'Courier New', monospace;
-        text-align: center;
-      }
-
-      .time-input:focus {
-        border-color: #4CAF50;
-        outline: none;
-      }
-
-      .time-input[readonly] {
-        background-color: #2a2a2a !important;
-        color: #888 !important;
-        cursor: not-allowed;
-        border-color: #555;
-      }
-
-      .time-input[readonly]:focus {
-        border-color: #555;
-      }
-
-      .audio-edit-section {
-        border-top: 1px solid #444;
-        padding-top: 10px;
-        margin-top: 10px;
-      }
-
-      .audio-sprite.selected {
-        border: 2px solid #ffd700;
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-      }
-
-      .audio-sprite {
-        cursor: grab;
-        transition: all 0.2s ease;
-      }
-
-      .audio-sprite:hover {
-        background: rgba(76, 175, 80, 0.4);
-      }
-
-      /* 리사이즈 핸들 스타일 */
-      .resize-handle {
-        position: absolute;
-        top: 0;
-        height: 100%;
-        width: 8px;
-        cursor: ew-resize;
-        z-index: 10;
-        opacity: 0.8;
-        transition: opacity 0.2s ease;
-      }
-
-      .resize-handle:hover {
-        opacity: 1;
-      }
-
-      .resize-handle-left {
-        left: 0;
-        background-color: #ff6b6b;
-        border-radius: 4px 0 0 4px;
-      }
-
-      .resize-handle-right {
-        right: 0;
-        background-color: #4ecdc4;
-        border-radius: 0 4px 4px 0;
-      }
-
-      /* 편집 모드 버튼 스타일 */
-      .edit-mode-button {
-        transition: all 0.3s ease;
-      }
-
-      .edit-mode-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      }
-
-      /* 타임라인 맞춤 버튼 스타일 */
-      .timeline-fit-button {
-        transition: all 0.3s ease;
-      }
-
-      .timeline-fit-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      }
-
-      .timeline-fit-button:disabled {
-        background-color: #ccc !important;
-        cursor: not-allowed !important;
-        opacity: 0.6;
-      }
-    `;
-    document.head.appendChild(style);
+    setTimeout(() => this.applyEditModeUI(), 0);
 
     return panel;
   }
@@ -3293,7 +3121,7 @@ export class AudioTimeline extends BaseTimeline {
         // 파장을 그릴 캔버스 추가
         const waveformCanvas = document.createElement("canvas");
         waveformCanvas.className = "waveform-canvas";
-        waveformCanvas.height = 30;
+        waveformCanvas.height = 26;
 
         // sprite-content에 파장 캔버스 추가
         const spriteContent = sprite.querySelector('.sprite-content');
@@ -3517,19 +3345,25 @@ export class AudioTimeline extends BaseTimeline {
     // 여기서 속성 패널을 업데이트하는 로직을 추가할 수 있습니다
   }
 
+  // 편집 모드 UI 동기화
+  applyEditModeUI() {
+    if (!this.editModeButton) return;
+
+    if (this.isEditMode) {
+      this.editModeButton.textContent = "편집 ON";
+      this.editModeButton.classList.add("is-active");
+      this.enableClipEditMode();
+    } else {
+      this.editModeButton.textContent = "편집";
+      this.editModeButton.classList.remove("is-active");
+      this.disableClipEditMode();
+    }
+  }
+
   // 편집 모드 토글 메서드
   toggleEditMode() {
     this.isEditMode = !this.isEditMode;
-    
-    if (this.isEditMode) {
-      this.editModeButton.textContent = "편집 모드 (ON)";
-      this.editModeButton.style.backgroundColor = "#f44336";
-      this.enableClipEditMode();
-    } else {
-      this.editModeButton.textContent = "편집 모드";
-      this.editModeButton.style.backgroundColor = "#4CAF50";
-      this.disableClipEditMode();
-    }
+    this.applyEditModeUI();
   }
 
   // 클립 편집 모드 활성화
@@ -3560,29 +3394,11 @@ export class AudioTimeline extends BaseTimeline {
     // 왼쪽 핸들 (시작 지점 조정)
     const leftHandle = document.createElement('div');
     leftHandle.className = 'resize-handle resize-handle-left';
-    leftHandle.style.position = 'absolute';
-    leftHandle.style.left = '0';
-    leftHandle.style.top = '0';
-    leftHandle.style.width = '8px';
-    leftHandle.style.height = '100%';
-    leftHandle.style.backgroundColor = '#ff6b6b';
-    leftHandle.style.cursor = 'ew-resize';
-    leftHandle.style.zIndex = '10';
-    leftHandle.style.opacity = '0.8';
     leftHandle.title = '시작 지점 조정';
 
     // 오른쪽 핸들 (끝 지점 조정)
     const rightHandle = document.createElement('div');
     rightHandle.className = 'resize-handle resize-handle-right';
-    rightHandle.style.position = 'absolute';
-    rightHandle.style.right = '0';
-    rightHandle.style.top = '0';
-    rightHandle.style.width = '8px';
-    rightHandle.style.height = '100%';
-    rightHandle.style.backgroundColor = '#4ecdc4';
-    rightHandle.style.cursor = 'ew-resize';
-    rightHandle.style.zIndex = '10';
-    rightHandle.style.opacity = '0.8';
     rightHandle.title = '끝 지점 조정';
 
     // 핸들 이벤트 바인딩
