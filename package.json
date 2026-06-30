@@ -1,0 +1,12 @@
+{
+  "name": "stagebuilder-v3",
+  "version": "3.0.0",
+  "private": true,
+  "description": "StageBuilder 중간 작업용 (v2에서 필수 파일만 복사)",
+  "scripts": {
+    "serve": "npx serve .",
+    "server:install": "cd server && npm install",
+    "server": "cd server && npm start",
+    "server:dev": "cd server && npm run dev"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "audio-upload-server",
+  "version": "1.0.0",
+  "description": "음악 파일 업로드 서버",
+  "main": "audio-upload-server.js",
+  "scripts": {
+    "start": "node audio-upload-server.js",
+    "dev": "nodemon audio-upload-server.js",
+    "test": "curl http://localhost:3001/api/health",
+    "check": "node -e \"const http = require('http'); const req = http.request({hostname:'localhost',port:3001,path:'/api/health'}, (res) => { console.log('서버 상태:', res.statusCode); process.exit(res.statusCode === 200 ? 0 : 1); }); req.on('error', () => { console.log('서버가 실행되지 않음'); process.exit(1); }); req.end();\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["audio", "upload", "music", "server"],
+  "author": "StageBuilder",
+  "license": "MIT"
+}
+

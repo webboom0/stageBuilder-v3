@@ -1,0 +1,1558 @@
+.motion-timeline {
+  background: #232323;
+  color: #ccc;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 300px;
+}
+
+.timeline-header {
+  height: 25px;
+  background: #2b2b2b;
+  border-bottom: 1px solid #1a1a1a;
+  position: relative;
+}
+
+.timeline-main-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.timeline-sidebar {
+  width: 200px;
+  background: #2b2b2b;
+  border-right: 1px solid #1a1a1a;
+}
+
+.timeline-area {
+  flex: 1;
+  position: relative;
+  overflow-x: auto;
+  background: #1a1a1a;
+}
+
+.track-controls {
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.keyframe-area {
+  position: relative;
+  height: 100%;
+}
+
+.keyframe-marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #ffd700;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  cursor: pointer;
+  top: calc(50% - 5px);
+}
+
+.keyframe-marker:hover {
+  background: #fff;
+  transform: rotate(45deg) scale(1.2);
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #f00;
+  pointer-events: none;
+}
+
+.playback-controls {
+  height: 40px;
+  background: #2b2b2b;
+  border-top: 1px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.playback-controls button {
+  background: #3a3a3a;
+  border: none;
+  color: #ccc;
+  margin: 0 5px;
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.playback-controls button:hover {
+  background: #4a4a4a;
+}
+
+.time-display {
+  margin-left: auto;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+/* editor/css/timeline.css */
+.timeline-container {
+  display: flex;
+  flex-direction: column;
+  background: #232323;
+  color: #ccc;
+  /* height: 200px; */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.timeline-header {
+  height: 25px;
+  background: #2b2b2b;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.timeline-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.timeline-sidebar {
+  width: 200px;
+  background: #2b2b2b;
+  border-right: 1px solid #1a1a1a;
+}
+
+.timeline-tracks {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.timeline-track {}
+
+.track-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 15px 5px 5px !important;
+  background: #3a3a3a;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.track-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.toggle-properties {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0 5px;
+}
+
+.properties-container {
+  padding-left: 20px;
+  background: #2a2a2a;
+}
+
+.property-track {
+  display: flex;
+  background: #333;
+  cursor: pointer;
+}
+
+.property-header {
+  width: 100px;
+  padding: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #fff;
+  font-size: 12px;
+  background: #444;
+}
+
+.property-keyframes {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  background: #2a2a2a;
+  cursor: pointer;
+}
+
+.property-menu {
+  background: #444;
+  border: 1px solid #1a1a1a;
+  border-radius: 3px;
+  padding: 5px 0;
+}
+
+.menu-item {
+  padding: 3px 10px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: #555;
+}
+
+.track-keyframes {
+  flex: 1;
+  position: relative;
+  background: #1a1a1a;
+}
+
+/* editor/css/timeline.css */
+.timeline-container {
+  display: flex;
+  flex-direction: column;
+  background: #232323;
+  color: #ccc;
+  /* height: 200px; */
+}
+
+.timeline-header {
+  height: 25px;
+  background: #2b2b2b;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.timeline-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.timeline-sidebar {
+  width: 200px;
+  background: #2b2b2b;
+  border-right: 1px solid #1a1a1a;
+}
+
+.timeline-tracks {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.timeline-track {}
+
+.track-header {
+  width: 200px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #2b2b2b;
+}
+
+.track-keyframes {
+  flex: 1;
+  position: relative;
+  background: #1a1a1a;
+}
+
+.track-controls-wrapper {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: #2b2b2b;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.fbx-select,
+.track-type-select {
+  padding: 5px;
+  background: #3a3a3a;
+  border: 1px solid #4a4a4a;
+  color: #fff;
+  border-radius: 3px;
+}
+
+.add-track-btn {
+  background: #4caf50;
+  color: white;
+  border: none;
+  padding: 5px 15px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.add-track-btn:hover {
+  background: #45a049;
+}
+
+.timeline-container {
+  background: #2b2b2b;
+  border: 1px solid #1a1a1a;
+  /* height: 200px; */
+  /* overflow-y: auto; */
+}
+
+
+.timeline-track {
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.motion-tracks,
+.audio-tracks,
+.property-track {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  box-sizing: border-box;
+}
+
+.motion-tracks {
+  /* padding-bottom: 15px; */
+}
+
+.track-header {
+  background: #3a3a3a;
+  padding: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-right: 1px solid #1a1a1a;
+  box-sizing: border-box;
+}
+
+.track-keyframes {
+  flex: 1;
+  position: relative;
+  background: #2b2b2b;
+}
+
+.frame-marker {
+  /* position: absolute; */
+  width: 10px;
+  height: 100%;
+  background: #4a4a4a;
+}
+
+.track-controls button {
+  background: #000;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  padding: 2px;
+  width: 20px;
+  height: 20px;
+}
+
+.track-name {
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.property-selector {
+  margin-left: 10px;
+}
+
+.add-property-btn {
+  background: #4caf50;
+  color: white;
+  border: none;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.property-menu {
+  position: absolute;
+  background: #3a3a3a;
+  border: 1px solid #1a1a1a;
+  border-radius: 3px;
+  z-index: 100;
+}
+
+.property-item {
+  padding: 5px 10px;
+  cursor: pointer;
+  color: #fff;
+}
+
+.property-item:hover {
+  background: #4a4a4a;
+}
+
+.property-track {
+  /* height: 24px; */
+  background: #333;
+}
+
+.property-header {
+  width: 100px;
+  min-width: 100px;
+  padding: 4px 8px;
+  background: #444;
+  color: #fff;
+  font-size: 12px;
+}
+
+.property-keyframes-scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #2a2a2a;
+  cursor: pointer;
+}
+
+.property-keyframes {
+  position: relative;
+  height: 24px;
+  /* margin-left: 10px; */
+  /* width: 1800px; */
+  /* 180 frames * 10px */
+}
+
+.frame-markers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+
+.frame-marker {
+  width: 10px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.frame-marker:nth-child(30n) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.keyframe-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.keyframe-layer .keyframe {
+  pointer-events: auto;
+}
+
+/* 스크롤바 스타일링 */
+.property-keyframes-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.property-keyframes-scroll::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.property-keyframes-scroll::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.property-keyframes-scroll::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+.property-edit-panel {
+  /* position: absolute;
+right: 10px;
+top: 10px; */
+  background: #2b2b2b;
+  /* border: 1px solid #1a1a1a; */
+  padding: 10px;
+  border-radius: 0px;
+  /* min-width: 200px; */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.keyframe.selected {
+  background: #ff9800;
+  box-shadow: 0 0 5px rgba(230, 115, 8, 0.479);
+  border-color: #ff9800;
+}
+
+.property-edit-panel input {
+  width: 100px;
+  margin: 0 5px;
+  background: #000 !important;
+  border: 1px solid #1a1a1a;
+  color: #fff;
+  padding: 2px 5px;
+}
+
+.property-edit-panel .ui-text {
+  min-width: 70px;
+  color: #fff;
+}
+
+.property-edit-panel .ui-row {
+  margin: 5px 0;
+  display: flex;
+  align-items: center;
+}
+
+.animation-sprite {
+  position: absolute;
+  height: 28px;
+  background: #4caf50;
+  /* border-radius: 3px; */
+  cursor: move;
+  user-select: none;
+  top: 3px;
+  overflow: visible;
+  /* top: 50%;
+transform: translateY(-50%); */
+  display: flex;
+  box-sizing: border-box;
+  /* % 단위 우선 적용 */
+}
+
+.animation-sprite.selected {
+  /* 클립 선택은 트랙 주황 테두리로 표시 — 클립 자체 링 제거 */
+  box-shadow: none;
+}
+
+.sprite-handle {
+  position: absolute;
+  width: 3px;
+  height: 100%;
+  background: rgb(41 255 83);
+  cursor: ew-resize;
+}
+
+.sprite-handle.left {
+  left: 0;
+}
+
+.sprite-handle.right {
+  right: 0;
+  top: 0;
+}
+
+.sprite-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  padding: 0 8px;
+  line-height: 30px;
+  color: white;
+  font-size: 12px;
+}
+
+/* 클립 박스 안에서만 표시; 넘치면 말줄임표 (키프레임 레이어는 absolute라 별도 영역) */
+.animation-sprite .sprite-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.property-tracks {}
+
+.property-track {
+  /* height: 24px; */
+}
+
+.property-header {
+  background: #444;
+  color: white;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.keyframe-area {
+  flex: 1;
+  background: #2a2a2a;
+  position: relative;
+}
+
+/* .keyframe {
+position: absolute;
+width: 6px;
+height: 6px;
+background: transparent;
+border: solid 1px #dcdcdc;
+top: 50%;
+transform: translate(-50%, -50%) rotate(45deg);
+cursor: pointer;
+} */
+.keyframe {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  /* background-color: #f90; */
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: grab;
+  transform: translate(-50%, 100%);
+  bottom: 0;
+  z-index: 10;
+  border-radius: 50%;
+  /* transition: all 0.1s ease; */
+}
+
+.keyframe:hover {
+  background-color: #ffb366;
+  transform: translate(-50%, 100%) scale(1.2);
+  box-shadow: 0 0 8px rgba(255, 153, 0, 0.6);
+}
+
+.keyframe:active {
+  cursor: grabbing;
+}
+
+.keyframe.selected {
+  background: #ff9800;
+  box-shadow: 0 0 5px rgba(230, 115, 8, 0.479);
+  border-color: #ff9800;
+}
+
+.track-content {
+  position: relative;
+  padding-bottom: 0;
+  height: 28px;
+  box-sizing: border-box;
+  display: block;
+}
+
+.light-timeline .track-content {
+  height: 28px;
+  padding-bottom: 0;
+}
+
+/* --- edit_5: 타임라인 상단 눈금 스타일 --- */
+.time-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.time-tick {
+  position: absolute;
+  top: 0;
+  width: 0;
+}
+
+.time-tick.major {
+  height: 100%;
+  border-left: 1px solid #888;
+}
+
+.time-tick.minor {
+  height: 50%;
+  border-left: 1px solid #666;
+}
+
+.time-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+/* --- edit_a: 타임라인 상단 눈금 & 플레이헤드 스타일 --- */
+.time-ruler-container {
+  position: relative;
+  height: 20px;
+  background: #333;
+  user-select: none;
+  border-top: solid 1px #000;
+}
+
+.time-ruler-container .time-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: #555;
+}
+
+.time-ruler-container .time-tick.major {
+  height: 50%;
+  background: #888;
+}
+
+.time-ruler-container .time-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+/* --- end edit_a --- */
+
+/* --- edit_A: 전체 레이아웃 --- */
+.main-timeline-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 상단 헤더(컨트롤+눈금) 고정 */
+.timeline-header {
+  position: sticky;
+  top: 0;
+  background: #232323;
+  z-index: 10;
+}
+
+/* 좌측 컨트롤 버튼 영역 */
+.controls-container {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid #1a1a1a;
+  background: #2b2b2b;
+}
+
+/* 눈금 영역 */
+.time-ruler-container {
+  flex: 1;
+  position: relative;
+  height: 20px;
+  /* overflow: hidden; */
+}
+
+/* 메인 바디: 트랙 사이드바 + 타임라인 뷰 */
+.timeline-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 좌측 트랙 이름 리스트 */
+.track-sidebar {
+  flex: 0 0 200px;
+  background: #2b2b2b;
+  overflow-y: auto;
+  border-right: 1px solid #1a1a1a;
+}
+
+.track-label {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid #1a1a1a;
+  white-space: nowrap;
+}
+
+/* 우측 타임라인 뷰포트(스크롤 가능) */
+.timeline-viewport {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+}
+
+.track-wrapper {
+  height: 30px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+/* 눈금 표시 */
+.time-ruler-container .time-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: #888;
+}
+
+.time-ruler-container .time-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+/* 플레이헤드 */
+.time-ruler-container .playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f00;
+  cursor: ew-resize;
+  pointer-events: auto;
+  z-index: 1000;
+  /* transform: translateX(-1px); */
+}
+
+.time-ruler-container .playhead .time-box {
+  position: absolute;
+  top: 0px;
+  left: 0;
+  height: 15px;
+  background: #f00;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #fff;
+  padding: 4px;
+}
+
+/* 타임라인 전체에서 보이는 플레이헤드 — sb-tl은 playhead-spine 사용 */
+.timeline-viewport .playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f00;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.sb-tl .timeline-viewport .playhead {
+  display: none !important;
+  transform: none !important;
+}
+
+/* .time-ruler-container .playhead::before {
+content: "";
+position: absolute;
+top: -10px;
+left: -4px;
+width: 10px;
+height: 10px;
+background: #f00;
+border-radius: 5px 5px 2px 2px;
+} */
+
+/* 타임라인 뷰포트 */
+.timeline-viewport {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+}
+
+/* 타임라인 그룹 */
+.timeline-group {
+  display: none;
+  flex: 1;
+  position: relative;
+}
+
+.timeline-group.active {
+  display: flex;
+  min-height: 100%;
+}
+
+/* 그룹별 보여주기/숨기기 */
+.timeline-group {
+  display: none;
+  /* 기본 숨김 */
+  flex: 1;
+}
+
+.timeline-group.active {
+  display: flex;
+  /* active인 그룹만 flex 레이아웃 */
+  min-height: 100%;
+}
+
+/* body 전체 레이아웃 */
+.main-timeline-container:not(.sb-tl) .timeline-body {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  /* min-height: 500px; */
+}
+
+/* 뷰포트 */
+.timeline-viewport {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.track-wrapper {
+  height: 30px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+/* … 기존 헤더/눈금/플레이헤드 스타일 그대로 … */
+
+/* 1) 전체 레이아웃 */
+.main-timeline-container .timeline-view {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  /* 왼쪽 레이블 200px, 오른쪽 트랙 전체 */
+  overflow: hidden;
+  position: relative;
+  height: calc(100% -
+      /* 헤더 높이 */
+      30px);
+}
+
+/* 2) 레이블 컬럼 */
+.labels-column {
+  background: #2b2b2b;
+  overflow-y: auto;
+  border-right: 1px solid #1a1a1a;
+}
+
+.labels-column .group-label,
+.labels-column .track-header,
+.labels-column .property-header {
+  padding: 4px 8px;
+  border-bottom: 1px solid #1a1a1a;
+  color: #ccc;
+  background: #3a3a3a;
+}
+
+/* group-label 은 좀 더 두꺼운 배경 */
+.labels-column .group-label {
+  font-weight: bold;
+  background: #444;
+}
+
+/* property-header 는 indent */
+.labels-column .property-header {
+  padding-left: 20px;
+  background: #2a2a2a;
+}
+
+/* 3) 트랙 컬럼 */
+.tracks-column {
+  overflow: auto;
+  position: relative;
+}
+
+.tracks-column .track-keyframes,
+.tracks-column .property-keyframes-scroll {
+  position: relative;
+  height: 30px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+/* 속성 키프레임 높이 줄이기 (optional) */
+.tracks-column .property-keyframes-scroll {
+  height: 24px;
+}
+
+/* 4) 헤더 상단 고정 */
+.timeline-top-container {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.main-timeline-container .timeline-header {
+  display: grid;
+  grid-template-columns: var(--tl-label-w, 200px) 1fr;
+  box-sizing: border-box;
+}
+
+/* 구 레이아웃 잔재 — sb-tl 뷰포트 playhead 오프셋 제거 */
+.sb-tl .timeline-viewport .playhead {
+  display: none !important;
+}
+
+.timeline-top-container .tab-buttons {
+  background-color: #000;
+}
+
+.track-toggle {
+  background: none;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.property-header {
+  padding-left: 20px;
+  /* indent */
+}
+
+.tab-button.active {
+  background-color: #3a3a3a;
+}
+
+.track-header .track-controls {
+  height: auto;
+  padding: 0;
+}
+
+.add-keyframe-btn {
+  padding: 3px 5px !important;
+}
+
+#keyframe-property-panel {
+  display: none;
+}
+
+.property-panel {
+  color: #fff;
+}
+
+.property-panel input.Number {
+  background-color: #000 !important;
+  margin-right: 3px;
+}
+
+.track-controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.prev-keyframe-btn,
+.next-keyframe-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 12px;
+  width: 20px;
+}
+
+.prev-keyframe-btn:hover,
+.next-keyframe-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.next-keyframe-btn {
+  margin-right: 4px;
+}
+
+/* LightTimeline.css */
+.light-timeline-container {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, auto);
+  gap: 8px;
+}
+
+.light-track {
+  border: 1px solid #ccc;
+  background: #222;
+  min-height: 60px;
+  /* 기타 스타일 */
+}
+
+/* 키프레임 삭제 준비 상태 스타일 */
+.keyframe.dragging {
+  z-index: 1000;
+  cursor: grabbing;
+}
+
+.keyframe.dragging[style*="background: #ff4444"] {
+  background: #ff4444 !important;
+  opacity: 0.5;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px #ff4444;
+  border: 2px solid #ff0000;
+}
+
+/* data-* 속성을 활용한 애니메이션 상태 스타일 */
+
+/* 타임라인 컨테이너 애니메이션 상태 
+.timeline-container[data-is-playing="true"] {
+border-left: 3px solid #00ff00;
+}
+
+.timeline-container[data-is-playing="false"] {
+border-left: 3px solid #666;
+}
+*/
+/* 현재 재생 중인 클립 스타일 */
+.animation-sprite[data-is-active="true"] {
+  background: linear-gradient(90deg, #4CAF50, #45a049);
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+  border: 2px solid #4CAF50;
+
+}
+
+.animation-sprite[data-is-active="false"] {
+  background: #6cf;
+  border: 1px solid #39c;
+}
+
+/* 현재 키프레임 스타일 */
+.keyframe[data-is-current="true"] {
+  background: #ff0000 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+  transform: scale(1.3) translate(-50%, 100%);
+  z-index: 10;
+}
+
+.keyframe[data-is-current="true"]::after {
+  content: "현재";
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: #fff;
+  background: #ff0000;
+  padding: 2px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  display: none;
+}
+
+/* 키프레임 시간 차이에 따른 스타일 */
+.keyframe[data-time-diff]:not([data-is-current="true"]) {
+  opacity: calc(1 - (attr(data-time-diff number) * 2));
+}
+
+/* 애니메이션 시간 표시 */
+.timeline-container[data-animation-time]::before {
+  content: "시간: " attr(data-animation-time) "s";
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  font-size: 12px;
+  color: #ccc;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* 프레임 번호 표시 */
+.timeline-container[data-animation-frame]::after {
+  content: "프레임: " attr(data-animation-frame);
+  position: absolute;
+  top: 5px;
+  right: 80px;
+  font-size: 12px;
+  color: #ccc;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* 재생 상태 표시 */
+.timeline-container[data-is-playing="true"] .timeline-header {
+  background: linear-gradient(90deg, #2b2b2b, #4CAF50, #2b2b2b);
+  background-size: 200% 100%;
+  animation: playing-indicator 2s ease-in-out infinite;
+}
+
+@keyframes playing-indicator {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 클립 진행률 바 */
+.animation-sprite[data-is-active="true"] .sprite-content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  /* 기본값으로 설정, JavaScript에서 동적으로 변경 */
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  transition: width 0.1s ease;
+}
+
+/* 키프레임 호버 시 시간 정보 표시 */
+.keyframe:hover::after {
+  content: "시간: " attr(data-time) "s";
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 0px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  z-index: 100;
+}
+
+/* 현재 키프레임 호버 시 추가 정보 */
+.keyframe[data-is-current="true"]:hover::after {
+  content: "현재 시간: " attr(data-current-time) "s | 키프레임: " attr(data-time) "s";
+  display: none;
+}
+
+/* 클립 호버 시 시간 정보 표시 */
+.animation-sprite:hover::after {
+  content: "시작: " attr(data-clip-start-time) "s | 끝: " attr(data-clip-end-time) "s | 길이: " attr(data-duration) "s";
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 0px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  z-index: 100;
+}
+
+/* 애니메이션 속도 표시 */
+.timeline-container[data-frame-rate]::before {
+  content: "FPS: " attr(data-frame-rate);
+  position: absolute;
+  top: 5px;
+  left: 10px;
+  font-size: 12px;
+  color: #ccc;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: none;
+}
+
+/* 최대 시간 표시 */
+.timeline-container[data-max-time]::after {
+  content: "최대: " attr(data-max-time) "s";
+  position: absolute;
+  top: 25px;
+  right: 10px;
+  font-size: 10px;
+  color: #999;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* 드래그 중인 키프레임 스타일 */
+.keyframe.dragging[data-is-current="true"] {
+  background: #ff6600 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 15px rgba(255, 102, 0, 0.9);
+}
+
+/* 삭제 예정 키프레임 스타일 */
+.keyframe.delete-preview[data-is-current="true"] {
+  background: #ff0000 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+}
+
+/* 애니메이션 일시정지 상태 */
+.timeline-container[data-is-playing="false"] .timeline-header {
+  background: #2b2b2b;
+  border-left: 3px solid #ff9800;
+}
+
+/* 클립 선택 상태와 활성 상태 조합 */
+.animation-sprite.selected[data-is-active="true"] {
+  background: linear-gradient(90deg, #4CAF50, #45a049);
+  border: 2px solid #4CAF50;
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.7);
+}
+
+.animation-sprite.selected[data-is-active="false"] {
+  background: #6cf;
+  border: 2px solid #39c;
+  box-shadow: 0 0 10px rgba(102, 204, 255, 0.5);
+}
+
+/* 키프레임 선택 상태와 현재 상태 조합 */
+.keyframe.selected[data-is-current="true"] {
+  background: #ff6600 !important;
+  border: 3px solid #fff !important;
+  box-shadow: 0 0 20px rgba(255, 102, 0, 1);
+  transform: scale(1.5) translate (-50% 100%);
+}
+
+.keyframe.selected:not([data-is-current="true"]) {
+  background: #f90 !important;
+  /* border: 2px solid #fff !important; */
+  box-shadow: 0 0 10px rgba(255, 153, 0, 0.8);
+  transform: scale(1.2) translate(-50%, 100%);
+  border-radius: 0;
+}
+
+/* 애니메이션 루프 표시 */
+.timeline-container[data-current-time="0"] .timeline-header {
+  border-left: 3px solid #9c27b0;
+}
+
+/* 성능 최적화를 위한 will-change 속성 */
+.animation-sprite[data-is-active="true"],
+.keyframe[data-is-current="true"] {
+  will-change: transform, box-shadow;
+}
+
+/* 반응형 디자인을 위한 미디어 쿼리 */
+@media (max-width: 768px) {
+
+  .timeline-container[data-animation-time]::before,
+  .timeline-container[data-animation-frame]::after,
+  .timeline-container[data-frame-rate]::before {
+    font-size: 10px;
+    padding: 1px 4px;
+  }
+
+  .keyframe[data-is-current="true"]::after {
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+}
+
+/* 다크 테마 대응 */
+@media (prefers-color-scheme: dark) {
+
+  .keyframe[data-is-current="true"]::after,
+  .keyframe:hover::after,
+  .animation-sprite:hover::after {
+    background: rgba(255, 255, 255, 0.9);
+    color: #000;
+  }
+}
+
+/* 고대비 모드 대응 */
+@media (prefers-contrast: high) {
+  .animation-sprite[data-is-active="true"] {
+    border: 3px solid #fff;
+  }
+
+  .keyframe[data-is-current="true"] {
+    border: 3px solid #fff !important;
+  }
+}
+
+/* 애니메이션 상태 전환 효과 */
+.animation-sprite,
+.keyframe {
+  /* transition: all 0.2s ease-in-out; */
+}
+
+/* 애니메이션 재생 중 부드러운 전환 */
+.timeline-container[data-is-playing="true"] .animation-sprite,
+.timeline-container[data-is-playing="true"] .keyframe {
+  transition: all 0.1s ease-in-out;
+}
+
+/* 키프레임 삭제 관련 스타일 */
+.keyframe.delete-preview {
+  background: #ff4444 !important;
+  opacity: 0.5;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+
+.keyframe-context-menu {
+  position: fixed;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 0;
+  z-index: 10000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  min-width: 120px;
+}
+
+.keyframe-context-menu div {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.keyframe-context-menu div:hover {
+  background-color: #444;
+}
+
+/* 키프레임 선택 상태 강화 */
+.keyframe.selected {
+  border: 2px solid #00ff00;
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+}
+
+/* 키프레임 드래그 중 상태 */
+.keyframe.dragging {
+  z-index: 1000;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* 타임라인 설정 버튼 스타일 */
+.timeline-settings-button {
+  background: #3a3a3a;
+  border: none;
+  color: #ccc;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.timeline-settings-button:hover {
+  background: #4a4a4a;
+}
+
+.timeline-settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  z-index: 1000;
+  min-width: 300px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.timeline-settings-modal h3 {
+  margin: 0 0 15px 0;
+  color: #fff;
+}
+
+.timeline-settings-modal label {
+  display: block;
+  margin-bottom: 5px;
+  color: #ccc;
+}
+
+.timeline-settings-modal input {
+  width: 100%;
+  padding: 8px;
+  background: #333;
+  border: 1px solid #555;
+  color: #fff;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.timeline-settings-modal button {
+  padding: 8px 16px;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.timeline-settings-modal button:first-of-type {
+  background: #555;
+}
+
+.timeline-settings-modal button:last-of-type {
+  background: #007acc;
+}
+
+.volume-row {
+  display: flex;
+  align-items: center;
+}
+
+.volume-value {
+  font-size: 12px;
+  opacity: .5;
+}
+
+.light-timeline .keyframe.selected {
+  background-color: #ffd700 !important;
+}
+
+/* 통합된 키프레임 스타일 */
+.keyframe {
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 
+.keyframe:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  z-index: 15;
+}
+
+ */
+
+/* 키프레임 툴팁 스타일 */
+.keyframe::before {
+  content: attr(data-properties-display);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 20;
+}
+
+.keyframe:hover::before {
+  opacity: 1;
+}
+
+.timeline-btn {
+  width: 100%;
+  padding: 8px 12px;
+  background: #2a2a2a;
+  border: none;
+  color: rgb(255, 255, 255);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: solid 1px rgba(255, 255, 255, .3);
+  border-radius: 3px;
+  box-shadow: 0px 0px 5px rgba(0, 0, 0, .3);
+}
+
+.timeline-btn:hover {
+  background: #444;
+}

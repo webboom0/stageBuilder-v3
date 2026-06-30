@@ -1,0 +1,17 @@
+{
+  "port": 5502,
+  "host": "127.0.0.1",
+  "root": "./",
+  "open": false,
+  "file": "editor/index.html",
+  "wait": 1000,
+  "mount": [],
+  "logLevel": 2,
+  "middleware": [],
+  "ignoreFiles": [
+    "files/**/*",
+    "server/**/*",
+    "node_modules/**/*",
+    "*.log"
+  ]
+}

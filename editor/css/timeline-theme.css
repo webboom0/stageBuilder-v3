@@ -1,0 +1,212 @@
+/**
+ * StageBuilder v3 — 타임라인 UI를 Three.js Editor 톤에 맞춤
+ */
+
+:root {
+  --sb-bg-deep: #1a1a1a;
+  --sb-bg-panel: #2b2b2b;
+  --sb-bg-raised: #3a3a3a;
+  --sb-border: #1a1a1a;
+  --sb-border-subtle: #444;
+  --sb-text: #ccc;
+  --sb-text-dim: #888;
+  --sb-accent: #2a7bc4;
+  --sb-accent-soft: rgba(42, 123, 196, 0.22);
+  --sb-playhead: #e74c3c;
+  --sb-keyframe: #ffd700;
+  --sb-font: Helvetica, Arial, sans-serif;
+}
+
+/* 메인 타임라인 컨테이너 */
+.main-timeline-container {
+  font-family: var(--sb-font);
+  font-size: 12px;
+  color: var(--sb-text);
+  background: var(--sb-bg-deep);
+  border-top: 1px solid var(--sb-border-subtle);
+}
+
+.main-timeline-container .timeline-header,
+.main-timeline-container .controls-container,
+.timeline-top-container .tab-buttons {
+  background: var(--sb-bg-panel);
+}
+
+/* 탭 (Motion / Light / Audio) */
+.timeline-top-container .tab-buttons {
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px 0;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.tab-button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 4px 4px 0 0;
+  background: var(--sb-bg-raised);
+  color: var(--sb-text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-button:hover {
+  color: var(--sb-text);
+  background: #454545;
+}
+
+.tab-button.active {
+  background: var(--sb-accent);
+  color: #fff;
+}
+
+/* 재생 컨트롤 */
+.main-timeline-container .controls-container button,
+.playback-controls button {
+  background: var(--sb-bg-raised);
+  border: 1px solid var(--sb-border-subtle);
+  color: var(--sb-text);
+  border-radius: 3px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.main-timeline-container .controls-container button:hover,
+.playback-controls button:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.main-timeline-container .play-button.active,
+.main-timeline-container .play-button.is-playing {
+  background: var(--sb-accent);
+  border-color: var(--sb-accent);
+  color: #fff;
+}
+
+/* 플레이헤드 */
+.main-timeline-container .playhead,
+.playhead {
+  width: 2px;
+  background: var(--sb-playhead);
+  box-shadow: 0 0 4px rgba(231, 76, 60, 0.6);
+  z-index: 20;
+}
+
+/* 트랙 행 */
+.timeline-track {
+  transition: background 0.12s;
+}
+
+.timeline-track .track-header {
+  background: var(--sb-bg-raised);
+  cursor: pointer;
+  user-select: none;
+}
+
+.timeline-track .track-header:hover {
+  background: #454545;
+}
+
+.timeline-track .track-content,
+.timeline-track .track-keyframes {
+  background: var(--sb-bg-panel);
+}
+
+/* 뷰포트 선택 ↔ 타임라인 연동 */
+.timeline-track--selected > .motion-tracks > .track-header,
+.timeline-track--selected > .audio-tracks > .track-header,
+.timeline-track--selected > .track-header,
+.timeline-track.timeline-track--selected .track-header {
+  background: var(--sb-accent-soft);
+  box-shadow: inset 3px 0 0 var(--sb-accent);
+}
+
+.timeline-track--selected .track-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+.timeline-track.timeline-track--selected {
+  outline: 2px solid #ff9800;
+  outline-offset: -1px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25);
+}
+
+.timeline-track.timeline-track--selected .track-header,
+.timeline-track.timeline-track--selected .motion-tracks > .track-header,
+.timeline-track.timeline-track--selected .motion-tracks.target-tracks > .track-header {
+  background: rgba(255, 152, 0, 0.14);
+  box-shadow: inset 3px 0 0 #ff9800;
+}
+
+.timeline-track.timeline-track--selected .motion-tracks.target-tracks > .track-header {
+  box-shadow: inset 3px 0 0 #ff7043;
+}
+
+/* 클립 선택 링 제거 — 트랙 주황 테두리로 대체 */
+.tl-section-motion .animation-sprite.selected,
+.tl-section-light .animation-sprite.selected,
+.tl-section-light .light-sprite.selected,
+.tl-section-light .target-sprite.selected {
+  box-shadow: none;
+  outline: none;
+}
+
+/* 키프레임 */
+.keyframe-marker,
+.keyframe {
+  background: var(--sb-keyframe);
+}
+
+.keyframe-marker:hover,
+.keyframe:hover,
+.keyframe.selected {
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+
+/* 타임라인 래퍼 높이 */
+.timelineWrapper {
+  min-height: 220px;
+  flex-shrink: 0;
+}
+
+.editorTab .wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editorTab .timelineWrapper {
+  flex: 0 0 auto;
+  min-height: 320px;
+  max-height: 52vh;
+  overflow: hidden;
+}
+
+/* 로딩 에러 패널 */
+#loading-modal.loading-error {
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+#loading-modal.loading-error .loading-error-detail {
+  font-size: 13px;
+  color: #ffb4b4;
+  max-width: 80vw;
+  word-break: break-word;
+}
+
+#loading-modal.loading-error button {
+  padding: 8px 16px;
+  background: var(--sb-accent);
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}

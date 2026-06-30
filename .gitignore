@@ -1,0 +1,31 @@
+# StageBuilder v3
+
+# 백업/임시
+*#*
+* copy*
+
+# Node
+node_modules/
+npm-debug.log*
+
+# 환경
+.env
+.env.*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea
+
+# 로그
+*.log
+
+# 업로드된 사용자 파일 (선택적 — 필요 시 주석 해제)
+# files/music/*
+# files/fbx/*
+# files/video/*
+
+# GitHub 100MB 제한 초과/대용량 FBX (로컬에서만 사용)
+files/fbx/2.fbx
+files/fbx/1.fbx
+files/fbx/Orc Idle.fbx

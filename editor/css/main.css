@@ -1,0 +1,1899 @@
+:root {
+  color-scheme: light dark;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  margin: 0;
+  overflow: hidden;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #ccc;
+}
+
+button {
+  position: relative;
+}
+
+input {
+  vertical-align: middle;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+}
+
+textarea {
+  tab-size: 4;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+textarea.success {
+  border-color: #8b8 !important;
+}
+
+textarea.fail {
+  border-color: #f00 !important;
+  background-color: rgba(255, 0, 0, 0.05);
+}
+
+textarea,
+input {
+  outline: none;
+}
+
+button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* *::-webkit-scrollbar-track {
+  -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  background-color: #F5F5F5;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  background-color: #F5F5F5;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, .3);
+  background-color: #555;
+} */
+/* width */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #888;
+  border-radius: 5px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #000;
+  border-radius: 5px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* osx */
+
+.Panel {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+
+  /* No support for these yet */
+  -o-user-select: none;
+  user-select: none;
+}
+
+.TabbedPanel {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+
+  /* No support for these yet */
+  -o-user-select: none;
+  user-select: none;
+  position: relative;
+  display: block;
+  width: 100%;
+  /* min-width: 335px; */
+  overflow: auto;
+}
+
+.TabbedPanel .Tabs {
+  position: relative;
+  z-index: 1;
+  /** Above .Panels **/
+  display: block;
+  width: 100%;
+  white-space: pre;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.TabbedPanel .Tabs::-webkit-scrollbar {
+  height: 5px;
+  background: #eee;
+}
+
+.TabbedPanel .Tabs::-webkit-scrollbar-thumb {
+  background: #08f3;
+}
+
+.TabbedPanel .Tabs:hover::-webkit-scrollbar-thumb {
+  background: #08f;
+  cursor: ew-resize;
+}
+
+.TabbedPanel .Tabs .Tab {
+  padding: 10px 9px;
+  text-transform: uppercase;
+}
+
+.TabbedPanel .Panels {
+  /* position: absolute; */
+  /* top: 40px; */
+  display: block;
+  width: 100%;
+  padding-bottom: 20px;
+  box-sizing: content-box;
+}
+
+/* Listbox */
+.Listbox {
+  color: #444;
+  background-color: #fff;
+  padding: 0;
+  width: 100%;
+  min-height: 180px;
+  font-size: 12px;
+  cursor: default;
+  overflow: auto;
+}
+
+.Listbox .ListboxItem {
+  padding: 6px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.Listbox .ListboxItem.active {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* CodeMirror */
+
+.CodeMirror {
+  position: absolute !important;
+  top: 37px;
+  width: 100% !important;
+  height: calc(100% - 37px) !important;
+}
+
+.CodeMirror .errorLine {
+  background: rgba(255, 0, 0, 0.25);
+}
+
+.CodeMirror .esprima-error {
+  color: #f00;
+  text-align: right;
+  padding: 0 20px;
+}
+
+/* outliner */
+
+#outliner .opener {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin: 0px 4px;
+  vertical-align: top;
+  text-align: center;
+}
+
+#outliner .opener.open:after {
+  content: "−";
+}
+
+#outliner .opener.closed:after {
+  content: "+";
+}
+
+#outliner .option {
+  border: 1px solid transparent;
+}
+
+#outliner .option.drag {
+  border: 1px dashed #999;
+}
+
+#outliner .option.dragTop {
+  border-top: 1px dashed #999;
+}
+
+#outliner .option.dragBottom {
+  border-bottom: 1px dashed #999;
+}
+
+#outliner .type {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  color: #ddd;
+  text-align: center;
+}
+
+#outliner .type:after {
+  content: "●";
+}
+
+/* */
+
+#outliner .Scene {
+  color: #8888dd;
+}
+
+#outliner .Camera {
+  color: #dd8888;
+}
+
+#outliner .Light {
+  color: #dddd88;
+}
+
+/* */
+
+#outliner .Object3D {
+  color: #aaaaee;
+}
+
+#outliner .Mesh {
+  color: #8888ee;
+}
+
+#outliner .Line {
+  color: #88ee88;
+}
+
+#outliner .LineSegments {
+  color: #88ee88;
+}
+
+#outliner .Points {
+  color: #ee8888;
+}
+
+/* */
+
+#outliner .Geometry {
+  color: #aaeeaa;
+}
+
+#outliner .Material {
+  color: #eeaaee;
+}
+
+/* */
+
+#outliner .Script:after {
+  content: "◎";
+}
+
+/*  */
+/* 
+button {
+  color: #555;
+  background-color: #ddd;
+  border: 0px;
+  margin: 0px;
+  padding: 5px 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  cursor: pointer;
+  outline: none;
+} */
+button {
+  color: #262626;
+  background-color: #8c8c8c;
+  border: 0px;
+  margin: 0px;
+  padding: 5px 8px;
+  font-size: 12px;
+  /* text-transform: uppercase; */
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+}
+
+button:hover {
+  background-color: #fff;
+}
+
+button.selected {
+  background-color: #fff;
+}
+
+input,
+textarea {
+  border: 1px solid transparent;
+  color: #aaa;
+  background: #2b2b2b;
+}
+
+input.Number {
+  color: #08f !important;
+  font-size: 12px;
+  border: 0px;
+  padding: 2px;
+}
+
+select {
+  color: #aaa;
+  background-color: #2b2b2b;
+  border: 0px;
+  /* text-transform: uppercase; */
+  cursor: pointer;
+  outline: none;
+}
+
+select:hover {
+  background-color: #fff;
+}
+
+/* Layout */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.wrapper>.topWrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.wrapper>.viewerWrapper {
+  flex: 1;
+  display: flex;
+  overflow: auto;
+  position: relative;
+  z-index: 100;
+  /* max-height: 50vh; */
+}
+
+.wrapper>.viewerWrapper #toolBar {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 2;
+}
+
+.viewerWrapper .side {
+  width: 230px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #1a1a1a;
+  flex-shrink: 1;
+  position: relative;
+  z-index: 2;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wrapper>.musicEditWrapper,
+.wrapper>.timelineWrapper {
+  height: 120px;
+  background-color: #323232;
+  border-top: solid 2px rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 10px 50px rgba(0, 0, 0, 0.5);
+}
+
+.wrapper>.musicEditWrapper {
+  display: none;
+}
+
+.wrapper>.timelineWrapper {
+  flex: 0 0 auto;
+  height: min(52vh, 480px);
+  min-height: 320px;
+  max-height: 52vh;
+  overflow: hidden;
+}
+
+#musicEditWrapper {
+  flex-basis: 80px;
+  background-color: #ccc;
+}
+
+#timelineWrapper {
+  height: 200px;
+  background-color: #000;
+}
+
+.music-controls .Select {
+  height: 30px;
+  width: 250px !important;
+  border-radius: 5px;
+  background-color: #1a1a1a;
+}
+
+.music-controls .progressBarContainer {
+  position: relative;
+  top: -15px;
+}
+
+.music-controls .runningMusicBar {
+  border: solid 1px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.7);
+  position: relative;
+}
+
+.music-controls .runningMusicBar::before {
+  content: "";
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent); */
+  border-radius: 5px;
+}
+
+@keyframes flowText {
+  0% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.music-controls .runningMusicBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.music-controls .filenameBox {
+  overflow: hidden;
+  width: 200px;
+  display: inline-block;
+  margin-right: 20px;
+}
+
+.music-controls .filename {
+  white-space: nowrap;
+  width: 200px;
+  display: inline-block;
+}
+
+.music-controls .filename.flowing {
+  animation: flowText 15s linear infinite;
+}
+
+/* UI */
+
+#resizer {
+  position: absolute;
+  z-index: 2;
+  /* Above #sidebar */
+  top: 32px;
+  right: 350px;
+  width: 5px;
+  bottom: 0px;
+  transform: translatex(2.5px);
+  cursor: col-resize;
+}
+
+#resizer:hover {
+  background-color: #08f8;
+  transition-property: background-color;
+  transition-delay: 0.1s;
+  transition-duration: 0.2s;
+}
+
+#resizer:active {
+  background-color: #08f;
+}
+
+#viewport {
+  /* position: absolute; 
+	top: 32px;
+	left: 0;
+	right: 350px;
+	bottom: 0;
+	*/
+  position: absolute !important;
+  width: calc(100% - 350px);
+  height: calc(100vh - 132px);
+}
+
+#viewport .Text {
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+#script {
+  position: absolute;
+  top: 32px;
+  left: 0;
+  right: 350px;
+  bottom: 0;
+  opacity: 0.9;
+}
+
+#player {
+  position: absolute;
+  top: 32px;
+  left: 0;
+  right: 350px;
+  bottom: 0;
+}
+
+#menubar {
+  /* position: absolute; */
+  position: static;
+  width: 100%;
+  height: 38px;
+  background: #eee;
+  padding: 0;
+  margin: 0;
+  right: 0;
+  top: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  /* border-bottom: solid 1px rgba(255, 255, 255, 0.1); */
+  /* box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2); */
+  /* padding-left: 10px; */
+  box-sizing: border-box;
+}
+
+#menubar .menu {
+  float: left;
+  cursor: pointer;
+  padding: 0 8px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+#menubar .menu.right {
+  float: right;
+  cursor: auto;
+  padding-right: 0;
+  text-align: right;
+}
+
+#menubar .menu .title {
+  display: inline-block;
+  color: #888;
+  margin: 0;
+  padding: 8px;
+  line-height: 16px;
+}
+
+#menubar .menu .key {
+  position: absolute;
+  right: 10px;
+  color: #ccc;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 9px;
+  padding: 2px 4px;
+  right: 10px;
+  pointer-events: none;
+}
+
+#menubar .menu .option.button-style {
+  position: relative;
+}
+
+#menubar .menu .options span,
+#timeline .leftGroupTop span {
+  display: none;
+}
+
+#menubar .menu .option.button-style:hover span,
+#timeline .leftGroupTop .Button:hover span {
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  display: block;
+  background-color: #252525;
+  color: #fff;
+  padding: 5px 8px;
+  border-radius: 5px;
+  z-index: 3;
+  transform: translateY(100%);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+#menubar .menu .options {
+  position: fixed;
+  z-index: 1;
+  display: none;
+  padding: 5px 0;
+  background: #eee;
+  min-width: 150px;
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+
+#menubar .menu:hover .options {
+  display: block;
+  box-shadow: 0 10px 10px -5px #00000033;
+}
+
+#menubar .menu .options hr {
+  border-color: #ddd;
+}
+
+#menubar .menu .options .option {
+  color: #666;
+  background-color: transparent;
+  padding: 5px 10px;
+  margin: 0 !important;
+}
+
+#menubar .menu .options .option:hover {
+  color: #fff;
+  background-color: #08f;
+}
+
+#menubar .menu .options .option:not(.submenu-title):active {
+  color: #666;
+  background: transparent;
+}
+
+#menubar .menu .options .option.toggle::before {
+  content: " ";
+  display: inline-block;
+  width: 16px;
+}
+
+#menubar .menu .options .option.toggle-on::before {
+  content: "✔";
+  font-size: 12px;
+}
+
+#menubar .submenu-title::after {
+  content: "⏵";
+  float: right;
+}
+
+#menubar .menu .options .inactive {
+  color: #bbb;
+  background-color: transparent;
+  padding: 5px 10px;
+  margin: 0 !important;
+  cursor: not-allowed;
+}
+
+.add-menu {
+  padding: 8px;
+}
+
+.horizontal-options {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.button-style {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background-color: #444;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.button-style:hover {
+  background-color: #555;
+}
+
+.button-style i {
+  font-size: 16px;
+}
+
+#sidebar {
+  /* position: absolute;
+	right: 0;
+	top: 32px;
+	bottom: 0; */
+  background: #1a1a1a;
+  overflow: auto;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+#sidebar .Panel,
+#floatingPanels .Panel {
+  color: #aaa;
+  padding: 10px;
+  border-top: 1px solid #ccc;
+  background: #1a1a1a;
+}
+
+#sidebar .Panel.collapsed,
+#floatingPanels .Panel.collapsed {
+  margin-bottom: 0;
+}
+
+#sidebar .Row,
+#floatingPanels .Row {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  margin-bottom: 10px;
+}
+
+#sidebar .Row .Label,
+#floatingPanels .Row .Label {
+  /* width: 80px; */
+  white-space: nowrap;
+}
+
+#tabs {
+  background-color: #ddd;
+  border-top: 1px solid #ccc;
+}
+
+#tabs span {
+  color: #aaa;
+  border-right: 1px solid #ccc;
+  padding: 10px;
+}
+
+#tabs span.selected {
+  color: #888;
+  background-color: #eee;
+}
+
+/* .toolBar {
+  position: relative;
+}
+
+#toolbar {
+  position: absolute;
+  left: 10px;
+  top: 42px;
+  width: 32px;
+  background: #eee;
+  text-align: center;
+  z-index: 2;
+} */
+
+.toolBar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9;
+}
+
+#toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: auto;
+  background: rgba(44, 44, 44, 0.92);
+  backdrop-filter: blur(4px);
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: solid 1px rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  padding: 5px 6px;
+  touch-action: none;
+  user-select: none;
+  pointer-events: auto;
+}
+
+#toolbar button,
+#toolbar input {
+  height: 32px;
+}
+
+#toolbar button img {
+  width: 16px;
+  opacity: 0.5;
+}
+
+#toolbar button.big img {
+  width: 24px;
+}
+
+#info {
+  display: none !important;
+}
+
+.Outliner {
+  color: #fff;
+  background-color: #000;
+  padding: 0;
+  width: 100%;
+  /* height: 180px; */
+  min-height: 80px;
+  font-size: 12px;
+  cursor: default;
+  overflow: auto;
+  resize: vertical;
+  outline: none !important;
+  height: 100%;
+  overflow: auto;
+}
+
+.Outliner .option {
+  padding: 4px;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.Outliner .option:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.Outliner .option.active {
+  background-color: rgb(255 255 255 / 20%);
+}
+
+.TabbedPanel .Tabs {
+  /* background-color: #656565; */
+  background-color: #313131;
+  border-top: solid 1px rgba(100, 100, 100, 0.1);
+  box-shadow: inset 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.Tabs {}
+
+.Tabs {}
+
+.TabbedPanel .Tab {
+  color: #aaa;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.TabbedPanel .Tab.selected {
+  color: #aaa;
+  background-color: #1a1a1a;
+}
+
+.Listbox {
+  color: #444;
+  background-color: #fff;
+}
+
+.Panel {
+  color: #888;
+}
+
+@media all and (max-width: 600px) {
+  #resizer {
+    display: none;
+  }
+
+  #menubar .menu .options {
+    max-height: calc(100% - 80px);
+  }
+
+  #menubar .menu.right {
+    display: none;
+  }
+
+  #viewport {
+    left: 0;
+    right: 0;
+    top: 32px;
+    height: calc(100% - 352px);
+  }
+
+  #script {
+    left: 0;
+    right: 0;
+    top: 32px;
+    height: calc(100% - 352px);
+  }
+
+  #player {
+    left: 0;
+    right: 0;
+    top: 32px;
+    height: calc(100% - 352px);
+  }
+
+  #sidebar {
+    left: 0;
+    width: 100%;
+    top: calc(100% - 320px);
+    bottom: 0;
+  }
+}
+
+/* DARK MODE */
+
+@media (prefers-color-scheme: dark) {
+  button {
+    color: #aaa;
+    background-color: #222;
+  }
+
+  button:hover {
+    color: #ccc;
+    background-color: #444;
+  }
+
+  button.selected {
+    color: #fff;
+    background-color: #08f;
+  }
+
+  input,
+  textarea {
+    background-color: #222;
+    border: 1px solid transparent;
+    color: #888;
+  }
+
+  select {
+    color: #aaa;
+    background-color: #222;
+  }
+
+  select:hover {
+    color: #ccc;
+    background-color: #444;
+  }
+
+  /* UI */
+
+  #menubar {
+    background: #111;
+  }
+
+  #menubar .menu .key {
+    color: #444;
+    border-color: #444;
+  }
+
+  #menubar .menu .options {
+    background: #111;
+  }
+
+  #menubar .menu .options hr {
+    border-color: #222;
+  }
+
+  #menubar .menu .options .option {
+    color: #888;
+  }
+
+  #menubar .menu .options .inactive {
+    color: #444;
+  }
+
+  #sidebar {
+    background-color: #111;
+  }
+
+  #sidebar .Panel {
+    border-top: 1px solid #222;
+  }
+
+  #sidebar .Panel.Material canvas {
+    border: solid 1px #5a5a5a;
+  }
+
+  #tabs {
+    background-color: #1b1b1b;
+    border-top: 1px solid #222;
+  }
+
+  #tabs span {
+    color: #555;
+    border-right: 1px solid #222;
+  }
+
+  #tabs span.selected {
+    background-color: #111;
+  }
+
+  #toolbar {
+    background-color: #111;
+  }
+
+  #toolbar img {
+    filter: invert(1);
+  }
+
+  .Outliner {
+    background: #222;
+  }
+
+  .Outliner .option {
+    color: #999;
+  }
+
+  .Outliner .option:hover {
+    background-color: rgba(21, 60, 94, 0.5);
+  }
+
+  .Outliner .option.active {
+    background-color: rgba(21, 60, 94, 1);
+  }
+
+  .TabbedPanel .Tabs {
+    background-color: #1b1b1b;
+    border-top: 1px solid #222;
+  }
+
+  .TabbedPanel .Tabs::-webkit-scrollbar {
+    background: #111;
+  }
+
+  .TabbedPanel .Tab {
+    color: #555;
+    border-right: 1px solid #222;
+  }
+
+  .TabbedPanel .Tab.selected {
+    color: #888;
+    background-color: #111;
+  }
+
+  .Listbox {
+    color: #888;
+    background: #222;
+  }
+
+  .Listbox .ListboxItem:hover {
+    background-color: rgba(21, 60, 94, 0.5);
+  }
+
+  .Listbox .ListboxItem.active {
+    background-color: rgba(21, 60, 94, 1);
+  }
+}
+
+/* Temporary Chrome fix (#24794) */
+
+[draggable="true"] {
+  transform: translate(0, 0);
+  z-index: 0;
+}
+
+#videoEdit {
+  /* position: absolute;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%); */
+  width: 100%;
+  position: relative;
+  /* max-width: 1200px; */
+}
+
+#videoEditTimeline {
+  display: flex;
+}
+
+#videoEditTimeline .leftGroup {
+  flex-shrink: 0;
+  width: 200px;
+  position: relative;
+  z-index: 2;
+  background-color: #000;
+}
+
+#videoEditTimeline .timelineGroup {
+  /* overflow-x: auto; */
+  background-color: transparent;
+  /* padding-top: 20px; */
+  width: 100%;
+  overflow-x: auto;
+}
+
+#videoEditTimeline .leftGroupTop {
+  background-color: #1a1a1a;
+  padding: 5px;
+  display: flex;
+  gap: 5px;
+  position: relative;
+  height: 40px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+/* #videoEditTimeline .leftGroupTop button {
+  height: 30px;
+  border-radius: 3px;
+  border: solid 1px rgba(255, 255, 255, 0.3);
+} */
+
+#videoEditTimeline .leftGroupTop button {
+  aspect-ratio: 1/1;
+  border-radius: 5px;
+  border: solid 1px #000;
+  /* background: linear-gradient(180deg, black, transparent); */
+  box-shadow: inset 0px 0px 5px rgba(0, 0, 0, 0.5);
+  background: #514d4d;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#videoEditTimeline .leftGroupTop button:hover,
+#videoEditTimeline .leftGroupTop button.active {
+  background: #a1a1a1 !important;
+  color: #1a1a1a !important;
+}
+
+#videoEditTimeline .leftGroupTop .totalSeconds {
+  width: 50px;
+  padding: 0 5px !important;
+  height: 100%;
+  border: solid 1px rgba(255, 255, 255, 0.3) !important;
+  border-radius: 3px;
+  box-sizing: border-box;
+  height: 30px;
+}
+
+#videoEditTimeline .leftGroupTop .optionGroup {
+  position: absolute;
+  right: 0;
+  top: 0;
+  background-color: #000000;
+  padding: 5px 10px;
+  border-radius: 3px;
+  border: solid 1px rgba(255, 255, 255, 0.3);
+  transform: translateY(-100%);
+  border-radius: 5px;
+  /* width: 50%; */
+  box-sizing: border-box;
+  display: flex;
+  gap: 5px;
+  display: none;
+}
+
+#videoEditTimeline .leftGroupTop .optionGroup>* {
+  height: 25px !important;
+}
+
+#videoEditTimeline .leftGroupTop .optionGroup.active {
+  display: flex;
+}
+
+#videoEditTimeline .leftGroupTop .optionBtn.active {
+  background-color: #5f5f5f;
+}
+
+#videoEditTimeline .timelineGroup .Row {
+  display: flex;
+}
+
+#videoEditTimeline .timelineBar {
+  background-color: #333;
+  position: relative;
+  height: 30px !important;
+  border-top: solid 1px rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  box-sizing: border-box;
+}
+
+#videoEditTimeline .currentFrameBar {
+  background-color: #ff0;
+  height: 15px;
+  width: 3px;
+  position: absolute;
+  left: 0;
+  top: -10px;
+  z-index: 2;
+  transform: translateX(10px);
+}
+
+#videoEditTimeline .currentFrameBar::before {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 10px solid #ff0;
+  display: inline-block;
+  transform: translateX(-54%);
+}
+
+#videoEditTimeline .object {
+  background-color: #1a1a1a;
+  width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  z-index: 2;
+  height: 30px;
+  width: 100%;
+  border-top: solid 1px rgba(255, 255, 255, 0.2);
+}
+
+#videoEditTimeline .object.active {
+  background-color: #000;
+  color: #fff;
+}
+
+#videoEditTimeline .objectControl {
+  display: none;
+}
+
+#videoEditTimeline .objectControl.open {
+  display: flex;
+  /* flex-direction: column; */
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  /* transform: translateX(100%); */
+  z-index: 2;
+}
+
+#videoEditTimeline .timelineBar>* {
+  flex-shrink: 0;
+}
+
+#videoEditTimeline .frameButton {
+  padding: 0;
+  width: 20px;
+  height: 100%;
+  border: solid 1px rgba(100, 100, 100, 0);
+  background-color: #656565;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+#videoEditTimeline .frameButton.active {
+  background-color: #000;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+#videoEditTimeline .frameButton:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  /* border-color: rgba(255, 255, 255, 0.3); */
+}
+
+#videoEditTimeline .timelineTop {
+  display: flex;
+  position: relative;
+}
+
+#videoEditTimeline .timelineTop .frameButton {
+  background-color: #1a1a1a;
+  flex-shrink: 0;
+  font-size: 10px;
+  height: 40px;
+  border-left: solid 1px rgba(255, 255, 255, 0.2);
+}
+
+#videoEditTimeline .point {
+  /* position: absolute;
+	bottom: 10px; */
+  width: 5px;
+  height: 5px;
+  border-radius: 5px;
+  background: #ff0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+#keyframeMenu {
+  display: none;
+}
+
+#keyframeMenu.show {
+  width: 200px;
+  background-color: #ccc;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  z-index: 100;
+  box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
+  align-items: flex-start;
+  transform: translateY(-100%);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+#keyframeMenu button {
+  border-bottom: solid 1px #000;
+  padding: 10px;
+  width: 100%;
+  text-align: left;
+}
+
+#keyframeMenu button:last-child {
+  border-bottom: none;
+}
+
+/* music */
+.music-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* position: fixed;
+	width: 200px;
+	height: 200px;
+	left: 10px;
+	top: 850px; */
+  /* background-color: #efefef; */
+  /* border-radius: 10px; */
+  padding: 10px;
+  /* z-index: 100; */
+}
+
+.music-controls input.Number {
+  display: none;
+}
+
+.music-controls .fileInput {
+  color: #fff;
+  width: 400px;
+}
+
+#visualizer {
+  aspect-ratio: auto;
+  flex-grow: 1;
+  background-color: #000;
+  /* width: 20%; */
+  width: 150px;
+  margin-left: 20px;
+  height: 25px;
+  /* height: 60px; */
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+
+#renderViewContainer {
+  position: fixed;
+  /* width: 1200px; */
+  height: 90%;
+  aspect-ratio: 16/9;
+  /* aspect-ratio: 1/0.666; */
+  /* aspect-ratio: 16/9; */
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+  box-shadow: 0 0 15px 0 rgba(0, 0, 0, 0.6);
+  border: solid 3px #000;
+}
+
+#renderViewContainer #renderView {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#renderViewContainer canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/*
+#renderViewContainer {
+	border-left: solid 2px #5f5f5f;
+}
+*/
+#renderViewContainer .controlsDiv {
+  background: #333;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+}
+
+.viewer {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: 100% !important;
+  width: 100%;
+  position: relative;
+}
+
+.viewer>.Panel {
+  width: 100%;
+  height: 100%;
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+.viewer canvas {
+  width: 100% !important;
+  /* max-height: 800px; */
+  aspect-ratio: 1/0.666;
+  height: 100% !important;
+}
+
+.viewer canvas {
+  /* width: 100% !important; */
+  /* aspect-ratio: 1/0.666; */
+}
+
+#renderView {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.music-controls button,
+.timelineWrapper button {
+  background-color: #1a1a1a;
+  color: #a1a1a1;
+}
+
+.music-controls button:not(.disabled):hover,
+.timelineWrapper button:not(.disabled):hover {
+  background-color: #5f5f5f;
+  color: #fff;
+}
+
+.music-controls button:not(.disabled):active,
+.timelineWrapper button:not(.disabled):active {
+  background-color: #333;
+}
+
+#viewer .Select {
+  display: none;
+}
+
+#viewer input[type="checkbox"] {
+  display: none;
+}
+
+.blind {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.button-3d {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #383838, #2a2a2a);
+  transition: all 0.2s ease;
+}
+
+.button-3d::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #404040, #202020);
+  z-index: 1;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7),
+    -2px -2px 4px rgba(255, 255, 255, 0.2);
+}
+
+.button-3d::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 50%;
+  /* background: linear-gradient(145deg, #202020, #2a2a2a); */
+  background: linear-gradient(145deg, #080808, #2a2a2a);
+  z-index: 2;
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.8),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.2);
+}
+
+.button-3d i {
+  color: #ffffff;
+  font-size: 14px;
+  opacity: 0.9;
+  position: relative;
+  z-index: 3;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.button-3d:hover::before {
+  background: linear-gradient(145deg, #454545, #252525);
+  box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.8),
+    -2px -2px 4px rgba(255, 255, 255, 0.07);
+}
+
+.button-3d:hover::after {
+  background: linear-gradient(145deg, #252525, #303030);
+}
+
+.button-3d:active::before {
+  background: linear-gradient(145deg, #202020, #404040);
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6),
+    -1px -1px 2px rgba(255, 255, 255, 0.03);
+}
+
+.button-3d:active::after {
+  background: linear-gradient(145deg, #1a1a1a, #252525);
+  box-shadow: inset 3px 3px 5px rgba(0, 0, 0, 0.9),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.03);
+}
+
+.button-3d.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button-3d.disabled::before,
+.button-3d.disabled::after {
+  background: linear-gradient(145deg, #252525, #202020);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* 버튼 컨테이너 스타일 */
+.music-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.fileInput {
+  cursor: pointer;
+  border: 1px solid transparent;
+  background-color: #000;
+  display: inline-flex;
+  appearance: none;
+  align-items: center;
+  user-select: none;
+  width: clamp(3em, 20em, 100%);
+  height: calc(0.25rem * 10);
+  padding-inline-end: 0.75em;
+  font-size: 0.875em;
+  font-family: "Arial, sans-serif";
+  line-height: 2;
+  border-start-start-radius: 0.5rem;
+  border-start-end-radius: 0.5rem;
+  border-end-start-radius: 0.5rem;
+  border-end-end-radius: 0.5rem;
+  border-color: color-mix(in oklab, #333333 20%, transparent);
+  box-shadow: 0 0.0625em color-mix(in oklab,
+      color-mix(in oklab, #333333 20%, transparent) calc(1 * 10%),
+      transparent) inset,
+    0 -0.0625em rgba(255, 255, 255, calc(1 * 0.1)) inset;
+}
+
+.fileInput::file-selector-button {
+  margin-right: 0.25em;
+  cursor: pointer;
+  padding: 0 0.5em;
+  user-select: none;
+  height: calc(100% + 1px * 2);
+  margin-block: calc(1px * -1);
+  margin-inline-start: calc(1px * -1);
+  font-size: 0.875em;
+  color: #ededed;
+  border-start-start-radius: calc(0.5rem - 1px);
+  border-end-start-radius: calc(0.5rem - 1px);
+  font-weight: 600;
+  background-color: #2d2d2d;
+  border: solid 1px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.7);
+  background-size: calc(1 * 100%);
+  background-image: url("data:image/svg+xml,...");
+  text-shadow: 0 0.03125em rgba(255, 255, 255, calc(1 * 0.15));
+  box-shadow: 0 0.1875em 0.125em -0.125em color-mix(in oklab, #e0e0e0 30%, transparent),
+    0 0.25em 0.1875em -0.125em color-mix(in oklab, #e0e0e0 30%, transparent);
+}
+
+
+/* float panel */
+
+.floating-panel {
+  background: #222;
+  /* margin-bottom: 10px; */
+  border: 1px solid #444;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  /* border-radius: 4px; */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-grow: 1;
+  flex-shrink: 0;
+  min-height: 150px;
+}
+
+/* 씬 패널 높이 50px 고정 (초기 로드부터 적용) */
+#sidebar .floating-panel-scene-fixed {
+  height: 200px !important;
+  min-height: 200px !important;
+  max-height: 130px !important;
+  flex-grow: 0 !important;
+}
+
+/* .floating-panel .Outliner {
+  height: 150px;
+} */
+
+.floating-panel .panel-header {
+  background: #444;
+  color: #fff;
+  padding: 7px;
+  font-weight: bold;
+  cursor: default;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  border-radius: 0;
+}
+
+.floating-panel .panel-header button,
+.floating-header button {
+  float: right;
+  font-size: 14px;
+  padding: 5px;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 2px;
+  background: #000;
+  color: #fff;
+
+}
+
+.floating-panel .Panel {
+  padding: 10px !important;
+  flex-grow: 1;
+  height: 100%;
+}
+
+#floatingPanels {
+  font-size: 12px;
+}
+
+#floatingPanels .panel-header {
+  display: none;
+}
+
+#floatingPanels .floating-panel .Outliner {
+  /* height: auto !important; */
+  height: calc(100% - 30px);
+}
+
+#floatingPanels .floating-panel {
+  height: auto !important;
+  max-height: 500px;
+}
+
+.topWrapper .toolMenuBar {
+  display: flex;
+  background-color: #000;
+  gap: 2px;
+}
+#toolbar{
+ padding: 5px 6px;
+}
+.topWrapper .toolMenuBar button,
+#toolbar button,
+#toolbar input {
+  width: 30px;
+  height: 30px;
+  /* background-color: #333; */
+  /* border-radius: 2px; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  margin: 0;
+  padding: 5px;
+}
+
+#toolbar .toolbar-svg-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+#toolbar button svg {
+  width: 20px;
+  height: 20px;
+  opacity: 0.9;
+}
+#toolbar input{
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  cursor: pointer;
+}
+
+#toolbar input.toolbar-local-switch {
+  position: static;
+  top: auto;
+  right: auto;
+  width: 36px;
+  height: 20px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #505050;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+}
+
+#toolbar input.toolbar-local-switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  transition: transform 0.18s ease;
+}
+
+#toolbar input.toolbar-local-switch:checked {
+  background: #2e9bff;
+  border-color: #2e9bff;
+}
+
+#toolbar input.toolbar-local-switch:checked::before {
+  transform: translateX(16px);
+}
+.topWrapper .toolMenuBar button:hover,
+#toolbar button:hover {
+  /* background-color: #555; */
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.topWrapper .toolMenuBar button.active,
+#toolbar button.active {
+  background-color: #007acc;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.5);
+}
+
+.topWrapper .toolMenuBar button.tool_camera.active {
+  background-color: #28a745;
+}
+
+.topWrapper .toolMenuBar button.tool_select.active {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.topWrapper .toolMenuBar button.tool_focus.active {
+  background-color: #17a2b8;
+}
+
+.topWrapper .toolMenuBar button.tool_reset.active {
+  background-color: #dc3545;
+}
+
+
+/* 탑메뉴 스타일 수정 */
+.viewer{
+  flex-direction: column;
+}
+
+.topWrapper{
+  position: relative;
+  z-index:3;
+  width: 100%;
+}
+
+.full-mode {
+  overflow: hidden;
+} 
+
+.full-mode #viewport canvas{
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999;
+}
+
+.full-mode .timeline-top-container{
+  z-index: 0;
+}
+
+.viewport-dimension-label {
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
