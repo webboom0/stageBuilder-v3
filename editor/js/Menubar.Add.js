@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { UIPanel, UIRow } from "./libs/ui.js";
+import { bindMenubarSubmenu } from "./utils/menubarSubmenu.js";
 
 import { AddObjectCommand } from "./commands/AddObjectCommand.js";
 import { getNextNumberedObjectName } from "./utils/uniqueNumberedName.js";
@@ -317,25 +318,15 @@ function MenubarAdd(editor) {
     .setTextContent(strings.getKey("menubar/add/light"))
     .addClass("option")
     .addClass("submenu-title");
-  lightSubmenuTitle.onMouseOver(function () {
-    const { top, right } = lightSubmenuTitle.dom.getBoundingClientRect();
-    const { paddingTop } = getComputedStyle(this.dom);
-
-    lightSubmenu.setLeft(right + "px");
-    lightSubmenu.setTop(top - parseFloat(paddingTop) + "px");
-    lightSubmenu.setStyle("max-height", [`calc( 100vh - ${top}px )`]);
-    lightSubmenu.setDisplay("block");
-  });
-  lightSubmenuTitle.onMouseOut(function () {
-    lightSubmenu.setDisplay("none");
-  });
   options.add(lightSubmenuTitle);
 
   const lightSubmenu = new UIPanel()
     .setPosition("fixed")
     .addClass("options")
+    .addClass("options--submenu")
     .setDisplay("none");
-  lightSubmenuTitle.add(lightSubmenu);
+  container.add(lightSubmenu);
+  bindMenubarSubmenu(lightSubmenuTitle, lightSubmenu, container);
 
   // Light / Ambient
 

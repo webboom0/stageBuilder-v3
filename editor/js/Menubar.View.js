@@ -1,4 +1,5 @@
 import { UIHorizontalRule, UIPanel, UIRow } from './libs/ui.js';
+import { bindMenubarSubmenu } from './utils/menubarSubmenu.js';
 import {
 	applyCameraPreset,
 	setCeilingTransparencyForTopView,
@@ -41,30 +42,15 @@ function MenubarView(editor) {
 		.setTextContent('도우미')
 		.addClass('option')
 		.addClass('submenu-title');
-	helperSubmenuTitle.onMouseOver(function () {
-		const { top, right } = helperSubmenuTitle.dom.getBoundingClientRect();
-		const { paddingTop } = getComputedStyle(this.dom);
-		helperSubmenu.setLeft(right + 'px');
-		helperSubmenu.setTop(top - parseFloat(paddingTop) + 'px');
-		helperSubmenu.setStyle('max-height', [`calc( 100vh - ${top}px )`]);
-		helperSubmenu.setDisplay('block');
-	});
-	helperSubmenuTitle.onMouseOut(function () {
-		helperSubmenu.setDisplay('none');
-	});
 	options.add(helperSubmenuTitle);
 
 	const helperSubmenu = new UIPanel()
 		.setPosition('fixed')
 		.addClass('options')
+		.addClass('options--submenu')
 		.setDisplay('none');
-	helperSubmenu.onMouseOver(function () {
-		helperSubmenu.setDisplay('block');
-	});
-	helperSubmenu.onMouseOut(function () {
-		helperSubmenu.setDisplay('none');
-	});
 	container.add(helperSubmenu);
+	bindMenubarSubmenu(helperSubmenuTitle, helperSubmenu, container);
 
 	// Grid Helper
 	let option = new UIRow().addClass('option').addClass('toggle').setTextContent('그리드 도우미').onClick(function () {
@@ -133,30 +119,15 @@ function MenubarView(editor) {
 		.setTextContent('카메라')
 		.addClass('option')
 		.addClass('submenu-title');
-	cameraSubmenuTitle.onMouseOver(function () {
-		const { top, right } = cameraSubmenuTitle.dom.getBoundingClientRect();
-		const { paddingTop } = getComputedStyle(this.dom);
-		cameraSubmenu.setLeft(right + 'px');
-		cameraSubmenu.setTop(top - parseFloat(paddingTop) + 'px');
-		cameraSubmenu.setStyle('max-height', [`calc( 100vh - ${top}px )`]);
-		cameraSubmenu.setDisplay('block');
-	});
-	cameraSubmenuTitle.onMouseOut(function () {
-		cameraSubmenu.setDisplay('none');
-	});
 	options.add(cameraSubmenuTitle);
 
 	const cameraSubmenu = new UIPanel()
 		.setPosition('fixed')
 		.addClass('options')
+		.addClass('options--submenu')
 		.setDisplay('none');
-	cameraSubmenu.onMouseOver(function () {
-		cameraSubmenu.setDisplay('block');
-	});
-	cameraSubmenu.onMouseOut(function () {
-		cameraSubmenu.setDisplay('none');
-	});
 	container.add(cameraSubmenu);
+	bindMenubarSubmenu(cameraSubmenuTitle, cameraSubmenu, container);
 
 	// 원근 시점
 	option = new UIRow().addClass('option').setTextContent('원근 시점').onClick(function () {

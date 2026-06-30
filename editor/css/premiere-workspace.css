@@ -46,7 +46,7 @@ body {
   width: 100% !important;
   min-height: 26px !important;
   height: 26px !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   box-sizing: border-box !important;
 }
 
@@ -104,6 +104,16 @@ body {
 .menubar .menu .options {
   background: var(--panel-2) !important;
   border: 1px solid var(--line) !important;
+  z-index: 10000 !important;
+}
+
+#menubar .menu .options.options--submenu {
+  z-index: 10001 !important;
+}
+
+#menubar .menu.submenu-active > .options,
+#menubar .menu:hover > .options {
+  display: block !important;
 }
 
 /* ── Viewer area ── */
