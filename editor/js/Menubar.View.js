@@ -29,13 +29,18 @@ function MenubarView(editor) {
 
 	// Helpers
 
-	const states = {
+	const states = editor.viewportHelperStates ?? {
 		gridHelper: false,
 		guideHelper: false,
 		cameraHelpers: false,
 		lightHelpers: false,
 		skeletonHelpers: false
 	};
+	editor.viewportHelperStates = states;
+
+	let gridHelperRow;
+	let guideHelperRow;
+	let skeletonHelperRow;
 
 	// === 도우미 메뉴 (2단계) ===
 	const helperSubmenuTitle = new UIRow()
@@ -53,12 +58,12 @@ function MenubarView(editor) {
 	bindMenubarSubmenu(helperSubmenuTitle, helperSubmenu, container);
 
 	// Grid Helper
-	let option = new UIRow().addClass('option').addClass('toggle').setTextContent('그리드 도우미').onClick(function () {
+	gridHelperRow = new UIRow().addClass('option').addClass('toggle').setTextContent('그리드 도우미').onClick(function () {
 		states.gridHelper = !states.gridHelper;
 		this.toggleClass('toggle-on', states.gridHelper);
-		signals.showHelpersChanged.dispatch(states);
+		signals.showHelpersChanged.dispatch({ ...states });
 	}).toggleClass('toggle-on', states.gridHelper);
-	helperSubmenu.add(option);
+	helperSubmenu.add(gridHelperRow);
 
 	let viewportGridMode =
 		editor.config.getKey('viewport/gridMode') ?? GRID_MODE_FIXED;
@@ -94,23 +99,30 @@ function MenubarView(editor) {
 	helperSubmenu.add(gridModeFixedRow);
 
 	// Guide Helper
-	option = new UIRow().addClass('option').addClass('toggle').setTextContent('가이드 도우미').onClick(function () {
+	guideHelperRow = new UIRow().addClass('option').addClass('toggle').setTextContent('가이드 도우미').onClick(function () {
 		states.guideHelper = !states.guideHelper;
 		this.toggleClass('toggle-on', states.guideHelper);
-		signals.showHelpersChanged.dispatch(states);
+		signals.showHelpersChanged.dispatch({ ...states });
 	}).toggleClass('toggle-on', states.guideHelper);
-	helperSubmenu.add(option);
+	helperSubmenu.add(guideHelperRow);
 
 	// Skeleton Helpers
-	option = new UIRow().addClass('option').addClass('toggle').setTextContent('골격 도우미').onClick(function () {
+	skeletonHelperRow = new UIRow().addClass('option').addClass('toggle').setTextContent('골격 도우미').onClick(function () {
 		states.skeletonHelpers = !states.skeletonHelpers;
 		this.toggleClass('toggle-on', states.skeletonHelpers);
-		signals.showHelpersChanged.dispatch(states);
+		signals.showHelpersChanged.dispatch({ ...states });
 	}).toggleClass('toggle-on', states.skeletonHelpers);
-	helperSubmenu.add(option);
+	helperSubmenu.add(skeletonHelperRow);
+
+	signals.showHelpersChanged.add(function (appearanceStates) {
+		Object.assign(states, appearanceStates);
+		gridHelperRow?.toggleClass('toggle-on', states.gridHelper);
+		guideHelperRow?.toggleClass('toggle-on', states.guideHelper);
+		skeletonHelperRow?.toggleClass('toggle-on', states.skeletonHelpers);
+	});
 
 	// 초기 상태 적용 (모든 도우미 숨김)
-	signals.showHelpersChanged.dispatch(states);
+	signals.showHelpersChanged.dispatch({ ...states });
 
 	options.add(new UIHorizontalRule());
 
@@ -128,6 +140,8 @@ function MenubarView(editor) {
 		.setDisplay('none');
 	container.add(cameraSubmenu);
 	bindMenubarSubmenu(cameraSubmenuTitle, cameraSubmenu, container);
+
+	let option;
 
 	// 원근 시점
 	option = new UIRow().addClass('option').setTextContent('원근 시점').onClick(function () {

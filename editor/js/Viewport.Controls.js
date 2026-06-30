@@ -1,4 +1,4 @@
-import { UIPanel, UISelect, UIText } from './libs/ui.js';
+import { UIPanel, UISelect, UIText, UICheckbox } from './libs/ui.js';
 
 import {
 	GRID_MODE_ADAPTIVE,
@@ -59,6 +59,52 @@ function ViewportControls( editor ) {
 
 	} );
 	container.add( shadingSelect );
+
+	// grid visibility
+
+	const helperStates = editor.viewportHelperStates ?? {
+		gridHelper: false,
+		guideHelper: false,
+		cameraHelpers: false,
+		lightHelpers: false,
+		skeletonHelpers: false,
+	};
+	editor.viewportHelperStates = helperStates;
+
+	const gridToggleWrap = new UIPanel();
+	gridToggleWrap.dom.className = 'viewport-grid-toggle';
+
+	const gridCheckbox = new UICheckbox( helperStates.gridHelper );
+	gridCheckbox.dom.classList.add( 'viewport-grid-checkbox' );
+	gridCheckbox.dom.title = strings.getKey( 'viewport/controls/grid' );
+
+	const gridLabel = new UIText( strings.getKey( 'viewport/controls/grid' ) );
+	gridLabel.dom.className = 'viewport-grid-label';
+
+	gridToggleWrap.add( gridCheckbox );
+	gridToggleWrap.add( gridLabel );
+
+	gridLabel.dom.addEventListener( 'click', function () {
+
+		gridCheckbox.dom.click();
+
+	} );
+
+	gridCheckbox.onChange( function () {
+
+		helperStates.gridHelper = this.getValue();
+		signals.showHelpersChanged.dispatch( { ...helperStates } );
+
+	} );
+
+	signals.showHelpersChanged.add( function ( appearanceStates ) {
+
+		Object.assign( helperStates, appearanceStates );
+		gridCheckbox.setValue( !!helperStates.gridHelper );
+
+	} );
+
+	container.add( gridToggleWrap );
 
 	// grid mode (adaptive / fixed 1m display)
 

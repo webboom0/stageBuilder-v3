@@ -13,6 +13,14 @@ function Toolbar( editor ) {
 
 	const container = new UIPanel();
 	container.setId( 'toolbar' );
+	container.addClass( 'sb-viewport-toolbar' );
+
+	function addToolbarDivider() {
+		const divider = document.createElement( 'span' );
+		divider.className = 'toolbar-divider';
+		divider.setAttribute( 'aria-hidden', 'true' );
+		container.dom.appendChild( divider );
+	}
 
 	function createSvgIcon( svg, title ) {
 		const span = document.createElement( 'span' );
@@ -29,7 +37,7 @@ function Toolbar( editor ) {
 	translateIcon.src = 'images/translate.svg';
 
 	const translate = new UIButton();
-	translate.dom.className = 'Button selected';
+	translate.dom.className = 'Button toolbar-btn selected';
 	translate.dom.appendChild( translateIcon );
 	translate.onClick( function () {
 
@@ -43,6 +51,7 @@ function Toolbar( editor ) {
 	rotateIcon.src = 'images/rotate.svg';
 
 	const rotate = new UIButton();
+	rotate.dom.className = 'Button toolbar-btn';
 	rotate.dom.appendChild( rotateIcon );
 	rotate.onClick( function () {
 
@@ -56,6 +65,7 @@ function Toolbar( editor ) {
 	scaleIcon.src = 'images/scale.svg';
 
 	const scale = new UIButton();
+	scale.dom.className = 'Button toolbar-btn';
 	scale.dom.appendChild( scaleIcon );
 	scale.onClick( function () {
 
@@ -64,15 +74,16 @@ function Toolbar( editor ) {
 	} );
 	container.add( scale );
 
+	addToolbarDivider();
+
 	// Preset Camera Views
 	const perspIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 7h16v10H4z" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><path d="M4 7l8 4.6L20 7" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><text x="12" y="20" text-anchor="middle" font-size="6" fill="#d2d2d2" font-family="Arial">P</text></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 7h16v10H4z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 7l8 4.6L20 7" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="12" y="20" text-anchor="middle" font-size="6" fill="currentColor" font-family="Arial">P</text></svg>',
 		'원근 시점'
 	);
 
 	const persp = new UIButton();
-	persp.dom.className = 'Button big';
-	persp.dom.style.cssText = 'margin-left: 8px;';
+	persp.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	persp.dom.appendChild( perspIcon );
 	persp.dom.title = '원근 시점';
 	persp.onClick( function () {
@@ -84,12 +95,12 @@ function Toolbar( editor ) {
 	container.add( persp );
 
 	const audienceIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><rect x="5" y="4" width="14" height="9" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><circle cx="8" cy="17.5" r="1.2" fill="#d2d2d2"/><circle cx="12" cy="17.5" r="1.2" fill="#d2d2d2"/><circle cx="16" cy="17.5" r="1.2" fill="#d2d2d2"/><text x="12" y="21.2" text-anchor="middle" font-size="5" fill="#d2d2d2" font-family="Arial">AUD</text></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="4" width="14" height="9" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="17.5" r="1.2" fill="currentColor"/><circle cx="12" cy="17.5" r="1.2" fill="currentColor"/><circle cx="16" cy="17.5" r="1.2" fill="currentColor"/><text x="12" y="21.2" text-anchor="middle" font-size="5" fill="currentColor" font-family="Arial">AUD</text></svg>',
 		'객석 시점'
 	);
 
 	const audience = new UIButton();
-	audience.dom.className = 'Button big';
+	audience.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	audience.dom.appendChild( audienceIcon );
 	audience.dom.title = '객석 시점';
 	audience.onClick( function () {
@@ -101,12 +112,12 @@ function Toolbar( editor ) {
 	container.add( audience );
 
 	const frontIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><path d="M12 18V7" stroke="#d2d2d2" stroke-width="1.4"/><path d="M9.5 9.5L12 7l2.5 2.5" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="#d2d2d2" font-family="Arial">F</text></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12 18V7" stroke="currentColor" stroke-width="1.4"/><path d="M9.5 9.5L12 7l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="currentColor" font-family="Arial">F</text></svg>',
 		'정면 시점'
 	);
 
 	const front = new UIButton();
-	front.dom.className = 'Button big';
+	front.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	front.dom.appendChild( frontIcon );
 	front.dom.title = '정면 시점';
 	front.onClick( function () {
@@ -118,12 +129,12 @@ function Toolbar( editor ) {
 	container.add( front );
 
 	const rightIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><path d="M7 12h10" stroke="#d2d2d2" stroke-width="1.4"/><path d="M14.5 9.5L17 12l-2.5 2.5" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="#d2d2d2" font-family="Arial">R</text></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12h10" stroke="currentColor" stroke-width="1.4"/><path d="M14.5 9.5L17 12l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="currentColor" font-family="Arial">R</text></svg>',
 		'우측 시점'
 	);
 
 	const side = new UIButton();
-	side.dom.className = 'Button big';
+	side.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	side.dom.appendChild( rightIcon );
 	side.dom.title = '우측 시점';
 	side.onClick( function () {
@@ -135,12 +146,12 @@ function Toolbar( editor ) {
 	container.add( side );
 
 	const leftIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><path d="M7 12h10" stroke="#d2d2d2" stroke-width="1.4"/><path d="M9.5 9.5L7 12l2.5 2.5" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="#d2d2d2" font-family="Arial">L</text></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12h10" stroke="currentColor" stroke-width="1.4"/><path d="M9.5 9.5L7 12l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="currentColor" font-family="Arial">L</text></svg>',
 		'좌측 시점'
 	);
 
 	const left = new UIButton();
-	left.dom.className = 'Button big';
+	left.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	left.dom.appendChild( leftIcon );
 	left.dom.title = '좌측 시점';
 	left.onClick( function () {
@@ -152,12 +163,12 @@ function Toolbar( editor ) {
 	container.add( left );
 
 	const topIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><path d="M12 17V7" stroke="#d2d2d2" stroke-width="1.4"/><path d="M9.5 9.5L12 7l2.5 2.5" fill="none" stroke="#d2d2d2" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="#d2d2d2" font-family="Arial">T</text></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12 17V7" stroke="currentColor" stroke-width="1.4"/><path d="M9.5 9.5L12 7l2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="12" y="22" text-anchor="middle" font-size="6" fill="currentColor" font-family="Arial">T</text></svg>',
 		'상단 시점'
 	);
 	
 	const top = new UIButton();
-	top.dom.className = 'Button big';
+	top.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	top.dom.appendChild( topIcon );
 	top.dom.title = '상단 시점';
 	top.onClick( function () {
@@ -168,15 +179,16 @@ function Toolbar( editor ) {
 	} );
 	container.add( top );
 
+	addToolbarDivider();
+
 	// Zoom In/Out buttons
 	const zoomInIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="10" cy="10" r="5" fill="none" stroke="#d2d2d2" stroke-width="1.5"/><path d="M14.5 14.5L20 20" stroke="#d2d2d2" stroke-width="1.5"/><path d="M10 7v6M7 10h6" stroke="#d2d2d2" stroke-width="1.5"/></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M14.5 14.5L20 20" stroke="currentColor" stroke-width="1.5"/><path d="M10 7v6M7 10h6" stroke="currentColor" stroke-width="1.5"/></svg>',
 		'확대'
 	);
 	
 	const zoomIn = new UIButton();
-	zoomIn.dom.className = 'Button big';
-	zoomIn.dom.style.cssText = 'margin-left: 8px;';
+	zoomIn.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	zoomIn.dom.appendChild( zoomInIcon );
 	zoomIn.dom.title = '확대';
 	zoomIn.onClick( function () {
@@ -203,12 +215,12 @@ function Toolbar( editor ) {
 	container.add( zoomIn );
 
 	const zoomOutIcon = createSvgIcon(
-		'<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="10" cy="10" r="5" fill="none" stroke="#d2d2d2" stroke-width="1.5"/><path d="M14.5 14.5L20 20" stroke="#d2d2d2" stroke-width="1.5"/><path d="M7 10h6" stroke="#d2d2d2" stroke-width="1.5"/></svg>',
+		'<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M14.5 14.5L20 20" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h6" stroke="currentColor" stroke-width="1.5"/></svg>',
 		'축소'
 	);
 	
 	const zoomOut = new UIButton();
-	zoomOut.dom.className = 'Button big';
+	zoomOut.dom.className = 'Button toolbar-btn toolbar-btn--view';
 	zoomOut.dom.appendChild( zoomOutIcon );
 	zoomOut.dom.title = '축소';
 	zoomOut.onClick( function () {
@@ -233,6 +245,8 @@ function Toolbar( editor ) {
 		
 	} );
 	container.add( zoomOut );
+
+	addToolbarDivider();
 
 	const local = new UICheckbox( false );
 	local.dom.classList.add( 'toolbar-local-switch' );
