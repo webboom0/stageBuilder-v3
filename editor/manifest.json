@@ -1,14 +1,14 @@
 {
-  "name": "Three.js Editor",
-  "short_name": "Three.js",
+  "name": "Stage Builder",
+  "short_name": "StageBuilder",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
   "icons": [
     {
-      "src": "./images/icon.png",
+      "src": "./images/stagebuilder-logo.png",
       "type": "image/png",
-      "sizes": "144x144"
+      "sizes": "512x512"
     }
   ]
 }

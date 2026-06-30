@@ -741,6 +741,21 @@ export class LightTimeline extends BaseTimeline {
     console.log("=== removeLightFromTimelineData 완료 ===");
   }
 
+  ensureKeyframeLayer(sprite) {
+    let layer = sprite.querySelector(".keyframe-layer");
+    if (layer) return layer;
+
+    layer = document.createElement("div");
+    layer.className = "keyframe-layer";
+    const content = sprite.querySelector(".sprite-content");
+    if (content) {
+      content.appendChild(layer);
+    } else {
+      sprite.appendChild(layer);
+    }
+    return layer;
+  }
+
   createLightClip(track, lightName, hasTarget = false) {
     console.log(`🔄 createLightClip 시작:`, { track: track.objectId, lightName, hasTarget });
 
@@ -750,15 +765,18 @@ export class LightTimeline extends BaseTimeline {
     sprite.style.width = "100%";
     sprite.style.left = "0%";
 
-    // 조명 클립은 파란색으로 표시
-    sprite.style.background = "#6cf";
+    // 조명 클립은 파란색으로 표시 (바디 영역)
+    sprite.style.background = "transparent";
 
     const spriteContent = document.createElement("div");
     spriteContent.className = "sprite-content";
     const spriteName = document.createElement("span");
     spriteName.className = "sprite-name";
     spriteName.textContent = lightName;
+    const keyframeLayer = document.createElement("div");
+    keyframeLayer.className = "keyframe-layer";
     spriteContent.appendChild(spriteName);
+    spriteContent.appendChild(keyframeLayer);
     sprite.appendChild(spriteContent);
 
     track.trackContent.appendChild(sprite);
@@ -842,14 +860,17 @@ export class LightTimeline extends BaseTimeline {
     targetSprite.dataset.duration = this.options.totalSeconds || 180;
     targetSprite.style.width = "100%";
     targetSprite.style.left = "0%";
-    targetSprite.style.background = "#f66"; // 타겟은 빨간색
+    targetSprite.style.background = "transparent";
 
     const targetSpriteContent = document.createElement("div");
     targetSpriteContent.className = "sprite-content";
     const targetSpriteName = document.createElement("span");
     targetSpriteName.className = "sprite-name";
     targetSpriteName.textContent = `${lightName}_Target`;
+    const targetKeyframeLayer = document.createElement("div");
+    targetKeyframeLayer.className = "keyframe-layer";
     targetSpriteContent.appendChild(targetSpriteName);
+    targetSpriteContent.appendChild(targetKeyframeLayer);
     targetSprite.appendChild(targetSpriteContent);
 
     targetTrackContent.appendChild(targetSprite);
@@ -2100,25 +2121,9 @@ export class LightTimeline extends BaseTimeline {
 
     // 키프레임 요소 생성
     const keyframe = document.createElement("div");
-    keyframe.className = "keyframe";
-    keyframe.style.position = "absolute";
-    keyframe.style.top = "50%";
-    keyframe.style.transform = "translate(-50%, -50%)";
-    keyframe.style.width = "8px";
-    keyframe.style.height = "8px";
-
-    // 타겟 키프레임은 다른 색상으로 표시
-    if (lightId.includes('_Target')) {
-      keyframe.style.backgroundColor = "#f66"; // 타겟 키프레임은 빨간색
-      keyframe.style.border = "1px solid #c33";
-    } else {
-      keyframe.style.backgroundColor = "#f90"; // 조명 키프레임은 주황색
-      keyframe.style.border = "1px solid #c60";
-    }
-
-    keyframe.style.borderRadius = "50%";
-    keyframe.style.cursor = "pointer";
-    keyframe.style.zIndex = "10";
+    keyframe.className = lightId.includes("_Target")
+      ? "keyframe keyframe--target"
+      : "keyframe";
     keyframe.dataset.time = time.toFixed(2);
     keyframe.dataset.property = propertyName;
     // 일반: lightId_property, 타겟: lightId_Target
@@ -2172,7 +2177,8 @@ export class LightTimeline extends BaseTimeline {
       keyframe
     });
 
-    targetSprite.appendChild(keyframe);
+    const keyframeLayer = this.ensureKeyframeLayer(targetSprite);
+    keyframeLayer.appendChild(keyframe);
     console.log(`✅ 키프레임 UI 생성 완료: ${lightId} ${propertyName} at ${time}`, keyframe);
 
     // 키프레임 클릭 이벤트 추가

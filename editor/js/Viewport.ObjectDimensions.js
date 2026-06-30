@@ -12,7 +12,7 @@ const _box = new THREE.Box3();
 const _center = new THREE.Vector3();
 
 function createDimensionLabel() {
-  const element = document.createElement("motion");
+  const element = document.createElement("div");
   element.className = "viewport-dimension-label";
   element.textContent = "0 m";
 

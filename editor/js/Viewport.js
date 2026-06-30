@@ -423,32 +423,40 @@ function Viewport(editor) {
     };
 
     // 전체화면 스타일 적용
-    container.dom.style.position = 'fixed';
-    container.dom.style.top = '0';
-    container.dom.style.left = '0';
-    container.dom.style.width = '100vw';
-    container.dom.style.height = '100vh';
-    container.dom.style.zIndex = '9999';
-    container.dom.style.backgroundColor = '#1a1a1a';
-    container.dom.style.transition = 'all 0.3s ease';
+    container.dom.style.position = "fixed";
+    container.dom.style.inset = "0";
+    container.dom.style.top = "0";
+    container.dom.style.left = "0";
+    container.dom.style.right = "0";
+    container.dom.style.bottom = "0";
+    container.dom.style.width = "100vw";
+    container.dom.style.height = "100vh";
+    container.dom.style.maxWidth = "none";
+    container.dom.style.maxHeight = "none";
+    container.dom.style.margin = "0";
+    container.dom.style.zIndex = "9999";
+    container.dom.style.backgroundColor = "#0d0d0d";
+    container.dom.style.transition = "all 0.3s ease";
 
-    // body 스크롤 방지 및 클래스 추가
-    document.body.style.overflow = 'hidden';
-    document.body.classList.add('full-mode');
+    document.body.style.overflow = "hidden";
+    document.body.classList.add("full-mode");
 
     isFullscreen = true;
 
-    // 전체화면 알림 표시
-    showFullscreenNotification('전체화면 모드 (ESC키나 더블클릭으로 종료)');
+    showFullscreenNotification("전체화면 모드 (ESC키나 더블클릭으로 종료)");
 
-    // 렌더러 크기 조정
-    setTimeout(() => {
-      if (renderer) {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        updateAspectRatio();
-        render();
-      }
-    }, 100);
+    const resizeFullscreen = () => {
+      if (!renderer) return;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      renderer.setSize(w, h, true);
+      updateAspectRatio();
+      render();
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resizeFullscreen);
+    });
 
     // ESC 키로 전체화면 종료 가능하도록 이벤트 리스너 추가
     document.addEventListener('keydown', onEscapeKey);
@@ -469,6 +477,10 @@ function Viewport(editor) {
       container.dom.style.left = originalContainerStyle.left;
       container.dom.style.right = originalContainerStyle.right;
       container.dom.style.bottom = originalContainerStyle.bottom;
+      container.dom.style.maxWidth = "";
+      container.dom.style.maxHeight = "";
+      container.dom.style.margin = "";
+      container.dom.style.inset = "";
       container.dom.style.backgroundColor = originalContainerStyle.backgroundColor;
       container.dom.style.transition = '';
     }
@@ -485,11 +497,15 @@ function Viewport(editor) {
     // 렌더러 크기 조정
     setTimeout(() => {
       if (renderer) {
-        renderer.setSize(container.dom.offsetWidth, container.dom.offsetHeight);
+        renderer.setSize(
+          container.dom.offsetWidth,
+          container.dom.offsetHeight,
+          true,
+        );
         updateAspectRatio();
         render();
       }
-    }, 100);
+    }, 50);
 
     // 이벤트 리스너 제거
     document.removeEventListener('keydown', onEscapeKey);
@@ -506,7 +522,7 @@ function Viewport(editor) {
   // 전체화면 모드에서 윈도우 크기 변경 처리
   function onFullscreenResize() {
     if (isFullscreen && renderer) {
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight, true);
       updateAspectRatio();
       render();
     }

@@ -32,6 +32,29 @@ function syncRangeToNumber(range, input) {
   range.value = String(Math.min(max, Math.max(min, v)));
 }
 
+const rangeByInput = new WeakMap();
+
+function getRangeForInput(input) {
+  const linked = rangeByInput.get(input);
+  if (linked && linked.isConnected) return linked;
+
+  const row = input.closest(".ec-row");
+  if (row) {
+    const range = row.querySelector("input[data-ec-range]");
+    if (range) return range;
+  }
+
+  return null;
+}
+
+export function syncEcRanges(root) {
+  if (!root) return;
+  root.querySelectorAll("input.Number").forEach((input) => {
+    const range = getRangeForInput(input);
+    if (range) syncRangeToNumber(range, input);
+  });
+}
+
 function createRange(input) {
   const range = document.createElement("input");
   range.type = "range";
@@ -44,6 +67,7 @@ function createRange(input) {
 }
 
 function bindRange(range, input) {
+  rangeByInput.set(input, range);
   range.addEventListener("input", () => {
     input.value = range.value;
     input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -136,10 +160,25 @@ function scan(root) {
   root.querySelectorAll(".Row").forEach(enhanceRow);
 }
 
-export function initPropertyEcBridge(root) {
+export function initPropertyEcBridge(root, editor) {
   if (!root) return;
+
+  const resync = () => syncEcRanges(root);
+
   scan(root);
-  const observer = new MutationObserver(() => scan(root));
+  resync();
+
+  const observer = new MutationObserver(() => {
+    scan(root);
+    resync();
+  });
   observer.observe(root, { childList: true, subtree: true });
+
+  if (editor?.signals) {
+    editor.signals.objectChanged?.add(resync);
+    editor.signals.objectSelected?.add(resync);
+    editor.signals.refreshSidebarObject3D?.add(resync);
+  }
+
   return observer;
 }

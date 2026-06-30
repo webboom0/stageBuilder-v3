@@ -1260,6 +1260,7 @@ border-left: 3px solid #666;
   background: rgba(0, 0, 0, 0.5);
   padding: 1px 4px;
   border-radius: 2px;
+  display: none;
 }
 
 /* 드래그 중인 키프레임 스타일 */

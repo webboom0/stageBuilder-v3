@@ -1828,19 +1828,25 @@ export class AudioTimeline extends BaseTimeline {
       sprite.dataset.audioName = trackName;
     }
 
-    // 파형을 그릴 캔버스 추가
-    const waveformCanvas = document.createElement("canvas");
-    waveformCanvas.className = "waveform-canvas";
-    waveformCanvas.height = 26; // 클립 높이와 동일하게
-
     const spriteContent = document.createElement("div");
     spriteContent.className = "sprite-content";
+
+    const spriteNameEl = document.createElement("div");
+    spriteNameEl.className = "sprite-name";
+    spriteNameEl.textContent = trackName;
+
+    const waveformCanvas = document.createElement("canvas");
+    waveformCanvas.className = "waveform-canvas";
+    waveformCanvas.height = 16;
+
+    spriteContent.appendChild(spriteNameEl);
     spriteContent.appendChild(waveformCanvas);
 
     sprite.innerHTML = `
-      <div class="sprite-name">${trackName}</div>
+      <div class="sprite-handle left"></div>
+      <div class="sprite-handle right"></div>
     `;
-    sprite.insertBefore(spriteContent, sprite.children[0]);
+    sprite.insertBefore(spriteContent, sprite.querySelector(".sprite-handle.right"));
 
     trackContent.appendChild(sprite);
     trackTopArea.appendChild(trackContent);
@@ -3077,6 +3083,7 @@ export class AudioTimeline extends BaseTimeline {
           <div class="sprite-handle left"></div>
           <div class="sprite-content">
             <span class="sprite-name">${typeof trackData.name === "object" ? trackData.name.name : trackData.name}</span>
+            <canvas class="waveform-canvas" height="16"></canvas>
           </div>
           <div class="sprite-handle right"></div>
         `;
@@ -5236,24 +5243,22 @@ export class AudioTimeline extends BaseTimeline {
         position: absolute;
         left: ${leftPercent}%;
         width: ${widthPercent}%;
-        height: 100%;
-        background: linear-gradient(45deg, #4CAF50, #45a049);
-        border: 1px solid #2E7D32;
-        border-radius: 4px;
+        height: 28px;
         cursor: grab;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 12px;
-        font-weight: bold;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
         user-select: none;
         z-index: 10;
       `;
 
-      // 스프라이트 텍스트 설정
-      audioSprite.textContent = track.audioFile.displayName || track.audioFile.name;
+      const clipLabel =
+        track.audioFile.displayName || track.audioFile.name || "Audio";
+      audioSprite.innerHTML = `
+        <div class="sprite-handle left"></div>
+        <div class="sprite-content">
+          <div class="sprite-name">${clipLabel}</div>
+          <canvas class="waveform-canvas" height="16"></canvas>
+        </div>
+        <div class="sprite-handle right"></div>
+      `;
 
       // 스프라이트를 트랙 컨텐츠에 추가
       trackContentArea.appendChild(audioSprite);

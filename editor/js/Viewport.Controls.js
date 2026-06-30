@@ -109,7 +109,8 @@ function ViewportControls( editor ) {
 	// grid mode (adaptive / fixed 1m display)
 
 	const gridModeSelect = new UISelect();
-	gridModeSelect.setStyle( 'width', [ '168px' ] );
+	gridModeSelect.dom.classList.add( 'viewport-grid-mode-select' );
+	gridModeSelect.setStyle( 'width', [ '100px' ] );
 	gridModeSelect.setOptions( {
 		[ GRID_MODE_ADAPTIVE ]: strings.getKey( 'viewport/controls/gridAdaptive' ),
 		[ GRID_MODE_FIXED ]: strings.getKey( 'viewport/controls/gridFixed' ),

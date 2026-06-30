@@ -5,430 +5,110 @@ export class ProjectSetup {
   }
 
 
+  _createTextField(labelText, name, placeholder, value = "") {
+    const wrap = document.createElement("div");
+    wrap.className = "sb-project-field";
+    const label = document.createElement("label");
+    label.className = "sb-project-label";
+    label.textContent = labelText;
+    const input = document.createElement("input");
+    input.className = "sb-project-input";
+    input.type = "text";
+    input.name = name;
+    input.placeholder = placeholder;
+    input.required = true;
+    if (value) input.value = value;
+    wrap.append(label, input);
+    return wrap;
+  }
+
   // 새 프로젝트 시작 시 프로젝트 설정 팝업 표시
   showProjectSetupPopup(editor) {
-    // 기존 팝업이 있다면 제거
-    const existingPopup = document.querySelector('.project-setup-popup');
-    if (existingPopup) {
-      existingPopup.remove();
-    }
+    document.querySelector(".project-setup-overlay")?.remove();
 
-    // 수정 모드인지 확인 (기존 프로젝트 정보가 있는지)
     const isEditMode = editor.project && Object.keys(editor.project).length > 0;
+    const p = isEditMode ? editor.project : {};
 
-    // 팝업 오버레이 생성
-    const overlay = document.createElement('div');
-    overlay.className = 'project-setup-overlay';
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 10000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    `;
+    const overlay = document.createElement("div");
+    overlay.className = "project-setup-overlay";
 
-    // 팝업 컨테이너 생성
-    const popup = document.createElement('div');
-    popup.className = 'project-setup-popup';
-    popup.style.cssText = `
-      background: #2a2a2a;
-      border-radius: 8px;
-      padding: 30px;
-      width: 500px;
-      max-width: 90vw;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      border: 1px solid #444;
-    `;
+    const popup = document.createElement("div");
+    popup.className = "project-setup-popup";
 
-    // 팝업 헤더
-    const header = document.createElement('div');
-    header.style.cssText = `
-      text-align: center;
-      margin-bottom: 25px;
-      border-bottom: 2px solid #444;
-      padding-bottom: 15px;
-    `;
-    
-    const title = document.createElement('h2');
-    title.textContent = isEditMode ? '프로젝트 설정 수정' : '새 프로젝트 설정';
-    title.style.cssText = `
-      color: #fff;
-      margin: 0;
-      font-size: 24px;
-      font-weight: 600;
-    `;
-    
-    const subtitle = document.createElement('p');
-    subtitle.textContent = isEditMode ? '프로젝트 정보를 수정해주세요' : '프로젝트 기본 정보를 입력해주세요';
-    subtitle.style.cssText = `
-      color: #ccc;
-      margin: 10px 0 0 0;
-      font-size: 14px;
-    `;
-    
-    header.appendChild(title);
-    header.appendChild(subtitle);
+    const header = document.createElement("div");
+    header.className = "sb-project-setup__header";
+    const title = document.createElement("h2");
+    title.className = "sb-project-setup__title";
+    title.textContent = isEditMode ? "프로젝트 설정 수정" : "새 프로젝트 설정";
+    const subtitle = document.createElement("p");
+    subtitle.className = "sb-project-setup__subtitle";
+    subtitle.textContent = isEditMode
+      ? "프로젝트 정보를 수정해주세요"
+      : "프로젝트 기본 정보를 입력해주세요";
+    header.append(title, subtitle);
 
-    // 폼 생성
-    const form = document.createElement('form');
-    form.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    `;
+    const form = document.createElement("form");
+    form.className = "sb-project-setup__form";
+    form.noValidate = true;
 
-    // 공연명 입력 필드
-    const showNameContainer = document.createElement('div');
-    showNameContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    `;
+    form.append(
+      this._createTextField("공연명", "showName", "예: 로미오와 줄리엣", p.showName || ""),
+      this._createTextField("장르", "genre", "예: 뮤지컬, 연극, 오페라", p.genre || ""),
+    );
 
-    const showNameLabel = document.createElement('label');
-    showNameLabel.textContent = '공연명';
-    showNameLabel.style.cssText = `
-      color: #fff;
-      font-weight: 500;
-      font-size: 14px;
-    `;
-
-    const showNameInput = document.createElement('input');
-    showNameInput.type = 'text';
-    showNameInput.name = 'showName';
-    showNameInput.placeholder = '예: 로미오와 줄리엣';
-    showNameInput.required = true;
-    // 수정 모드일 때 기존 값으로 미리 채우기
-    if (isEditMode && editor.project.showName) {
-      showNameInput.value = editor.project.showName;
-    }
-    showNameInput.style.cssText = `
-      padding: 12px 16px;
-      border: 1px solid #555;
-      border-radius: 6px;
-      background: #3a3a3a;
-      color: #fff;
-      font-size: 14px;
-      transition: border-color 0.3s;
-    `;
-
-    // 포커스 효과
-    showNameInput.addEventListener('focus', () => {
-      showNameInput.style.borderColor = '#007acc';
-    });
-
-    showNameInput.addEventListener('blur', () => {
-      showNameInput.style.borderColor = '#555';
-    });
-
-    showNameContainer.appendChild(showNameLabel);
-    showNameContainer.appendChild(showNameInput);
-    form.appendChild(showNameContainer);
-
-    // 장르 입력 필드
-    const genreContainer = document.createElement('div');
-    genreContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    `;
-
-    const genreLabel = document.createElement('label');
-    genreLabel.textContent = '장르';
-    genreLabel.style.cssText = `
-      color: #fff;
-      font-weight: 500;
-      font-size: 14px;
-    `;
-
-    const genreInput = document.createElement('input');
-    genreInput.type = 'text';
-    genreInput.name = 'genre';
-    genreInput.placeholder = '예: 뮤지컬, 연극, 오페라';
-    genreInput.required = true;
-    // 수정 모드일 때 기존 값으로 미리 채우기
-    if (isEditMode && editor.project.genre) {
-      genreInput.value = editor.project.genre;
-    }
-    genreInput.style.cssText = `
-      padding: 12px 16px;
-      border: 1px solid #555;
-      border-radius: 6px;
-      background: #3a3a3a;
-      color: #fff;
-      font-size: 14px;
-      transition: border-color 0.3s;
-    `;
-
-    // 포커스 효과
-    genreInput.addEventListener('focus', () => {
-      genreInput.style.borderColor = '#007acc';
-    });
-
-    genreInput.addEventListener('blur', () => {
-      genreInput.style.borderColor = '#555';
-    });
-
-    genreContainer.appendChild(genreLabel);
-    genreContainer.appendChild(genreInput);
-    form.appendChild(genreContainer);
-
-    // 공연기간 입력 필드 (시작날짜 + 마지막날짜)
-    const periodContainer = document.createElement('div');
-    periodContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    `;
-
-    const periodLabel = document.createElement('label');
-    periodLabel.textContent = '공연기간';
-    periodLabel.style.cssText = `
-      color: #fff;
-      font-weight: 500;
-      font-size: 14px;
-    `;
-
-    const periodInputsContainer = document.createElement('div');
-    periodInputsContainer.style.cssText = `
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    `;
-
-    const startDateInput = document.createElement('input');
-    startDateInput.type = 'date';
-    startDateInput.name = 'startDate';
+    const periodWrap = document.createElement("div");
+    periodWrap.className = "sb-project-field";
+    const periodLabel = document.createElement("label");
+    periodLabel.className = "sb-project-label";
+    periodLabel.textContent = "공연기간";
+    const periodRow = document.createElement("div");
+    periodRow.className = "sb-project-period";
+    const startDateInput = document.createElement("input");
+    startDateInput.className = "sb-project-input";
+    startDateInput.type = "date";
+    startDateInput.name = "startDate";
     startDateInput.required = true;
-    // 수정 모드일 때 기존 값으로 미리 채우기
-    if (isEditMode && editor.project.startDate) {
-      startDateInput.value = editor.project.startDate;
-    }
-    startDateInput.style.cssText = `
-      flex: 1;
-      padding: 12px 16px;
-      border: 1px solid #555;
-      border-radius: 6px;
-      background: #3a3a3a;
-      color: #fff;
-      font-size: 14px;
-      transition: border-color 0.3s;
-    `;
-
-    const endDateInput = document.createElement('input');
-    endDateInput.type = 'date';
-    endDateInput.name = 'endDate';
+    if (p.startDate) startDateInput.value = p.startDate;
+    const sep = document.createElement("span");
+    sep.className = "sb-project-period__sep";
+    sep.textContent = "~";
+    const endDateInput = document.createElement("input");
+    endDateInput.className = "sb-project-input";
+    endDateInput.type = "date";
+    endDateInput.name = "endDate";
     endDateInput.required = true;
-    // 수정 모드일 때 기존 값으로 미리 채우기
-    if (isEditMode && editor.project.endDate) {
-      endDateInput.value = editor.project.endDate;
-    }
-    endDateInput.style.cssText = `
-      flex: 1;
-      padding: 12px 16px;
-      border: 1px solid #555;
-      border-radius: 6px;
-      background: #3a3a3a;
-      color: #fff;
-      font-size: 14px;
-      transition: border-color 0.3s;
-    `;
+    if (p.endDate) endDateInput.value = p.endDate;
+    periodRow.append(startDateInput, sep, endDateInput);
+    periodWrap.append(periodLabel, periodRow);
+    form.append(periodWrap);
 
-    const periodSeparator = document.createElement('span');
-    periodSeparator.textContent = '~';
-    periodSeparator.style.cssText = `
-      color: #ccc;
-      font-size: 14px;
-      font-weight: 500;
-    `;
+    form.append(
+      this._createTextField(
+        "공연장소/규모",
+        "venue",
+        "예: 예술의전당/규모: 소/중/대 극장",
+        p.venue || "",
+      ),
+      this._createTextField("연출자/막", "director", "예: 홍길동/1막", p.director || ""),
+    );
 
-    // 포커스 효과
-    [startDateInput, endDateInput].forEach(input => {
-      input.addEventListener('focus', () => {
-        input.style.borderColor = '#007acc';
-      });
+    const buttonContainer = document.createElement("div");
+    buttonContainer.className = "sb-project-setup__actions";
 
-      input.addEventListener('blur', () => {
-        input.style.borderColor = '#555';
-      });
-    });
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "sb-project-btn sb-project-btn--cancel";
+    cancelBtn.textContent = "취소";
 
-    periodInputsContainer.appendChild(startDateInput);
-    periodInputsContainer.appendChild(periodSeparator);
-    periodInputsContainer.appendChild(endDateInput);
-    periodContainer.appendChild(periodLabel);
-    periodContainer.appendChild(periodInputsContainer);
-    form.appendChild(periodContainer);
+    const startBtn = document.createElement("button");
+    startBtn.type = "submit";
+    startBtn.className = "sb-project-btn sb-project-btn--primary";
+    startBtn.textContent = isEditMode ? "프로젝트 수정" : "프로젝트 시작";
 
-    // 공연장소 입력 필드
-    const venueContainer = document.createElement('div');
-    venueContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    `;
+    buttonContainer.append(cancelBtn, startBtn);
 
-    const venueLabel = document.createElement('label');
-    venueLabel.textContent = '공연장소/규모';
-    venueLabel.style.cssText = `
-      color: #fff;
-      font-weight: 500;
-      font-size: 14px;
-    `;
+    cancelBtn.addEventListener("click", () => overlay.remove());
 
-    const venueInput = document.createElement('input');
-    venueInput.type = 'text';
-    venueInput.name = 'venue';
-    venueInput.placeholder = '예: 예술의전당/규모: 소/중/대 극장';
-    venueInput.required = true;
-    // 수정 모드일 때 기존 값으로 미리 채우기
-    if (isEditMode && editor.project.venue) {
-      venueInput.value = editor.project.venue;
-    }
-    venueInput.style.cssText = `
-      padding: 12px 16px;
-      border: 1px solid #555;
-      border-radius: 6px;
-      background: #3a3a3a;
-      color: #fff;
-      font-size: 14px;
-      transition: border-color 0.3s;
-    `;
-
-    // 포커스 효과
-    venueInput.addEventListener('focus', () => {
-      venueInput.style.borderColor = '#007acc';
-    });
-
-    venueInput.addEventListener('blur', () => {
-      venueInput.style.borderColor = '#555';
-    });
-
-    venueContainer.appendChild(venueLabel);
-    venueContainer.appendChild(venueInput);
-    form.appendChild(venueContainer);
-
-    // 연출자/막 입력 필드
-    const directorContainer = document.createElement('div');
-    directorContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    `;
-
-    const directorLabel = document.createElement('label');
-    directorLabel.textContent = '연출자/막';
-    directorLabel.style.cssText = `
-      color: #fff;
-      font-weight: 500;
-      font-size: 14px;
-    `;
-
-    const directorInput = document.createElement('input');
-    directorInput.type = 'text';
-    directorInput.name = 'director';
-    directorInput.placeholder = '예: 홍길동/1막';
-    directorInput.required = true;
-    // 수정 모드일 때 기존 값으로 미리 채우기
-    if (isEditMode && editor.project.director) {
-      directorInput.value = editor.project.director;
-    }
-    directorInput.style.cssText = `
-      padding: 12px 16px;
-      border: 1px solid #555;
-      border-radius: 6px;
-      background: #3a3a3a;
-      color: #fff;
-      font-size: 14px;
-      transition: border-color 0.3s;
-    `;
-
-    // 포커스 효과
-    directorInput.addEventListener('focus', () => {
-      directorInput.style.borderColor = '#007acc';
-    });
-
-    directorInput.addEventListener('blur', () => {
-      directorInput.style.borderColor = '#555';
-    });
-
-    directorContainer.appendChild(directorLabel);
-    directorContainer.appendChild(directorInput);
-    form.appendChild(directorContainer);
-
-
-    // 버튼 컨테이너
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = `
-      display: flex;
-      gap: 15px;
-      margin-top: 25px;
-      justify-content: center;
-    `;
-
-    // 취소 버튼
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = '취소';
-    cancelBtn.style.cssText = `
-      padding: 12px 24px;
-      border: 1px solid #666;
-      border-radius: 6px;
-      background: transparent;
-      color: #ccc;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.3s;
-    `;
-
-    cancelBtn.addEventListener('mouseenter', () => {
-      cancelBtn.style.borderColor = '#888';
-      cancelBtn.style.color = '#fff';
-    });
-
-    cancelBtn.addEventListener('mouseleave', () => {
-      cancelBtn.style.borderColor = '#666';
-      cancelBtn.style.color = '#ccc';
-    });
-
-    // 시작 버튼
-    const startBtn = document.createElement('button');
-    startBtn.type = 'submit';
-    startBtn.textContent = isEditMode ? '프로젝트 수정' : '프로젝트 시작';
-    startBtn.style.cssText = `
-      padding: 12px 24px;
-      border: none;
-      border-radius: 6px;
-      background: #007acc;
-      color: #fff;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: background 0.3s;
-    `;
-
-    startBtn.addEventListener('mouseenter', () => {
-      startBtn.style.background = '#005a9e';
-    });
-
-    startBtn.addEventListener('mouseleave', () => {
-      startBtn.style.background = '#007acc';
-    });
-
-    buttonContainer.appendChild(cancelBtn);
-    buttonContainer.appendChild(startBtn);
-
-    // 이벤트 핸들러
-    cancelBtn.addEventListener('click', () => {
-      overlay.remove();
-    });
-
-    // 폼 제출 이벤트와 시작 버튼 클릭 이벤트 모두 처리
     const handleProjectStart = async () => {
       console.log('🚀 프로젝트 시작 버튼 클릭됨!');
       
@@ -553,65 +233,21 @@ export class ProjectSetup {
       handleProjectStart();
     });
 
-    // 팝업 조립
-    popup.appendChild(header);
-    popup.appendChild(form);
-    popup.appendChild(buttonContainer);
-    overlay.appendChild(popup);
+    popup.append(header, form, buttonContainer);
+    overlay.append(popup);
     document.body.appendChild(overlay);
 
-    // 첫 번째 입력 필드에 포커스
-    const firstInput = popup.querySelector('input');
-    if (firstInput) {
-      firstInput.focus();
-    }
+    popup.querySelector("input")?.focus();
   }
 
   // 프로젝트 설정 완료 성공 메시지
   showProjectSetupSuccess(showName, isEditMode = false) {
-    const message = document.createElement('div');
-    message.className = 'project-setup-success';
-    message.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 20px;">✅</span>
-        <span>"${showName}" 프로젝트가 ${isEditMode ? '수정되었습니다!' : '시작되었습니다!'}</span>
-      </div>
-    `;
-    message.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #4CAF50;
-      color: white;
-      padding: 15px 20px;
-      border-radius: 6px;
-      z-index: 10001;
-      font-size: 14px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      animation: slideInRight 0.3s ease-out;
-    `;
-
-    // 애니메이션 CSS 추가
-    if (!document.querySelector('#project-setup-animations')) {
-      const style = document.createElement('style');
-      style.id = 'project-setup-animations';
-      style.textContent = `
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
+    const message = document.createElement("div");
+    message.className = "project-setup-success";
+    message.textContent = `"${showName}" 프로젝트가 ${isEditMode ? "수정되었습니다!" : "시작되었습니다!"}`;
     document.body.appendChild(message);
 
-    // 5초 후 자동 제거
-    setTimeout(() => {
-      if (message.parentNode) {
-        message.remove();
-      }
-    }, 5000);
+    setTimeout(() => message.remove(), 5000);
   }
 
   // 새 프로젝트 시작 함수

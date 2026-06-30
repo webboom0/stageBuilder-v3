@@ -1743,7 +1743,10 @@ export class MotionTimeline extends BaseTimeline {
 
         const positionRow = new UIRow();
         positionRow.setClass("position-row");
-        positionRow.add(new UIText("Position"));
+
+        const propertyLabel = new UIText("Position");
+        propertyLabel.setClass("property-label");
+        positionRow.add(propertyLabel);
 
         const posX = new UINumber().setPrecision(3).setWidth("50px");
         const posY = new UINumber().setPrecision(3).setWidth("50px");
@@ -1753,147 +1756,104 @@ export class MotionTimeline extends BaseTimeline {
         posY.dom.setAttribute("data-axis", "y");
         posZ.dom.setAttribute("data-axis", "z");
 
-        posX.onChange((value) => {
+        const applyAxisChange = (axis, numValue) => {
             if (!this.selectedKeyframe?.value) return;
+            if (Number.isNaN(numValue)) return;
 
-            const numValue = Number(value);
-            if (isNaN(numValue)) return;
+            const property = this.selectedKeyframe.property;
+            const trackData = this.timelineData.tracks
+                .get(this.selectedKeyframe.objectId)
+                ?.get(property);
+            if (!trackData) return;
 
-            // index 기반으로 키프레임 값 업데이트
-            if (this.selectedKeyframe.objectId && this.selectedKeyframe.index !== undefined) {
-                const trackData = this.timelineData.tracks.get(this.selectedKeyframe.objectId)?.get('position');
-                if (trackData) {
-                    const currentValue = new THREE.Vector3(
-                        trackData.values[this.selectedKeyframe.index * 3],
-                        trackData.values[this.selectedKeyframe.index * 3 + 1],
-                        trackData.values[this.selectedKeyframe.index * 3 + 2]
-                    );
-                    currentValue.x = numValue;
+            const currentValue = new THREE.Vector3(
+                trackData.values[this.selectedKeyframe.index * 3],
+                trackData.values[this.selectedKeyframe.index * 3 + 1],
+                trackData.values[this.selectedKeyframe.index * 3 + 2],
+            );
+            currentValue[axis] = numValue;
 
-                    // index 기반으로 키프레임 업데이트
-                    this.setKeyframeByIndex(
-                        this.selectedKeyframe.objectId,
-                        'position',
-                        this.selectedKeyframe.index,
-                        this.selectedKeyframe.time,
-                        currentValue,
-                        this.selectedKeyframe.interpolation
-                    );
-                }
-            }
+            this.setKeyframeByIndex(
+                this.selectedKeyframe.objectId,
+                property,
+                this.selectedKeyframe.index,
+                this.selectedKeyframe.time,
+                currentValue,
+                this.selectedKeyframe.interpolation,
+            );
 
-            const object = this.editor.scene.getObjectByProperty('uuid', this.selectedKeyframe.objectId);
+            this.selectedKeyframe.value = {
+                x: currentValue.x,
+                y: currentValue.y,
+                z: currentValue.z,
+            };
+
+            const object = this.editor.scene.getObjectByProperty(
+                "uuid",
+                this.selectedKeyframe.objectId,
+            );
             if (object) {
-                object.position.x = numValue;
-                if (this.editor.signals?.objectChanged) this.editor.signals.objectChanged.dispatch(object);
+                this.setPropertyValue(object, property, this.selectedKeyframe.value);
             }
-        });
+        };
 
-        posY.onChange((value) => {
-            if (!this.selectedKeyframe?.value) return;
-
-            const numValue = Number(value);
-            if (isNaN(numValue)) return;
-
-            // index 기반으로 키프레임 값 업데이트
-            if (this.selectedKeyframe.objectId && this.selectedKeyframe.index !== undefined) {
-                const trackData = this.timelineData.tracks.get(this.selectedKeyframe.objectId)?.get('position');
-                if (trackData) {
-                    const currentValue = new THREE.Vector3(
-                        trackData.values[this.selectedKeyframe.index * 3],
-                        trackData.values[this.selectedKeyframe.index * 3 + 1],
-                        trackData.values[this.selectedKeyframe.index * 3 + 2]
-                    );
-                    currentValue.y = numValue;
-
-                    // index 기반으로 키프레임 업데이트
-                    this.setKeyframeByIndex(
-                        this.selectedKeyframe.objectId,
-                        'position',
-                        this.selectedKeyframe.index,
-                        this.selectedKeyframe.time,
-                        currentValue,
-                        this.selectedKeyframe.interpolation
-                    );
-                }
-            }
-
-            const object = this.editor.scene.getObjectByProperty('uuid', this.selectedKeyframe.objectId);
-            if (object) {
-                object.position.y = numValue;
-                if (this.editor.signals?.objectChanged) this.editor.signals.objectChanged.dispatch(object);
-            }
-        });
-
-        posZ.onChange((value) => {
-            if (!this.selectedKeyframe?.value) return;
-
-            const numValue = Number(value);
-            if (isNaN(numValue)) return;
-
-            // index 기반으로 키프레임 값 업데이트
-            if (this.selectedKeyframe.objectId && this.selectedKeyframe.index !== undefined) {
-                const trackData = this.timelineData.tracks.get(this.selectedKeyframe.objectId)?.get('position');
-                if (trackData) {
-                    const currentValue = new THREE.Vector3(
-                        trackData.values[this.selectedKeyframe.index * 3],
-                        trackData.values[this.selectedKeyframe.index * 3 + 1],
-                        trackData.values[this.selectedKeyframe.index * 3 + 2]
-                    );
-                    currentValue.z = numValue;
-
-                    // index 기반으로 키프레임 업데이트
-                    this.setKeyframeByIndex(
-                        this.selectedKeyframe.objectId,
-                        'position',
-                        this.selectedKeyframe.index,
-                        this.selectedKeyframe.time,
-                        currentValue,
-                        this.selectedKeyframe.interpolation
-                    );
-                }
-            }
-
-            const object = this.editor.scene.getObjectByProperty('uuid', this.selectedKeyframe.objectId);
-            if (object) {
-                object.position.z = numValue;
-                if (this.editor.signals?.objectChanged) this.editor.signals.objectChanged.dispatch(object);
-            }
-        });
+        posX.onChange((value) => applyAxisChange("x", Number(value)));
+        posY.onChange((value) => applyAxisChange("y", Number(value)));
+        posZ.onChange((value) => applyAxisChange("z", Number(value)));
 
         positionRow.add(posX);
         positionRow.add(posY);
         positionRow.add(posZ);
         panel.add(positionRow);
 
-        panel.dom.style.padding = "10px";
-        panel.dom.style.backgroundColor = "#2c2c2c";
-        panel.dom.style.borderTop = "1px solid #1a1a1a";
+        panel.propertyLabel = propertyLabel;
+        panel.posX = posX;
+        panel.posY = posY;
+        panel.posZ = posZ;
 
         return panel;
     }
 
     updatePropertyPanel() {
-        // console.log("updatePropertyPanel");
+        if (!this.propertyPanel) return;
 
-        if (!this.selectedKeyframe?.value || !this.propertyPanel) return;
+        const { propertyLabel, posX, posY, posZ } = this.propertyPanel;
+        const propertyLabels = {
+            position: "Position",
+            rotation: "Rotation",
+            scale: "Scale",
+        };
 
-        // index 기반으로 키프레임 값 가져오기
-        const position = this.selectedKeyframe.value;
+        if (!this.selectedKeyframe?.value) {
+            propertyLabel.setTextContent("Position");
+            posX.setValue(0);
+            posY.setValue(0);
+            posZ.setValue(0);
+            return;
+        }
 
-        const xInput = this.propertyPanel.dom.querySelector(
-            '.position-row input[data-axis="x"]'
+        const property = this.selectedKeyframe.property || "position";
+        propertyLabel.setTextContent(
+            propertyLabels[property] || property,
         );
-        const yInput = this.propertyPanel.dom.querySelector(
-            '.position-row input[data-axis="y"]'
-        );
-        const zInput = this.propertyPanel.dom.querySelector(
-            '.position-row input[data-axis="z"]'
-        );
 
-        if (xInput) xInput.value = position.x.toString();
-        if (yInput) yInput.value = position.y.toString();
-        if (zInput) zInput.value = position.z.toString();
+        const trackData = this.timelineData.tracks
+            .get(this.selectedKeyframe.objectId)
+            ?.get(property);
+        const index = this.selectedKeyframe.index;
+        const value =
+            trackData && index !== undefined && index >= 0
+                ? {
+                      x: trackData.values[index * 3],
+                      y: trackData.values[index * 3 + 1],
+                      z: trackData.values[index * 3 + 2],
+                  }
+                : this.selectedKeyframe.value;
+
+        this.selectedKeyframe.value = value;
+        posX.setValue(value.x);
+        posY.setValue(value.y);
+        posZ.setValue(value.z);
     }
 
     addTrack(objectUuid, objectId, objectName, skipInitialKeyframe = false) {

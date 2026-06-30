@@ -1,11 +1,20 @@
 import {
-  UIBreak,
   UIButton,
   UIDiv,
   UIText,
   UINumber,
   UIRow,
 } from "./libs/ui.js";
+
+function dedupeAnimations(animations) {
+  const seen = new Set();
+  return animations.filter((animation) => {
+    const key = animation.uuid || animation.name || String(animation);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 function SidebarObjectAnimation(editor) {
   const strings = editor.strings;
@@ -18,41 +27,56 @@ function SidebarObjectAnimation(editor) {
       : strings.getKey("sidebar/animations/play");
   }
 
-  function Animation(animation, object) {
-    console.log("sidebar.object.animation.js------animation");
-    console.log(mixer);
-    console.log(strings);
-    console.log(signals);
+  function getButtonLabel(animation, action, totalCount) {
+    const state = getButtonText(action);
+    if (totalCount <= 1) return state;
+    const name = (animation.name || "").trim();
+    if (!name) return state;
+    return `${name} · ${state}`;
+  }
+
+  function createAnimButton(animation, object, totalCount) {
     const action = mixer.clipAction(animation, object);
-    console.log(action);
-    const container = new UIRow();
+    const button = new UIButton(getButtonLabel(animation, action, totalCount));
+    button.dom.classList.add("sb-anim-btn");
+    if (animation.name) {
+      button.dom.title = animation.name;
+    }
 
-    const name = new UIText(animation.name).setWidth("200px");
-    container.add(name);
-
-    const button = new UIButton(getButtonText(action));
     button.onClick(function () {
-      console.log(action.isRunning());
-      action.isRunning() ? action.stop() : action.play();
-      button.setTextContent(getButtonText(action));
+      if (action.isRunning()) {
+        action.stop();
+      } else {
+        action.play();
+      }
+      button.setTextContent(getButtonLabel(animation, action, totalCount));
+      button.dom.classList.toggle("is-playing", action.isRunning());
     });
 
-    container.add(button);
+    if (action.isRunning()) {
+      button.dom.classList.add("is-playing");
+    }
 
-    return container;
+    return button;
   }
+
+  const animationsList = new UIDiv();
+  animationsList.dom.className = "sb-anim-buttons";
+
+  const playRow = new UIRow();
+  playRow.dom.classList.add("ec-row", "sb-anim-play-row");
+  playRow.add(
+    new UIText(strings.getKey("sidebar/animations")).setClass("Label"),
+  );
+  playRow.add(animationsList);
 
   signals.objectSelected.add(function (object) {
     if (object !== null && object.animations.length > 0) {
       animationsList.clear();
-      console.log("object");
 
-      const animations = object.animations;
-
+      const animations = dedupeAnimations(object.animations);
       for (const animation of animations) {
-        console.log(animation);
-        console.log(object);
-        animationsList.add(new Animation(animation, object));
+        animationsList.add(createAnimButton(animation, object, animations.length));
       }
 
       container.setDisplay("");
@@ -68,19 +92,9 @@ function SidebarObjectAnimation(editor) {
   });
 
   const container = new UIDiv();
-  container.setMarginTop("20px");
+  container.dom.className = "sb-animations-block";
   container.setDisplay("none");
-
-  container.add(
-    new UIText(strings.getKey("sidebar/animations")).setTextTransform(
-      "uppercase",
-    ),
-  );
-  container.add(new UIBreak());
-  container.add(new UIBreak());
-
-  const animationsList = new UIDiv();
-  container.add(animationsList);
+  container.add(playRow);
 
   const mixerTimeScaleRow = new UIRow();
   const mixerTimeScaleNumber = new UINumber(1)

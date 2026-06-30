@@ -95,9 +95,14 @@ class Timeline {
     this.applyShellLayout();
 
     // addTrack 추가가
-    this.container
-      .querySelector(".timeline-header .controls-container")
-      .prepend(this.createAddTimelineButton().dom);
+    const controls = this.container.querySelector(
+      ".timeline-header .controls-container",
+    );
+    const divider = document.createElement("span");
+    divider.className = "controls-divider controls-divider--end";
+    divider.setAttribute("aria-hidden", "true");
+    controls.appendChild(divider);
+    controls.appendChild(this.createAddKeyframeButton().dom);
 
     // 타임라인 상단 눈금 및 플레이헤드 생성
     this.createTimeRuler();
@@ -143,6 +148,12 @@ class Timeline {
     this.initializeUI();
     this.bindEvents();
     this.selectionBridge = new TimelineSelectionBridge(editor, this);
+
+    const initialFrame =
+      this.editor.scene?.userData?.timeline?.currentFrame ??
+      this.timelineSettings?.currentFrame ??
+      0;
+    this.updateTimeDisplay(initialFrame);
 
     // 초기 상태 설정
     this.isPlaying = false;
@@ -328,14 +339,10 @@ class Timeline {
 
   mountInspector() {
     const tab = this.editor.tabRoot;
-    const slot =
-      tab?.querySelector("#sidebar-left-inspector") ||
-      tab?.querySelector("#keyframe-property-panel");
     const panel =
       tab?.querySelector("#keyframe-property-panel") ||
       document.querySelector("#keyframe-property-panel");
-    if (slot && panel && panel.parentElement !== slot) {
-      slot.appendChild(panel);
+    if (panel) {
       panel.style.display = "block";
       panel.classList.add("premiere-inspector");
     }
@@ -683,22 +690,35 @@ class Timeline {
     }, 3000);
   }
 
-  // 타임라인 추가 버튼
-  createAddTimelineButton = () => {
-    console.log("createAddTimelineButton");
-    const timeline = this;
-    const addTimelineBtn = new UIButton();
-    addTimelineBtn.dom.innerHTML = `
-    <i class="fas fa-plus"></i>
-    <span></span>
-  `;
-    addTimelineBtn.setClass("add-timeline-btn");
+  // 타임라인 헤더 — 플레이헤드 시점 전체 키프레임 추가
+  createAddKeyframeButton = () => {
+    const addKeyframeBtn = new UIButton();
+    addKeyframeBtn.setClass("add-global-keyframe-btn");
+    addKeyframeBtn.dom.type = "button";
+    addKeyframeBtn.dom.title = "전체 키프레임 추가 (Shift+K)";
+    addKeyframeBtn.dom.innerHTML =
+      '<span class="kf-add-diamond" aria-hidden="true"></span>';
 
-    addTimelineBtn.onClick(() => {
-      this.addTimelineTrack();
+    addKeyframeBtn.onClick(() => {
+      const keyboardShortcuts =
+        this.timelines?.motion?.keyboardShortcuts ||
+        this.editor?.motionTimeline?.keyboardShortcuts;
+
+      if (keyboardShortcuts?.addKeyframeBoth) {
+        keyboardShortcuts.addKeyframeBoth();
+        return;
+      }
+
+      this.timelines?.motion?.addKeyframesAtPlayheadForAll?.();
+      this.timelines?.light?.addKeyframesAtPlayheadForAll?.();
     });
 
-    return addTimelineBtn;
+    return addKeyframeBtn;
+  };
+
+  /** @deprecated 트랙 추가는 에셋 패널에서 수행 — 레거시 호환용 */
+  createAddTimelineButton = () => {
+    return this.createAddKeyframeButton();
   };
 
   addTimelineTrack() {
@@ -1278,6 +1298,12 @@ class Timeline {
     const seconds = frame / this.timelineSettings.framesPerSecond;
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
+    const timecode = this.formatTimecode(seconds);
+
+    const headTc = this.container.querySelector("#sb-tl-tc");
+    if (headTc) {
+      headTc.textContent = timecode;
+    }
 
     const timeDisplay = this.container.querySelector(".time-display");
     if (timeDisplay) {
@@ -2058,11 +2084,12 @@ class Timeline {
     const syncPlayheadSpine = (percent) => {
       if (!spine || !viewport) return;
 
-      const rulerRect = ruler.getBoundingClientRect();
       const vRect = viewport.getBoundingClientRect();
-      const rulerX = (percent / 100) * rulerRect.width;
-      const left = rulerRect.left - vRect.left + rulerX;
-      spine.style.left = `${left}px`;
+      const rulerRect = ruler.getBoundingClientRect();
+      // 헤더 playhead(%)와 동일한 화면 X — 룰러 기준 단일 좌표
+      const rulerCenterX =
+        rulerRect.left + (percent / 100) * rulerRect.width;
+      spine.style.left = `${rulerCenterX - vRect.left}px`;
     };
 
     this.syncPlayheadSpine = syncPlayheadSpine;
@@ -2162,6 +2189,16 @@ class Timeline {
         syncPlayheadSpine(pct);
       });
     }
+  }
+
+  formatTimecode(seconds) {
+    const s = Math.max(0, seconds);
+    const minutes = Math.floor(s / 60);
+    const secs = Math.floor(s % 60);
+    const cs = Math.floor((s % 1) * 100);
+    return `${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}:${cs.toString().padStart(2, "0")}`;
   }
 
   formatTime(seconds) {

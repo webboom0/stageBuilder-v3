@@ -5,10 +5,9 @@
   <title>Stage Builder</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-  <link rel="apple-touch-icon" href="images/icon.png" />
+  <link rel="icon" href="images/stagebuilder-logo.png" type="image/png" />
+  <link rel="apple-touch-icon" href="images/stagebuilder-logo.png" />
   <link rel="manifest" href="manifest.json" />
-  <link rel="shortcut icon" href="../files/favicon_white.ico" media="(prefers-color-scheme: dark)" />
-  <link rel="shortcut icon" href="../files/favicon.ico" media="(prefers-color-scheme: light)" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.css"
     integrity="sha512-kJlvECunwXftkPwyvHbclArO8wszgBGisiLeuDFwNM8ws+wKIw0sv1os3ClWZOcrEB2eRXULYUsm8OVRGJKwGA=="
@@ -34,10 +33,12 @@
 
         <div class="viewerWrapper sb-editor-grid">
           <aside class="side sb-left" id="sidebar-left">
-            <div class="sec cy"><span class="dot"></span>Clip / Keyframe</div>
-            <div id="sidebar-left-inspector" class="sb-left-inspector"></div>
             <div class="sec"><span class="dot"></span>Properties</div>
             <div id="sidebar-properties-host" class="sb-left-properties"></div>
+            <div class="sec cy"><span class="dot"></span>Clip / Keyframe</div>
+            <div id="sidebar-left-inspector" class="sb-left-inspector">
+              <div id="keyframe-property-panel" class="sb-kf-panel-host"></div>
+            </div>
           </aside>
 
           <div class="viewer sb-program">
@@ -60,7 +61,6 @@
             <nav id="sidebar-right-rail" class="sb-right-rail" aria-label="패널 도구"></nav>
           </aside>
         </div>
-        <div id="keyframe-property-panel" class="sb-kf-panel-host"></div>
         <div class="timelineWrapper">
           <div class="timeline"></div>
         </div>
@@ -314,8 +314,18 @@
       projectSetup.startNewProject(editor);
 
       // DOM이 추가된 후 컴포넌트 초기화
+      const topMenuBar = editorTab.querySelector(".topMenuBar");
+      const brandMark = document.createElement("a");
+      brandMark.className = "sb-brand-mark";
+      brandMark.href = "#";
+      brandMark.title = "Stage Builder";
+      brandMark.setAttribute("aria-label", "Stage Builder");
+      brandMark.innerHTML =
+        '<img src="images/stagebuilder-logo.png" width="18" height="18" alt="" draggable="false">';
+      topMenuBar.appendChild(brandMark);
+
       const menubar = new Menubar(editor);
-      editorTab.querySelector(".topMenuBar").appendChild(menubar.dom);
+      topMenuBar.appendChild(menubar.dom);
 
       // Viewport 초기화
       const viewerElement = editorTab.querySelector(".viewer");
@@ -366,7 +376,7 @@
       editorTab.appendChild(player.dom);
 
       const sidebar = new Sidebar(editor);
-      initPropertyEcBridge(editorTab);
+      initPropertyEcBridge(editorTab, editor);
 
       // SidebarProject가 렌더러를 만든 뒤 뷰포트 크기 맞춤
       requestAnimationFrame(() => {

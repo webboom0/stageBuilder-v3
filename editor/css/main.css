@@ -1870,15 +1870,16 @@ select:hover {
 
 .full-mode {
   overflow: hidden;
-} 
+}
 
-.full-mode #viewport canvas{
-  position: fixed;
+/* canvas fixed 분리 — premiere-workspace.css body.full-mode 규칙 사용 */
+.full-mode #viewport canvas {
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 9999;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: auto;
 }
 
 .full-mode .timeline-top-container{
