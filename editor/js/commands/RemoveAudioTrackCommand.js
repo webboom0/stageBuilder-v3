@@ -17,7 +17,7 @@ class RemoveAudioTrackCommand extends Command {
 
 	execute() {
 
-		const audioTimeline = this.editor?.audioTimeline;
+		const audioTimeline = this.editor?.audioTimeline || window.timeline?.timelines?.audio;
 		if ( !audioTimeline ) return;
 
 		this.snapshot = audioTimeline._captureAudioTrackSnapshot( this.objectId );

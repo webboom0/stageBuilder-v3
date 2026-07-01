@@ -124,14 +124,14 @@ function MenubarFile(editor) {
   openProjectInput.accept = ".json,.zip";
   openProjectInput.addEventListener("change", async function () {
     // 파일 선택 즉시 오버레이 UI 띄우기
-    if (editor.progressiveLoader && typeof editor.progressiveLoader.createProgressUI === 'function') {
+    import('./utils/ProgressiveLoader.js').then(({ ProgressiveLoader }) => {
+      if (!editor.progressiveLoader) {
+        editor.progressiveLoader = new ProgressiveLoader(editor);
+      }
+      editor.progressiveLoader.keepOverlayOpen = true;
       editor.progressiveLoader.createProgressUI();
-    } else {
-      // ProgressiveLoader 인스턴스가 아직 없으면 임시로 생성해서라도 UI 띄움
-      import('./utils/ProgressiveLoader.js').then(({ ProgressiveLoader }) => {
-        (new ProgressiveLoader(editor)).createProgressUI();
-      });
-    }
+      editor.progressiveLoader.setProgressMessage('프로젝트 로딩 중...', '데이터 준비 중');
+    });
     const file = openProjectInput.files[0];
 
     if (file === undefined) return;
@@ -174,6 +174,11 @@ function MenubarFile(editor) {
           }
         } catch (error) {
           console.error("파일 로드 중 오류:", error);
+
+          if (editor.progressiveLoader) {
+            editor.progressiveLoader.keepOverlayOpen = false;
+            editor.progressiveLoader.hideProgressUI({ force: true });
+          }
           
           // JSON 파일 로딩 시 외부 파일 관련 오류들을 감지해서 ZIP 파일 안내
           const isExternalFileError = !file.name.endsWith('.zip') && 

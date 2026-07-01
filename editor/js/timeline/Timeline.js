@@ -252,16 +252,19 @@ class Timeline {
         const objectUuid = track.dataset.uuid;
         console.log("트랙 삭제", { objectId, objectUuid });
 
-        // 타임라인 타입에 따라 적절한 삭제 메서드 호출
-        if (this.timelines.motion && objectUuid) {
-          const removedCount = this.timelines.motion.removeTrackCompletely(objectUuid);
-          console.log(`Motion 완전 삭제 완료: ${removedCount}개 트랙 제거됨`);
-        } else if (this.timelines.audio && objectId) {
-          // AudioTimeline 트랙 삭제
-          const removed = this.timelines.audio.removeTrack(objectId);
+        const isAudioTrack = track.querySelector('.audio-sprite') && !objectUuid;
+
+        if (this.timelines.motion && objectUuid && !isAudioTrack) {
+          this.timelines.motion._removeTrackCompletelyInternal(objectUuid);
+          console.log(`Motion 완전 삭제 완료: ${objectUuid}`);
+        } else if (this.timelines.audio && (objectId || isAudioTrack)) {
+          const audioId = objectId || track.dataset.objectId;
+          this.timelines.audio.rebuildTracksFromDOM();
+          const removed = this.timelines.audio._removeTrackInternal(audioId);
           console.log(`Audio 트랙 삭제 완료: ${removed}`);
+        } else if (this.timelines.motion?.timelineData && objectUuid) {
+          this.timelines.motion._removeTrackCompletelyInternal(objectUuid);
         } else {
-          // 기존 방식으로 삭제 (하위 호환성)
           const wasDeleted = this.timelines.motion.timelineData.removeTrackById(objectId, 'position') ||
             this.timelines.motion.timelineData.removeTrackById(objectId, 'rotation') ||
             this.timelines.motion.timelineData.removeTrackById(objectId, 'scale');

@@ -18,6 +18,9 @@ export class ProgressiveLoader {
       onComplete: null,
       onError: null
     };
+
+    // true면 executeProgressiveLoading 완료 후에도 오버레이 유지 (Editor.fromJSON 전체 완료 시 해제)
+    this.keepOverlayOpen = false;
   }
 
   /**
@@ -234,7 +237,11 @@ export class ProgressiveLoader {
       }
 
       this.isLoading = false;
-      this.hideProgressUI();
+      if (!this.keepOverlayOpen) {
+        this.hideProgressUI();
+      } else {
+        this.setProgressMessage('프로젝트 로딩 중...', '씬·타임라인 복원 중');
+      }
       this.triggerEvent('onComplete', loadedData);
       
       return loadedData;
@@ -426,8 +433,19 @@ export class ProgressiveLoader {
    */
   createProgressUI() {
     // 기존 UI 제거
-    this.hideProgressUI();
-    
+    this.hideProgressUI({ force: true });
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'progressive-loader-backdrop';
+    backdrop.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 99998;
+      pointer-events: all;
+      cursor: wait;
+    `;
+
     const progressContainer = document.createElement('div');
     progressContainer.id = 'progressive-loader-progress';
     progressContainer.style.cssText = `
@@ -435,27 +453,41 @@ export class ProgressiveLoader {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.9);
       color: white;
-      padding: 20px;
+      padding: 24px 28px;
       border-radius: 10px;
-      z-index: 10000;
+      z-index: 100000;
       text-align: center;
-      min-width: 300px;
+      min-width: 320px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
     `;
     
     progressContainer.innerHTML = `
-      <h3>프로젝트 로딩 중...</h3>
+      <h3 id="progress-title" style="margin: 0 0 8px;">프로젝트 로딩 중...</h3>
       <div style="margin: 15px 0;">
         <div style="background: #333; height: 20px; border-radius: 10px; overflow: hidden;">
           <div id="progress-bar" style="background: #007bff; height: 100%; width: 0%; transition: width 0.3s;"></div>
         </div>
       </div>
       <div id="progress-text">0% (0/${this.totalItems})</div>
-      <div id="progress-detail" style="margin-top: 10px; font-size: 12px; opacity: 0.8;"></div>
+      <div id="progress-detail" style="margin-top: 10px; font-size: 12px; opacity: 0.8;">에디터 조작은 로딩이 끝난 후 가능합니다.</div>
     `;
     
+    document.body.appendChild(backdrop);
     document.body.appendChild(progressContainer);
+    document.body.classList.add('project-load-active');
+  }
+
+  /**
+   * 로딩 메시지 갱신
+   */
+  setProgressMessage(title, detail) {
+    const titleEl = document.getElementById('progress-title');
+    const detailEl = document.getElementById('progress-detail');
+    if (titleEl && title) titleEl.textContent = title;
+    if (detailEl && detail !== undefined) detailEl.textContent = detail;
   }
 
   /**
@@ -487,11 +519,20 @@ export class ProgressiveLoader {
   /**
    * 진행률 UI 숨기기
    */
-  hideProgressUI() {
+  hideProgressUI(options = {}) {
+    if (this.keepOverlayOpen && !options.force) return;
+
     const progressContainer = document.getElementById('progressive-loader-progress');
-    if (progressContainer) {
-      document.body.removeChild(progressContainer);
+    if (progressContainer?.parentNode) {
+      progressContainer.parentNode.removeChild(progressContainer);
     }
+
+    const backdrop = document.getElementById('progressive-loader-backdrop');
+    if (backdrop?.parentNode) {
+      backdrop.parentNode.removeChild(backdrop);
+    }
+
+    document.body.classList.remove('project-load-active');
   }
 
   /**
