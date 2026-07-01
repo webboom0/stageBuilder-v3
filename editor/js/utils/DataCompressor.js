@@ -4,6 +4,162 @@
  */
 export class DataCompressor {
 
+  /** TimelineCore.toJSON() 키프레임 배열 형식인지 확인 */
+  static isKeyframeArrayTimeline(timelineData) {
+    if (!timelineData?.tracks || typeof timelineData.tracks !== 'object') {
+      return false;
+    }
+    return Object.values(timelineData.tracks).some((trackData) => Array.isArray(trackData));
+  }
+
+  /**
+   * 로드 시 MotionTimeline tracks를 TimelineCore.fromJSON()이 기대하는 키프레임 배열 형식으로 정규화
+   */
+  /** 압축 여부 확인 */
+  static isCompressedTimelineData(data) {
+    return !!(data?.t !== undefined && data?.f !== undefined && data?.tracks && !data?.maxTime);
+  }
+
+  /**
+   * 여러 소스(scene.userData / project.motionTimeline / timeline_data.json)를 병합·정규화
+   */
+  static resolveMotionTimelineForLoad(...sources) {
+    const merged = {
+      tracks: {},
+      clips: {},
+      objectNames: {},
+      visible: {},
+      currentTime: 0,
+      maxTime: 0,
+      frameRate: 30,
+    };
+
+    sources.filter(Boolean).forEach((src) => {
+      let data = { ...src };
+      if (this.isCompressedTimelineData(data)) {
+        const decompressed = this.decompressTimelineData(data);
+        if (decompressed) {
+          data = {
+            ...data,
+            ...decompressed,
+            clips: data.clips || decompressed.clips,
+            objectNames: data.objectNames || decompressed.objectNames,
+            visible: data.visible || decompressed.visible,
+            currentTime: data.currentTime ?? decompressed.currentTime,
+          };
+        }
+      }
+      data = this.normalizeMotionTimelineForLoad(data);
+      if (!data) return;
+
+      Object.assign(merged.tracks, data.tracks || {});
+      Object.assign(merged.clips, data.clips || {});
+      Object.assign(merged.objectNames, data.objectNames || {});
+      if (data.visible) Object.assign(merged.visible, data.visible);
+      if (data.currentTime !== undefined) merged.currentTime = data.currentTime;
+      if (data.maxTime) merged.maxTime = Math.max(merged.maxTime, data.maxTime);
+      if (data.frameRate) merged.frameRate = data.frameRate;
+    });
+
+    return merged;
+  }
+
+  static normalizeMotionTimelineForLoad(timelineData) {
+    if (!timelineData?.tracks || typeof timelineData.tracks !== 'object') {
+      return timelineData;
+    }
+
+    const normalizedTracks = {};
+    let changed = false;
+
+    Object.entries(timelineData.tracks).forEach(([objectUuid, trackData]) => {
+      if (Array.isArray(trackData)) {
+        normalizedTracks[objectUuid] = trackData;
+        return;
+      }
+
+      if (!trackData || typeof trackData !== 'object') {
+        return;
+      }
+
+      if (Array.isArray(trackData._kf)) {
+        normalizedTracks[objectUuid] = trackData._kf.map((entry) => {
+          const keyframe = { time: entry.tm };
+          const propMap = { p: 'position', r: 'rotation', s: 'scale' };
+          Object.entries(propMap).forEach(([shortKey, property]) => {
+            const data = entry[shortKey];
+            if (!data) return;
+            const values = this.decompressNumberArray(data.v);
+            keyframe[property] = {
+              x: values[0] || 0,
+              y: values[1] || 0,
+              z: values[2] || 0,
+              interpolation: data.i ?? 0
+            };
+          });
+          return keyframe;
+        });
+        changed = true;
+        return;
+      }
+
+      const keyframes = this.propertyTracksToKeyframes(trackData);
+      if (keyframes.length > 0) {
+        normalizedTracks[objectUuid] = keyframes;
+        changed = true;
+        return;
+      }
+
+      // 클립/이름만 있어도 트랙 UUID 유지 (UI 복원용)
+      const hasClip = timelineData.clips && timelineData.clips[objectUuid];
+      const hasName = timelineData.objectNames && timelineData.objectNames[objectUuid];
+      if (hasClip || hasName) {
+        normalizedTracks[objectUuid] = [];
+        changed = true;
+      }
+    });
+
+    if (!changed) {
+      return timelineData;
+    }
+
+    return {
+      ...timelineData,
+      tracks: normalizedTracks
+    };
+  }
+
+  /** 속성별 times/values 트랙 맵 → 통합 키프레임 배열 */
+  static propertyTracksToKeyframes(propertyTracks) {
+    const timeMap = new Map();
+
+    Object.entries(propertyTracks).forEach(([property, trackData]) => {
+      if (!['position', 'rotation', 'scale'].includes(property)) {
+        return;
+      }
+      if (!trackData?.times?.length) {
+        return;
+      }
+
+      for (let i = 0; i < trackData.times.length; i++) {
+        const time = trackData.times[i];
+        if (!timeMap.has(time)) {
+          timeMap.set(time, { time });
+        }
+        const keyframe = timeMap.get(time);
+        const values = trackData.values || [];
+        keyframe[property] = {
+          x: values[i * 3] || 0,
+          y: values[i * 3 + 1] || 0,
+          z: values[i * 3 + 2] || 0,
+          interpolation: trackData.interpolations?.[i] ?? 0
+        };
+      }
+    });
+
+    return Array.from(timeMap.values()).sort((a, b) => a.time - b.time);
+  }
+
   /**
    * MotionTimeline 데이터 압축
    * @param {Object} timelineData - 원본 타임라인 데이터
@@ -21,12 +177,59 @@ export class DataCompressor {
     const compressed = {
       t: timelineData.maxTime || 0,
       f: timelineData.frameRate || 30,
-      tracks: {} // tracks
+      currentTime: timelineData.currentTime,
+      clips: timelineData.clips,
+      objectNames: timelineData.objectNames,
+      visible: timelineData.visible,
+      tracks: {},
     };
 
+    const allUuids = new Set([
+      ...Object.keys(timelineData.tracks || {}),
+      ...Object.keys(timelineData.clips || {}),
+      ...Object.keys(timelineData.objectNames || {}),
+    ]);
+
     // 트랙 데이터 압축
-    Object.entries(timelineData.tracks).forEach(([objectUuid, objectTracks]) => {
+    allUuids.forEach((objectUuid) => {
+      const objectTracks = timelineData.tracks?.[objectUuid];
       console.log(`압축 중 객체 ${objectUuid}:`, objectTracks);
+
+      // TimelineCore.toJSON() 키프레임 배열 형식
+      if (Array.isArray(objectTracks)) {
+        if (objectTracks.length === 0) {
+          const hasClip = timelineData.clips?.[objectUuid];
+          const hasName = timelineData.objectNames?.[objectUuid];
+          if (hasClip || hasName) {
+            compressed.tracks[objectUuid] = { _kf: [] };
+          }
+          return;
+        }
+        compressed.tracks[objectUuid] = {
+          _kf: objectTracks.map((keyframe) => {
+            const entry = { tm: keyframe.time };
+            ['position', 'rotation', 'scale'].forEach((property) => {
+              const value = keyframe[property];
+              if (value && typeof value === 'object') {
+                entry[property[0]] = {
+                  v: this.compressNumberArray([value.x || 0, value.y || 0, value.z || 0], 2),
+                  i: value.interpolation ?? 0
+                };
+              }
+            });
+            return entry;
+          })
+        };
+        return;
+      }
+
+      if (!objectTracks || typeof objectTracks !== 'object') {
+        if (timelineData.clips?.[objectUuid] || timelineData.objectNames?.[objectUuid]) {
+          compressed.tracks[objectUuid] = { _kf: [] };
+        }
+        return;
+      }
+
       compressed.tracks[objectUuid] = {};
       Object.entries(objectTracks).forEach(([property, trackData]) => {
         console.log(`압축 중 속성 ${property}:`, trackData);
@@ -58,6 +261,14 @@ export class DataCompressor {
 
         console.log(`압축된 데이터:`, compressed.tracks[objectUuid][property]);
       });
+
+      // 키프레임은 없지만 클립/이름만 있는 트랙 유지
+      if (
+        !compressed.tracks[objectUuid]
+        && (timelineData.clips?.[objectUuid] || timelineData.objectNames?.[objectUuid])
+      ) {
+        compressed.tracks[objectUuid] = { _kf: [] };
+      }
     });
 
     const compressedSize = JSON.stringify(compressed).length;
@@ -87,9 +298,13 @@ export class DataCompressor {
     console.log("tracks 키들:", Object.keys(compressedData.tracks));
 
     const decompressed = {
-      maxTime: compressedData.t || 0,
-      frameRate: compressedData.f || 30,
-      tracks: {}
+      maxTime: compressedData.t ?? compressedData.maxTime ?? 0,
+      frameRate: compressedData.f ?? compressedData.frameRate ?? 30,
+      currentTime: compressedData.currentTime,
+      clips: compressedData.clips,
+      objectNames: compressedData.objectNames,
+      visible: compressedData.visible,
+      tracks: {},
     };
 
     // 트랙 데이터 해제
@@ -98,6 +313,27 @@ export class DataCompressor {
       console.log(`properties 타입:`, typeof properties);
       console.log(`properties 키들:`, Object.keys(properties));
       console.log(`properties 값:`, JSON.stringify(properties, null, 2));
+
+      // TimelineCore 키프레임 배열 형식 복원
+      if (properties && Array.isArray(properties._kf)) {
+        decompressed.tracks[objectUuid] = properties._kf.map((entry) => {
+          const keyframe = { time: entry.tm };
+          const propMap = { p: 'position', r: 'rotation', s: 'scale' };
+          Object.entries(propMap).forEach(([shortKey, property]) => {
+            const data = entry[shortKey];
+            if (!data) return;
+            const values = this.decompressNumberArray(data.v);
+            keyframe[property] = {
+              x: values[0] || 0,
+              y: values[1] || 0,
+              z: values[2] || 0,
+              interpolation: data.i ?? 0
+            };
+          });
+          return keyframe;
+        });
+        return;
+      }
 
       decompressed.tracks[objectUuid] = {};
 
@@ -180,7 +416,10 @@ export class DataCompressor {
 
       if (timelineSize > 1000) { // 1KB 이상일 때만 압축
         console.log("MotionTimeline 데이터 압축 적용");
-        compressed.motionTimeline = this.compressTimelineData(compressed.motionTimeline);
+        const compressedTimeline = this.compressTimelineData(compressed.motionTimeline);
+        if (compressedTimeline) {
+          compressed.motionTimeline = compressedTimeline;
+        }
       } else {
         console.log("MotionTimeline 데이터가 작아서 압축하지 않음");
       }
@@ -220,6 +459,16 @@ export class DataCompressor {
       } else {
         console.log("압축되지 않은 MotionTimeline 데이터, 그대로 사용");
       }
+
+      decompressed.motionTimeline = this.resolveMotionTimelineForLoad(decompressed.motionTimeline);
+    }
+
+    if (decompressed.scene?.object?.userData?.motionTimeline) {
+      decompressed.scene.object.userData.motionTimeline = this.resolveMotionTimelineForLoad(
+        decompressed.scene.object.userData.motionTimeline,
+        decompressed.motionTimeline,
+      );
+      decompressed.motionTimeline = decompressed.scene.object.userData.motionTimeline;
     }
 
     console.log("=== 프로젝트 데이터 해제 완료 ===");

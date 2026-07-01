@@ -186,6 +186,42 @@ function Loader(editor) {
     }
   };
 
+  /** 저장/복원용 — URL에서 FBX 모션 객체 로드 */
+  this.loadMotionFromUrl = async function (url, meta = {}) {
+    const resolvedUrl = new URL(url, window.location.href).href;
+    const lower = resolvedUrl.toLowerCase();
+    const fileName = meta.fileName || url.split("/").pop() || "motion.fbx";
+
+    let object;
+    if (lower.endsWith(".obj")) {
+      const { OBJLoader } = await import("three/addons/loaders/OBJLoader.js");
+      const text = await fetch(resolvedUrl).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      });
+      object = new OBJLoader().parse(text);
+    } else {
+      const { FBXLoader } = await import("three/addons/loaders/FBXLoader.js");
+      const buffer = await fetch(resolvedUrl).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      object = new FBXLoader().parse(buffer);
+    }
+
+    object.name = meta.displayName || fileName.replace(/\.fbx$/i, "").replace(/\.obj$/i, "");
+    object.userData = object.userData || {};
+    object.userData.source = "motion";
+    object.userData.fileName = fileName;
+    object.userData.filePath = url;
+    object.userData.displayName = meta.displayName || object.name;
+
+    const { SceneObjectSerializer } = await import("./utils/SceneObjectSerializer.js");
+    await SceneObjectSerializer.processMotionObject(object, editor);
+
+    return object;
+  };
+
   this.loadFile = function (file, manager) {
     const filename = file.name;
     const extension = filename.split(".").pop().toLowerCase();
@@ -457,6 +493,8 @@ function Loader(editor) {
             applyAnimationFirstFramePose(object);
             processObject(object);
             object.userData.source = "motion";
+            object.userData.fileName = file.name;
+            object.userData.filePath = `../files/fbx/${file.name}`;
             autoScaleObject(object, 30);
             object.updateMatrixWorld(true);
             captureMotionWorldReferenceHeight(object, editor);
@@ -764,6 +802,8 @@ function Loader(editor) {
 
             processObject(object);
             object.userData.source = "motion";
+            object.userData.fileName = file.name;
+            object.userData.filePath = `../files/fbx/${file.name}`;
             autoScaleObject(object, 30);
             object.updateMatrixWorld(true);
             captureMotionWorldReferenceHeight(object, editor);

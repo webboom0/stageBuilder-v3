@@ -16,9 +16,11 @@ export class DataSplitter {
     const {
       splitTimeline = true,
       splitMusic = true,
+      splitAudioTimeline = true,
       splitHistory = false,
       forceSplit = false,
       timelineFileName = "timeline_data.json",
+      audioTimelineFileName = "audio_timeline_data.json",
       musicFileName = "music_data.json",
       historyFileName = "history_data.json"
     } = options;
@@ -35,7 +37,16 @@ export class DataSplitter {
       console.log("MotionTimeline 데이터 분리 완료");
     }
 
-    // 2. 음악 데이터 분리
+    // 2. AudioTimeline 데이터 분리
+    if (splitAudioTimeline && baseData.audioTimeline) {
+      console.log("AudioTimeline 데이터 분리 중...");
+      splitFiles[audioTimelineFileName] = baseData.audioTimeline;
+      baseData.audioTimeline = null;
+      baseData.audioTimelineFile = audioTimelineFileName;
+      console.log("AudioTimeline 데이터 분리 완료");
+    }
+
+    // 3. 음악 데이터 분리
     if (splitMusic && baseData.music) {
       console.log("음악 데이터 분리 중...");
       splitFiles[musicFileName] = baseData.music;
@@ -190,8 +201,10 @@ export class DataSplitter {
           zip.file(fileName, fileJson);
           console.log(`${fileName} 크기:`, fileJson.length, "bytes");
         } catch (error) {
-          console.error(`${fileName} 생성 실패:`, error);
-          throw new Error(`${fileName} 파일이 너무 커서 저장할 수 없습니다.`);
+          console.error(`${fileName} 생성 실패:`, error?.message || error);
+          throw new Error(
+            `${fileName} 파일 직렬화 실패: ${error?.message || '데이터가 너무 큽니다'}`
+          );
         }
       }
 
@@ -291,6 +304,91 @@ export class DataSplitter {
   }
 
   /**
+   * scene.object.inlineChildSlots / largeChildrenFiles → object.children 병합
+   * (ZIP merge 이후에도 슬롯이 남아 있거나, 단일 JSON 로드 시 사용)
+   */
+  static mergeSceneChildrenInPlace(sceneData, splitFiles = {}) {
+    if (!sceneData?.object) return sceneData;
+
+    const obj = sceneData.object;
+    const inlineSlots = obj.inlineChildSlots;
+    const largeList = Array.isArray(obj.largeChildrenFiles) ? obj.largeChildrenFiles : [];
+    const hasInline = inlineSlots && typeof inlineSlots === 'object' && Object.keys(inlineSlots).length > 0;
+    const hasLarge = largeList.length > 0;
+    const hasBackup = obj.allSceneChildrenFile && splitFiles[obj.allSceneChildrenFile];
+    const needsMerge = hasInline || hasLarge || hasBackup
+      || (typeof obj.sceneChildCount === 'number' && obj.sceneChildCount > 0
+        && (!Array.isArray(obj.children) || obj.children.length === 0));
+
+    if (!needsMerge) {
+      return sceneData;
+    }
+
+    console.log("mergeSceneChildrenInPlace: inline/large/backup children 병합");
+
+    let allChildren;
+
+    if (hasInline) {
+      let maxI = -1;
+      largeList.forEach((fn) => {
+        const m = String(fn).match(/scene_child_\d+_(\d+)\.json/);
+        if (m) maxI = Math.max(maxI, parseInt(m[1], 10));
+      });
+      Object.keys(inlineSlots).forEach((k) => {
+        const n = parseInt(k, 10);
+        if (!Number.isNaN(n)) maxI = Math.max(maxI, n);
+      });
+      const N = typeof obj.sceneChildCount === 'number' && obj.sceneChildCount > 0
+        ? obj.sceneChildCount
+        : maxI + 1;
+      allChildren = new Array(N).fill(null);
+      Object.entries(inlineSlots).forEach(([k, data]) => {
+        const i = parseInt(k, 10);
+        if (!Number.isNaN(i) && i >= 0 && i < N) allChildren[i] = data;
+      });
+    } else {
+      allChildren = Array.isArray(obj.children) ? [...obj.children] : [];
+    }
+
+    for (const fileName of largeList) {
+      const match = String(fileName).match(/scene_child_\d+_(\d+)\.json/);
+      if (!match) continue;
+      const index = parseInt(match[1], 10);
+      let foundFile = splitFiles[fileName];
+      if (!foundFile) {
+        const matchingFiles = Object.keys(splitFiles).filter((key) => {
+          const keyMatch = key.match(/scene_child_\d+_(\d+)\.json/);
+          return keyMatch && parseInt(keyMatch[1], 10) === index;
+        });
+        if (matchingFiles.length > 0) foundFile = splitFiles[matchingFiles[0]];
+      }
+      if (foundFile) {
+        while (allChildren.length <= index) allChildren.push(null);
+        allChildren[index] = foundFile;
+      }
+    }
+
+    obj.children = allChildren.filter((c) => c !== null);
+
+    // 전체 children 백업 파일 (저장 시 all_scene_children.json)
+    if (obj.children.length === 0 && obj.allSceneChildrenFile && splitFiles[obj.allSceneChildrenFile]) {
+      const backup = splitFiles[obj.allSceneChildrenFile];
+      if (Array.isArray(backup) && backup.length > 0) {
+        obj.children = backup;
+        console.log("all_scene_children.json 백업에서 children 복원:", obj.children.length);
+      }
+    }
+
+    delete obj.inlineChildSlots;
+    delete obj.sceneChildCount;
+    delete obj.largeChildrenFiles;
+    // allSceneChildrenFile 참조는 project.json에 남겨 재로드 시 백업 파일 연결 유지
+    console.log("mergeSceneChildrenInPlace 완료, children:", obj.children.length);
+
+    return sceneData;
+  }
+
+  /**
    * 분리된 데이터를 기본 데이터에 병합
    * @param {Object} baseData - 기본 데이터
    * @param {Object} splitFiles - 분리된 파일들
@@ -319,19 +417,55 @@ export class DataSplitter {
         console.log("MotionTimeline 데이터:", mergedData.motionTimeline);
 
         // 압축된 데이터인지 확인 (t, f, tracks 구조를 가지고 있는지)
-        if (mergedData.motionTimeline.t && mergedData.motionTimeline.f && mergedData.motionTimeline.tracks) {
-          console.log("압축된 MotionTimeline 데이터 해제 중...");
-          mergedData.motionTimeline = DataCompressor.decompressTimelineData(mergedData.motionTimeline);
-          console.log("MotionTimeline 데이터 압축 해제 완료");
-        } else {
-          console.log("압축되지 않은 MotionTimeline 데이터, 그대로 사용");
-        }
+        mergedData.motionTimeline = DataCompressor.resolveMotionTimelineForLoad(
+          mergedData.motionTimeline,
+        );
       } catch (error) {
         console.warn("MotionTimeline 데이터 처리 실패:", error);
       }
     }
 
-    // 2. 음악 데이터 병합
+    if (mergedData.scene?.object?.userData) {
+      const sceneMt = mergedData.scene.object.userData.motionTimeline;
+      const resolved = DataCompressor.resolveMotionTimelineForLoad(
+        sceneMt,
+        mergedData.motionTimeline,
+      );
+      const hasMotion =
+        Object.keys(resolved?.tracks || {}).length > 0
+        || Object.keys(resolved?.clips || {}).length > 0
+        || Object.keys(resolved?.objectNames || {}).length > 0;
+      if (hasMotion) {
+        mergedData.scene.object.userData.motionTimeline = resolved;
+        mergedData.motionTimeline = resolved;
+      }
+    }
+
+    // 2. AudioTimeline 데이터 병합
+    if (baseData.audioTimelineFile && splitFiles[baseData.audioTimelineFile]) {
+      console.log("AudioTimeline 데이터 병합:", baseData.audioTimelineFile);
+      mergedData.audioTimeline = splitFiles[baseData.audioTimelineFile];
+      delete mergedData.audioTimelineFile;
+    }
+
+    if (mergedData.scene?.object?.userData) {
+      const sceneAt = mergedData.scene.object.userData.audioTimeline;
+      if (mergedData.audioTimeline && sceneAt) {
+        mergedData.scene.object.userData.audioTimeline = {
+          ...sceneAt,
+          ...mergedData.audioTimeline,
+          tracks: { ...(sceneAt.tracks || {}), ...(mergedData.audioTimeline.tracks || {}) },
+          audioObjects: { ...(sceneAt.audioObjects || {}), ...(mergedData.audioTimeline.audioObjects || {}) },
+        };
+        mergedData.audioTimeline = mergedData.scene.object.userData.audioTimeline;
+      } else if (!mergedData.audioTimeline && sceneAt) {
+        mergedData.audioTimeline = sceneAt;
+      } else if (mergedData.audioTimeline && !sceneAt) {
+        mergedData.scene.object.userData.audioTimeline = mergedData.audioTimeline;
+      }
+    }
+
+    // 3. 음악 데이터 병합
     if (baseData.musicFile && splitFiles[baseData.musicFile]) {
       mergedData.music = splitFiles[baseData.musicFile];
       delete mergedData.musicFile;
@@ -351,78 +485,9 @@ export class DataSplitter {
       console.log("children 데이터 복원 완료");
     }
 
-    // 5. 씬 데이터의 개별 children 파일들 병합 (새로운 방식)
-    console.log("largeChildrenFiles 조건 확인:");
-    console.log("mergedData.scene 존재:", !!mergedData.scene);
-    console.log("mergedData.scene.object 존재:", !!mergedData.scene?.object);
-    console.log("mergedData.scene.object.largeChildrenFiles 존재:", !!mergedData.scene?.object?.largeChildrenFiles);
-    console.log("mergedData.scene.object.largeChildrenFiles 타입:", typeof mergedData.scene?.object?.largeChildrenFiles);
-    console.log("mergedData.scene.object.largeChildrenFiles 배열 여부:", Array.isArray(mergedData.scene?.object?.largeChildrenFiles));
-    console.log("mergedData.scene.object.largeChildrenFiles 값:", mergedData.scene?.object?.largeChildrenFiles);
-
-    if (mergedData.scene && mergedData.scene.object && mergedData.scene.object.largeChildrenFiles && Array.isArray(mergedData.scene.object.largeChildrenFiles)) {
-      console.log("개별 children 파일들 복원 중:", mergedData.scene.object.largeChildrenFiles);
-      const obj = mergedData.scene.object;
-      const largeList = obj.largeChildrenFiles;
-      const inlineSlots = obj.inlineChildSlots;
-
-      let allChildren;
-
-      if (inlineSlots && typeof inlineSlots === 'object') {
-        let maxI = -1;
-        largeList.forEach((fn) => {
-          const m = String(fn).match(/scene_child_\d+_(\d+)\.json/);
-          if (m) maxI = Math.max(maxI, parseInt(m[1], 10));
-        });
-        Object.keys(inlineSlots).forEach((k) => {
-          const n = parseInt(k, 10);
-          if (!Number.isNaN(n)) maxI = Math.max(maxI, n);
-        });
-        const N = typeof obj.sceneChildCount === 'number' && obj.sceneChildCount > 0
-          ? obj.sceneChildCount
-          : maxI + 1;
-        allChildren = new Array(N).fill(null);
-        Object.entries(inlineSlots).forEach(([k, data]) => {
-          const i = parseInt(k, 10);
-          if (!Number.isNaN(i) && i >= 0 && i < N) allChildren[i] = data;
-        });
-        console.log(`inlineChildSlots 복원: N=${N}`);
-      } else {
-        if (!obj.children) obj.children = [];
-        allChildren = [...obj.children];
-        console.log("레거시 병합(작은 children 연속 배열):", allChildren.length);
-      }
-
-      for (const fileName of largeList) {
-        const match = String(fileName).match(/scene_child_\d+_(\d+)\.json/);
-        if (match) {
-          const index = parseInt(match[1], 10);
-          let foundFile = splitFiles[fileName];
-          if (!foundFile) {
-            const matchingFiles = Object.keys(splitFiles).filter((key) => {
-              const keyMatch = key.match(/scene_child_\d+_(\d+)\.json/);
-              return keyMatch && parseInt(keyMatch[1], 10) === index;
-            });
-            if (matchingFiles.length > 0) foundFile = splitFiles[matchingFiles[0]];
-          }
-          if (foundFile) {
-            while (allChildren.length <= index) allChildren.push(null);
-            allChildren[index] = foundFile;
-          } else {
-            console.warn(`인덱스 ${index} 파일 없음: ${fileName}`);
-          }
-        } else if (splitFiles[fileName]) {
-          allChildren.push(splitFiles[fileName]);
-        }
-      }
-
-      const nulls = allChildren.filter((c) => c === null).length;
-      if (nulls > 0) console.warn(`children 병합 후 빈 슬롯 ${nulls}개`);
-      mergedData.scene.object.children = allChildren.filter((c) => c !== null);
-      delete mergedData.scene.object.largeChildrenFiles;
-      delete mergedData.scene.object.inlineChildSlots;
-      delete mergedData.scene.object.sceneChildCount;
-      console.log("최종 children:", mergedData.scene.object.children.length);
+    // 5. 씬 children 슬롯/분리 파일 병합
+    if (mergedData.scene) {
+      this.mergeSceneChildrenInPlace(mergedData.scene, splitFiles);
     }
 
     // 6. 씬 데이터의 geometry 파일들 병합

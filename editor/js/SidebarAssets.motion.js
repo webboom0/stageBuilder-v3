@@ -610,6 +610,7 @@ export function createMotionPanel(editor) {
                             await loadMotionFileAndCreateTrack(editor, fileList, {
                                 fileName: fbxFile.filename || fbxFile.name,
                                 displayName: fbxFile.displayName || fbxFile.name,
+                                path: fbxFile.path,
                             });
 
                             console.log("✅ FBX 씬 + 모션 트랙 추가 성공:", fbxFile.displayName);
@@ -762,6 +763,7 @@ export function createMotionPanel(editor) {
                     await loadMotionFileAndCreateTrack(editor, fileList.files, {
                         fileName: fileInfo.filename,
                         displayName: fileInfo.displayName || fileInfo.name,
+                        path: fileInfo.path,
                     });
                     results.push({ file: fileInfo.displayName, success: true });
                     console.log(`✅ ${fileInfo.displayName} 씬 + 모션 트랙 추가 완료`);

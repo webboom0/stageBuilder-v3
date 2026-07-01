@@ -822,12 +822,19 @@ body {
   box-shadow: 0 0 4px rgba(91, 159, 237, 0.45) !important;
 }
 
-/* 트랙 영역 전용 세로 가이드 — 레이블 열에는 표시하지 않음 */
+.sb-tl .timeline-viewport-inner {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* 트랙 영역 전용 세로 가이드 — 전체 트랙(오디오 포함) 높이까지 */
 .sb-tl .playhead-spine {
   position: absolute;
   top: 0;
-  bottom: 0;
+  left: 0;
   width: 1px;
+  min-height: 100%;
   background: var(--blue-soft);
   box-shadow: 0 0 5px rgba(91, 159, 237, 0.6);
   pointer-events: none;

@@ -76,9 +76,9 @@ export class ProgressiveLoader {
       scripts: projectData.scripts
     };
 
-    // 씬의 기본 구조만 로드 (geometry는 나중에)
+    // 씬 데이터는 geometry/material 포함 전체를 유지 (분리 저장은 DataSplitter가 처리)
     if (projectData.scene) {
-      baseData.scene = this.extractSceneStructure(projectData.scene);
+      baseData.scene = projectData.scene;
     }
 
     console.log("기본 데이터 로드 완료");

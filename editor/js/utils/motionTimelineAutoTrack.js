@@ -171,6 +171,16 @@ export async function loadMotionFileAndCreateTrack(editor, fileList, meta = {}) 
     throw new Error("씬에 추가된 모션 객체를 찾을 수 없습니다.");
   }
 
+  if (meta.path) {
+    object.userData.filePath = meta.path;
+  }
+  if (meta.fileName) {
+    object.userData.fileName = meta.fileName;
+  }
+  if (meta.displayName) {
+    object.userData.displayName = meta.displayName;
+  }
+
   const track = ensureMotionTimelineTrack(editor, object);
   if (!track) {
     throw new Error("모션 타임라인 트랙을 생성할 수 없습니다.");

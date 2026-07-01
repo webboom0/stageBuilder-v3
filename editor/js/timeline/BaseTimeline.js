@@ -46,7 +46,7 @@ export class BaseTimeline {
       if (!this.editor.scene.userData.timeline) {
         this.editor.scene.userData.timeline = {};
       }
-      this.editor.scene.userData.timeline = { ...this.editor.scene.userData.timeline, ...newSettings };
+      Object.assign(this.editor.scene.userData.timeline, newSettings);
     }
 
     // 클립 너비 업데이트 (시간 변경 시)

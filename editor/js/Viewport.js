@@ -187,6 +187,7 @@ function Viewport(editor) {
   let objectScaleOnDown = null;
 
   const transformControls = new TransformControls(camera, container.dom);
+  editor.transformControls = transformControls;
   transformControls.addEventListener("axis-changed", function () {
     if (editor.viewportShading !== "realistic") render();
   });
@@ -222,7 +223,19 @@ function Viewport(editor) {
       }
     }
 
-    signals.objectChanged.dispatch(object);
+    if (object?.name?.endsWith("_Target")) {
+      object.updateMatrixWorld(true);
+      const light = editor.scene.getObjectByName(
+        object.name.replace(/_Target$/, ""),
+      );
+      if (light) {
+        light.visible = true;
+        light.target?.updateMatrixWorld(true);
+        light.updateMatrixWorld(true);
+      }
+    }
+
+    signals.objectChanged.dispatch(object, { fromTransform: true });
   });
   transformControls.addEventListener("mouseDown", function () {
     const object = transformControls.object;
@@ -248,6 +261,21 @@ function Viewport(editor) {
                 objectPositionOnDown
               )
             );
+
+            if (object.name?.endsWith("_Target")) {
+              const lightTimeline =
+                editor.lightTimeline || editor.timeline?.timelines?.light;
+              if (lightTimeline?._syncTargetKeyframeFromScene?.(object)) {
+                if (lightTimeline.timelineData?.dirty) {
+                  lightTimeline.timelineData.precomputeAnimationData(
+                    undefined,
+                    lightTimeline.options?.totalSeconds,
+                    lightTimeline.options?.framesPerSecond,
+                  );
+                  lightTimeline.timelineData.dirty = false;
+                }
+              }
+            }
           }
 
           break;

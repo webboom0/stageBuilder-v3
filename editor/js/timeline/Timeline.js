@@ -358,8 +358,9 @@ class Timeline {
 
   initializeUI() {
     const viewport = this.container.querySelector(".timeline-viewport");
+    const inner = this.ensureViewportInner() || viewport;
 
-    const existingGroups = viewport.querySelectorAll(".timeline-group");
+    const existingGroups = inner.querySelectorAll(".timeline-group");
     if (existingGroups.length > 0) {
       this.mountInspector();
       this.showAllTimelines();
@@ -390,7 +391,7 @@ class Timeline {
       wrapper.dataset.timeline = key;
       wrapper.appendChild(timeline.container);
       section.appendChild(wrapper);
-      viewport.appendChild(section);
+      inner.appendChild(section);
     });
 
     if (this.editor.scene?.userData?.keyframes) {
@@ -403,6 +404,7 @@ class Timeline {
     this.bindSectionCollapse();
 
     requestAnimationFrame(() => {
+      this.refreshPlayheadSpineHeight();
       const ph = this.container?.querySelector(".playhead");
       if (ph && this.syncPlayheadSpine) {
         this.syncPlayheadSpine(parseFloat(ph.style.left) || 0);
@@ -836,27 +838,8 @@ class Timeline {
       });
     });
 
-    // 오디오 데이터 로드
-    if (scene.userData.audioTimeline?.audioObjects) {
-      // audioTimeline.audioObjects에서 오디오 데이터 추출
-      const audioData = Object.values(scene.userData.audioTimeline.audioObjects).map(audioObj => ({
-        audioFile: audioObj.audioFile,
-        startTime: audioObj.startTime || 0,
-        duration: audioObj.duration || 100,
-        volume: audioObj.volume || 1.0,
-        mute: audioObj.mute || false,
-        playbackRate: audioObj.playbackRate || 1.0,
-        audioStartTime: audioObj.audioStartTime || 0,
-        audioEndTime: audioObj.audioEndTime || 100
-      }));
-
-      console.log("로드할 오디오 데이터:", audioData);
-      this.timelines.audio.loadAudioData(audioData);
-    } else if (scene.userData.music) {
-      // 하위 호환성을 위해 music 데이터도 지원
-      console.log("하위 호환성: music 데이터 사용");
-      this.timelines.audio.loadAudioData(scene.userData.music);
-    }
+    // 오디오 데이터는 AudioTimeline.onAfterLoad()에서만 복원 (중복 트랙 방지)
+    // scene.userData.music 하위 호환은 프로젝트 로드 시 Editor.fromJSON → onAfterLoad에서 처리
   }
 
   bindEvents() {
@@ -930,7 +913,7 @@ class Timeline {
           };
         }
 
-        const isPlaying = this.editor.scene.userData.timeline.isPlaying;
+        const isPlaying = this.isPlaying;
         console.log("현재 재생 상태:", isPlaying);
 
         if (!isPlaying) {
@@ -1007,12 +990,10 @@ class Timeline {
           audioTracks.forEach((track) => {
             const objectId = typeof track.objectId === "string" ? parseInt(track.objectId) : track.objectId;
             const audioObject = this.editor.scene.getObjectById(objectId);
-            if (audioObject && audioObject.userData && audioObject.userData.audioElement) {
-              const audio = audioObject.userData.audioElement;
-              if (!audio.paused) {
-                audio.pause();
-                audio._playRequested = false;
-              }
+            const audio = audioObject?.userData?.audioElement || track.audioElement;
+            if (audio && !audio.paused) {
+              audio.pause();
+              audio._playRequested = false;
             }
           });
         }
@@ -1061,12 +1042,10 @@ class Timeline {
           audioTracks.forEach((track) => {
             const objectId = typeof track.objectId === "string" ? parseInt(track.objectId) : track.objectId;
             const audioObject = this.editor.scene.getObjectById(objectId);
-            if (audioObject && audioObject.userData && audioObject.userData.audioElement) {
-              const audio = audioObject.userData.audioElement;
-              if (!audio.paused) {
-                audio.pause();
-                audio._playRequested = false;
-              }
+            const audio = audioObject?.userData?.audioElement || track.audioElement;
+            if (audio && !audio.paused) {
+              audio.pause();
+              audio._playRequested = false;
             }
           });
         }
@@ -1229,7 +1208,7 @@ class Timeline {
           };
         }
 
-        const isPlaying = this.editor.scene.userData.timeline.isPlaying;
+        const isPlaying = this.isPlaying;
         console.log("스페이스바 단축키 - 현재 재생 상태:", isPlaying);
 
         if (!isPlaying) {
@@ -1489,6 +1468,13 @@ class Timeline {
         if (!parent) return;
         const collapsed = parent.classList.toggle("tl-section--collapsed");
         sec.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        requestAnimationFrame(() => {
+          this.refreshPlayheadSpineHeight();
+          const ph = this.container?.querySelector(".playhead");
+          if (ph && this.syncPlayheadSpine) {
+            this.syncPlayheadSpine(parseFloat(ph.style.left) || 0);
+          }
+        });
       };
 
       sec.addEventListener("click", toggle);
@@ -1530,12 +1516,17 @@ class Timeline {
     console.log("Timeline- play");
     if (!this.editor.scene) return;
 
-    // console.log("=== 타임라인 재생 시작 ===");
-    // console.log("현재 씬:", this.editor.scene);
-    // console.log("타임라인 설정:", this.timelineSettings);
+    this.ensureTimelineData();
+
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
 
     this.isPlaying = true;
-    this.editor.scene.userData.timeline.isPlaying = true;
+    if (this.editor.scene.userData.timeline) {
+      this.editor.scene.userData.timeline.isPlaying = true;
+    }
 
     // 항상 0초부터 시작하도록 currentFrame 설정
     let currentFrame = 0;
@@ -1762,20 +1753,23 @@ class Timeline {
       this.timelines.light.play();
     }
 
-    // AudioTimeline의 currentTime 업데이트
+    // AudioTimeline의 currentTime 업데이트 및 재생
     if (this.timelines.audio) {
       const currentTimeInSeconds = currentFrame / this.timelineSettings.framesPerSecond;
       this.timelines.audio.currentTime = currentTimeInSeconds;
       console.log("AudioTimeline currentTime 설정:", currentTimeInSeconds);
+      this.timelines.audio.play();
     }
 
     // 애니메이션 프레임 업데이트 - 실제 시간 기반으로 제어
     let lastTime = performance.now();
     const animate = () => {
-      // 재생 상태를 더 명확하게 체크
-      if (!this.isPlaying || !this.editor.scene?.userData?.timeline?.isPlaying) {
-        console.log("애니메이션 중단: 재생 상태가 false");
+      if (!this.isPlaying) {
         return;
+      }
+
+      if (this.editor.scene?.userData?.timeline) {
+        this.editor.scene.userData.timeline.isPlaying = true;
       }
 
       const now = performance.now();
@@ -1835,19 +1829,19 @@ class Timeline {
       this.timelines.audio.pause();
     }
 
-
-    // 오디오 일시정지
-    // if (this.editor.scene?.userData?.audioTimeline?.audioObjects) {
-    //   const audioObjects = this.editor.scene.userData.audioTimeline.audioObjects;
-
-    //   Object.values(audioObjects).forEach((audioObj) => {
-    //     if (audioObj.audioElement) {
-    //       const audio = audioObj.audioElement;
-    //       audio.pause();
-    //       audio._playRequested = false; // 재생 요청 플래그 초기화
-    //     }
-    //   });
-    // }
+    // audioObjects에 남아 있는 HTMLAudioElement도 함께 정지 (scene 객체 없을 때 track과 별개일 수 있음)
+    if (this.editor.scene?.userData?.audioTimeline?.audioObjects) {
+      const audioObjects = this.editor.scene.userData.audioTimeline.audioObjects;
+      Object.values(audioObjects).forEach((audioObj) => {
+        if (audioObj.audioElement && typeof audioObj.audioElement.pause === 'function') {
+          const audio = audioObj.audioElement;
+          if (!audio.paused) {
+            audio.pause();
+          }
+          audio._playRequested = false;
+        }
+      });
+    }
 
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -2008,8 +2002,11 @@ class Timeline {
       this.editor.signals.frameChanged.dispatch(frame);
     }
 
-    // 재생 중에는 Viewport setAnimationLoop가 렌더링 — rendererUpdated 생략
-    if (!this.isRendering && !this.isPlaying && this.editor.signals?.rendererUpdated) {
+    if (
+      !this.isRendering
+      && this.editor.signals?.rendererUpdated
+      && (!this.isPlaying || updateAnimation)
+    ) {
       this.editor.signals.rendererUpdated.dispatch();
     }
   }
@@ -2107,29 +2104,17 @@ class Timeline {
         const savedTimelineData = this.editor.scene.userData.timeline;
         console.log("🔧 저장된 타임라인 데이터 (scene.userData.timeline):", savedTimelineData);
 
-        // 🔧 저장된 총 프레임 수 확인
-        if (savedTimelineData.totalSeconds && savedTimelineData.totalSeconds !== this.timelineSettings.totalSeconds) {
-          console.log(`🔧 총 프레임 수 변경 감지: ${this.timelineSettings.totalSeconds} → ${savedTimelineData.totalSeconds}`);
-
-          // 🔧 timelineSettings 업데이트
+        if (savedTimelineData.totalSeconds) {
           this.timelineSettings.totalSeconds = savedTimelineData.totalSeconds;
-
-          // 🔧 프레임 레이트도 업데이트 (있는 경우)
-          if (savedTimelineData.framesPerSecond) {
-            this.timelineSettings.framesPerSecond = savedTimelineData.framesPerSecond;
-            console.log(`🔧 프레임 레이트 업데이트: ${savedTimelineData.framesPerSecond}fps`);
-          }
-
-          console.log(`🔧 타임라인 설정 복원 완료: ${savedTimelineData.totalSeconds}초`);
-
-          // 🔧 타임라인 눈금 재생성
-          console.log("🔧 타임라인 눈금 재생성 시작");
-          this.recreateTimeRuler();
-          console.log("🔧 타임라인 눈금 재생성 완료");
-
-        } else {
-          console.log("🔧 총 프레임 수 변경 없음, 현재 설정 유지");
         }
+        if (savedTimelineData.framesPerSecond) {
+          this.timelineSettings.framesPerSecond = savedTimelineData.framesPerSecond;
+        }
+
+        console.log(`🔧 타임라인 설정 복원: ${this.timelineSettings.totalSeconds}초, ${this.timelineSettings.framesPerSecond}fps`);
+
+        // 로드 후 playhead / updatePlayheadPosition 재바인딩 (userData 교체 시 끊김 방지)
+        this.recreateTimeRuler();
       } else {
         console.log("🔧 scene.userData.timeline이 없음");
       }
@@ -2137,6 +2122,35 @@ class Timeline {
     } catch (error) {
       console.error("❌ Timeline.js onAfterLoad 오류:", error);
     }
+  }
+
+  ensureViewportInner() {
+    const viewport = this.container?.querySelector(".timeline-viewport");
+    if (!viewport) return null;
+
+    let inner = viewport.querySelector(":scope > .timeline-viewport-inner");
+    if (!inner) {
+      inner = document.createElement("div");
+      inner.className = "timeline-viewport-inner";
+      const movable = [...viewport.children].filter(
+        (node) => !node.classList?.contains("playhead-spine"),
+      );
+      movable.forEach((node) => inner.appendChild(node));
+      viewport.appendChild(inner);
+    }
+    return inner;
+  }
+
+  refreshPlayheadSpineHeight() {
+    const viewport = this.container?.querySelector(".timeline-viewport");
+    const inner = this.ensureViewportInner();
+    const spine = inner?.querySelector(":scope > .playhead-spine");
+    if (!spine || !inner) return;
+
+    const contentHeight = Math.max(inner.scrollHeight, inner.offsetHeight);
+    spine.style.height = `${contentHeight}px`;
+    spine.style.top = "0px";
+    spine.style.bottom = "auto";
   }
 
   createPlayhead() {
@@ -2147,9 +2161,14 @@ class Timeline {
     }
 
     const viewport = this.container.querySelector(".timeline-viewport");
+    const inner = this.ensureViewportInner();
+    if (!inner) {
+      console.warn('timeline-viewport-inner를 찾을 수 없습니다.');
+      return;
+    }
 
     ruler.querySelectorAll(".playhead").forEach((el) => el.remove());
-    viewport?.querySelectorAll(".playhead-spine").forEach((el) => el.remove());
+    inner.querySelectorAll(":scope > .playhead-spine").forEach((el) => el.remove());
 
     const ph = document.createElement("div");
     ph.className = "playhead";
@@ -2157,23 +2176,21 @@ class Timeline {
     ph.innerHTML = '<span class="time-box"></span>';
     ruler.appendChild(ph);
 
-    let spine = null;
-    if (viewport) {
-      spine = document.createElement("div");
-      spine.className = "playhead-spine";
-      spine.setAttribute("aria-hidden", "true");
-      viewport.appendChild(spine);
-    }
+    let spine = document.createElement("div");
+    spine.className = "playhead-spine";
+    spine.setAttribute("aria-hidden", "true");
+    inner.insertBefore(spine, inner.firstChild);
 
     const syncPlayheadSpine = (percent) => {
       if (!spine || !viewport) return;
 
+      this.refreshPlayheadSpineHeight();
+
       const vRect = viewport.getBoundingClientRect();
       const rulerRect = ruler.getBoundingClientRect();
-      // 헤더 playhead(%)와 동일한 화면 X — 룰러 기준 단일 좌표
       const rulerCenterX =
         rulerRect.left + (percent / 100) * rulerRect.width;
-      spine.style.left = `${rulerCenterX - vRect.left}px`;
+      spine.style.left = `${rulerCenterX - vRect.left + viewport.scrollLeft}px`;
     };
 
     this.syncPlayheadSpine = syncPlayheadSpine;
@@ -2273,6 +2290,16 @@ class Timeline {
         syncPlayheadSpine(pct);
       });
     }
+
+    if (!this._playheadSpineResizeObserver && inner) {
+      this._playheadSpineResizeObserver = new ResizeObserver(() => {
+        const pct = parseFloat(ph.style.left) || 0;
+        syncPlayheadSpine(pct);
+      });
+      this._playheadSpineResizeObserver.observe(inner);
+    }
+
+    this.refreshPlayheadSpineHeight();
   }
 
   formatTimecode(seconds) {
@@ -2368,7 +2395,7 @@ class Timeline {
           };
         }
 
-        const isPlaying = this.editor.scene.userData.timeline.isPlaying;
+        const isPlaying = this.isPlaying;
         console.log("🔧 현재 재생 상태:", isPlaying);
 
         if (!isPlaying) {

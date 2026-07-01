@@ -1679,7 +1679,7 @@ function Strings(config) {
 			'menubar/file/new/Particles': '파티클',
 			'menubar/file/new/Pong': '퐁',
 			'menubar/file/new/Shaders': '셰이더',
-			'menubar/file/open': '열기',
+			'menubar/file/open': '프로젝트 열기',
 			'menubar/file/save': '저장',
 			'menubar/file/import': '가져오기',
 			'menubar/file/export': '내보내기',

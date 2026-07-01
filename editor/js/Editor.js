@@ -156,6 +156,11 @@ function Editor() {
 Editor.prototype = {
   setScene: function (scene) {
     try {
+      // 재로드 시 기존 자식이 남아 중복·UUID 충돌이 나지 않도록 먼저 비움
+      while (this.scene.children.length > 0) {
+        this.removeObject(this.scene.children[0]);
+      }
+
       this.scene.uuid = scene.uuid;
       this.scene.name = scene.name;
 
@@ -722,6 +727,271 @@ Editor.prototype = {
     }
   },
 
+  // parseAsync/setScene 이후 씬에 없는 child UUID를 project scene JSON에서 보충
+  restoreMissingSceneChildren: async function (projectScene, loader) {
+    if (!projectScene?.object) return 0;
+
+    // inlineChildSlots가 남아 있으면 먼저 병합
+    try {
+      const { DataSplitter } = await import('./utils/DataSplitter.js');
+      DataSplitter.mergeSceneChildrenInPlace(projectScene);
+    } catch (e) {
+      console.warn('restoreMissingSceneChildren: 슬롯 병합 실패', e);
+    }
+
+    const childList = projectScene.object.children;
+    if (!Array.isArray(childList) || childList.length === 0) {
+      console.warn('restoreMissingSceneChildren: object.children 비어 있음');
+      return 0;
+    }
+
+    const existingUuids = new Set();
+    this.scene.traverse((obj) => {
+      if (obj.uuid) existingUuids.add(obj.uuid);
+    });
+
+    const scenePayload = {
+      metadata: projectScene.metadata,
+      geometries: projectScene.geometries,
+      materials: projectScene.materials,
+      textures: projectScene.textures,
+      images: projectScene.images,
+      skeletons: projectScene.skeletons,
+      animations: projectScene.animations,
+    };
+
+    let restored = 0;
+    for (let i = 0; i < childList.length; i++) {
+      const childData = childList[i];
+      if (!childData?.uuid) continue;
+
+      // 루트가 이미 있으면 스킵 (하위 bone 일부만 있는 경우에도 루트는 복원 시도)
+      if (existingUuids.has(childData.uuid)) continue;
+
+      try {
+        const parsed = await loader.parseAsync({ ...scenePayload, object: childData });
+        const nodes = [];
+        if (parsed?.isScene) {
+          const toMove = [...parsed.children];
+          for (const child of toMove) {
+            parsed.remove(child);
+            nodes.push(child);
+          }
+        } else if (parsed) {
+          nodes.push(parsed);
+        }
+
+        for (const child of nodes) {
+          if (!child?.uuid || existingUuids.has(child.uuid)) continue;
+          this.restoreSkeletonBinding(child);
+          this.addObject(child);
+          existingUuids.add(child.uuid);
+          child.traverse((o) => { if (o.uuid) existingUuids.add(o.uuid); });
+          restored++;
+          console.log(`누락 child 복원: ${child.name || child.uuid} (${child.type})`);
+        }
+      } catch (err) {
+        console.warn(`누락 child ${i} (${childData.uuid}) 복원 실패:`, err);
+      }
+    }
+
+    console.log(`restoreMissingSceneChildren 완료: ${restored}개 추가, 씬 자식 ${this.scene.children.length}개`);
+    return restored;
+  },
+
+  // 프로젝트 로드 후 무대(Stage/_Background) 및 기본 조명 재연결
+  restoreStageAfterProjectLoad: function () {
+    const bg = this.videoEdit?.background;
+    if (!bg) {
+      console.warn('videoEdit.background 없음 — 무대 복원 건너뜀');
+      return;
+    }
+
+    bg.init();
+
+    const stageType = this.scene.userData.stageType || 'proscenium';
+    let stageGroup = this.scene.children.find((c) => c.name === 'Stage');
+    if (!stageGroup) {
+      bg.init();
+      stageGroup = bg.stageGroup;
+    }
+    bg.stageGroup = stageGroup;
+
+    const hasBackground = stageGroup?.children?.some((c) => c.name === '_Background');
+    const hasLights = stageGroup?.children?.some((c) => c.name === '_Light');
+
+    if (!hasBackground) {
+      console.log('무대 모델 누락 — FBX 무대 재로드:', stageType);
+      const stageFiles = {
+        proscenium: '../files/stage/background.fbx',
+        arena: '../files/stage/arena_stage.fbx',
+      };
+      const stageFile = stageFiles[stageType] || stageFiles.proscenium;
+      if (typeof bg.create === 'function') {
+        bg.create(stageFile);
+      }
+    } else {
+      this.scene.userData.hasBackground = true;
+      console.log('저장된 무대(_Background) 확인');
+      // 배경은 있으나 기본 천장 조명이 없으면 추가 (새 파일 시작 시와 동일)
+      if (!hasLights && typeof bg.ensureDefaultStageLights === 'function') {
+        bg.ensureDefaultStageLights();
+      }
+    }
+
+    const hasFloor = stageGroup?.children?.some((c) => c.name === '_Floor');
+    if (!hasFloor && typeof bg.createFloor === 'function') {
+      bg.createFloor(stageType);
+    }
+
+    this.signals.sceneGraphChanged.dispatch();
+  },
+
+  // 로드된 씬 객체가 빈 껍데기인 경우 재파싱
+  hasRenderableContent: function (object) {
+    if (!object) return false;
+    let found = false;
+    object.traverse((child) => {
+      if (found) return;
+      if (child.isMesh || child.isSkinnedMesh) found = true;
+    });
+    return found;
+  },
+
+  // 메시·FBX 가시성 보장 및 누락 child 강제 복원
+  ensureSceneMeshesAfterLoad: async function (projectScene, loader) {
+    if (!projectScene?.object) return;
+
+    try {
+      const { DataSplitter } = await import('./utils/DataSplitter.js');
+      DataSplitter.mergeSceneChildrenInPlace(projectScene);
+    } catch (e) {
+      console.warn('ensureSceneMeshesAfterLoad: 슬롯 병합 실패', e);
+    }
+
+    const childList = projectScene.object.children;
+    if (!Array.isArray(childList) || childList.length === 0) {
+      console.warn('ensureSceneMeshesAfterLoad: object.children 비어 있음');
+      return;
+    }
+
+    const scenePayload = {
+      metadata: projectScene.metadata,
+      geometries: projectScene.geometries,
+      materials: projectScene.materials,
+      textures: projectScene.textures,
+      images: projectScene.images,
+      skeletons: projectScene.skeletons,
+      animations: projectScene.animations,
+    };
+
+    let repaired = 0;
+    for (let i = 0; i < childList.length; i++) {
+      const childData = childList[i];
+      if (!childData?.uuid) continue;
+
+      const existing = this.scene.getObjectByProperty('uuid', childData.uuid);
+      if (existing && this.hasRenderableContent(existing)) continue;
+
+      if (existing) {
+        console.warn(`빈 껍데기 객체 제거 후 재복원: ${existing.name || childData.uuid}`);
+        this.removeObject(existing);
+      }
+
+      try {
+        const parsed = await loader.parseAsync({ ...scenePayload, object: childData });
+        const nodes = [];
+        if (parsed?.isScene) {
+          for (const child of [...parsed.children]) {
+            parsed.remove(child);
+            nodes.push(child);
+          }
+        } else if (parsed) {
+          nodes.push(parsed);
+        }
+
+        for (const node of nodes) {
+          if (!node?.uuid) continue;
+          this.restoreSkeletonBinding(node);
+          this.addObject(node);
+          node.traverse((o) => {
+            if (o.isMesh || o.isSkinnedMesh) {
+              o.visible = true;
+              o.frustumCulled = true;
+            }
+          });
+          repaired++;
+          console.log(`메시 child 재복원: ${node.name || node.uuid} (${node.type})`);
+        }
+      } catch (err) {
+        console.warn(`메시 child ${i} (${childData.uuid}) 재복원 실패:`, err);
+      }
+    }
+
+    console.log(`ensureSceneMeshesAfterLoad 완료: ${repaired}개 재복원, 씬 자식 ${this.scene.children.length}개`);
+    this.signals.sceneGraphChanged.dispatch();
+  },
+
+  // 모션/메시 복원 후 타임라인 UI 재생성
+  refreshMotionTimelineAfterSceneLoad: function () {
+    const data = this.scene.userData?.motionTimeline;
+    if (!data) return;
+
+    const hasMotionData =
+      (data.tracks && Object.keys(data.tracks).length > 0) ||
+      (data.clips && Object.keys(data.clips).length > 0) ||
+      (data.objectNames && Object.keys(data.objectNames).length > 0);
+
+    if (!hasMotionData) return;
+
+    const run = () => {
+      if (!this.motionTimeline) {
+        this.connectTimelineInstances();
+      }
+      const mt = this.motionTimeline;
+      if (!mt) return;
+
+      try {
+        if (mt.syncDurationFromSceneTimeline) {
+          mt.syncDurationFromSceneTimeline();
+        }
+        if (mt.timelineData?.tracks?.size > 0 && mt.getClipInfoCallback) {
+          mt.timelineData.precomputeAnimationData(
+            mt.getClipInfoCallback(),
+            mt.totalSeconds,
+            mt.fps,
+          );
+        }
+        mt.updateAnimation(mt.currentTime ?? 0);
+      } catch (err) {
+        console.error('모션 타임라인 동기화 실패:', err);
+      }
+    };
+
+    setTimeout(run, 300);
+  },
+
+  refreshAudioTimelineAfterSceneLoad: function () {
+    const data =
+      this.scene.userData?.audioTimeline
+      || null;
+    if (!data?.tracks && !data?.audioObjects) return;
+
+    const run = () => {
+      if (!this.audioTimeline) {
+        this.connectTimelineInstances();
+      }
+      if (!this.audioTimeline?.syncAudioElementsAfterLoad) return;
+      try {
+        this.audioTimeline.syncAudioElementsAfterLoad();
+      } catch (err) {
+        console.error('오디오 타임라인 동기화 실패:', err);
+      }
+    };
+
+    setTimeout(run, 500);
+  },
+
   //
 
   fromJSON: async function (json) {
@@ -1068,18 +1338,10 @@ Editor.prototype = {
             // scene 데이터가 너무 크면 저장하지 않음
             const sceneString = JSON.stringify(projectData.scene, null, 2);
             if (sceneString.length > 1000000) { // 1MB 제한
-              console.warn("scene 데이터가 너무 커서 저장하지 않습니다:", sceneString.length, "bytes");
-            } else {
-              const blob = new Blob([sceneString], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = "scene_debug_final.json";
-              link.click();
-              setTimeout(() => URL.revokeObjectURL(url), 1000);
+              console.warn("scene 데이터가 너무 커서 디버그 저장을 건너뜁니다:", sceneString.length, "bytes");
             }
           } catch (e) {
-            console.warn("scene 구조 저장 중 오류:", e);
+            console.warn("scene 구조 확인 중 오류:", e);
           }
           // children 전체와 0, 1번 요소 콘솔 출력
           console.log("window.projectData.scene.children:", window.projectData.scene.children);
@@ -1090,51 +1352,38 @@ Editor.prototype = {
             console.log("children[1]:", window.projectData.scene.children[1]);
           }
         }
+        if (projectData.scene) {
+          try {
+            const { DataSplitter } = await import('./utils/DataSplitter.js');
+            DataSplitter.mergeSceneChildrenInPlace(projectData.scene);
+          } catch (mergeErr) {
+            console.warn("scene children 슬롯 병합 실패:", mergeErr);
+          }
+        }
         const scene = await loader.parseAsync(projectData.scene);
         this.setScene(scene);
 
-        // ZIP 파일에서 로드된 children 데이터를 실제 scene에 복원
-        if (projectData.scene && projectData.scene.children && projectData.scene.children.length > 0) {
-          console.log("실제 scene에 children 복원 중:", projectData.scene.children.length, "개");
+        const restoredCount = await (async () => {
+          const { SceneObjectSerializer } = await import('./utils/SceneObjectSerializer.js');
+          return SceneObjectSerializer.restoreChildren(this, projectData.scene, loader);
+        })();
+        if (restoredCount > 0) {
+          console.log(`scene children ${restoredCount}개 복원`);
+        }
 
-          // 기존 children 제거
-          this.scene.children = [];
+        if (this.scene.children.length === 0) {
+          console.warn('씬 children 복원 실패 — object.children:', projectData.scene?.object?.children?.length ?? 0);
+        }
 
-          // 각 child를 개별적으로 로드하여 scene에 추가
-          for (let i = 0; i < projectData.scene.children.length; i++) {
-            try {
-              const childData = projectData.scene.children[i];
-              if (childData && childData.object) {
-                const child = await loader.parseAsync(childData);
+        this.connectTimelineInstances();
+        this.signals.sceneGraphChanged.dispatch();
 
-                // FBX 객체의 skeleton 바인딩 복원
-                this.restoreSkeletonBinding(child);
-
-                this.scene.add(child);
-                console.log(`child ${i} 복원 완료:`, child.name || child.uuid);
-              }
-            } catch (childError) {
-              console.warn(`child ${i} 복원 실패:`, childError);
-            }
-          }
-
-          console.log("scene children 복원 완료, 총 개수:", this.scene.children.length);
-
-          // 타임라인 인스턴스들 연결
-          this.connectTimelineInstances();
-
-          // 사이드바 새로고침
-          this.signals.sceneGraphChanged.dispatch();
-
-          // 기본 선택 설정 (첫 번째 child가 있으면)
-          if (this.scene.children.length > 0) {
-            try {
-              this.select(this.scene.children[0]);
-              console.log("기본 선택 설정:", this.scene.children[0].name);
-            } catch (selectError) {
-              console.warn("기본 선택 설정 실패:", selectError);
-            }
-          }
+        // parseAsync가 userData 일부를 누락할 수 있어 원본 scene JSON에서 병합
+        if (projectData.scene?.object?.userData) {
+          this.scene.userData = {
+            ...(this.scene.userData || {}),
+            ...projectData.scene.object.userData,
+          };
         }
       } catch (sceneError) {
         console.warn("씬 로드 중 오류 발생, 기본 씬으로 대체:", sceneError);
@@ -1170,15 +1419,27 @@ Editor.prototype = {
       }
 
       // 🔧 2순위: MotionTimeline 데이터 복원
-      if (projectData.motionTimeline && this.motionTimeline) {
+      const motionTimelineSource =
+        projectData.scene?.object?.userData?.motionTimeline ||
+        this.scene.userData?.motionTimeline ||
+        projectData.motionTimeline;
+
+      const hasMotionTracks = motionTimelineSource?.tracks && Object.keys(motionTimelineSource.tracks).length > 0;
+      const hasMotionClips = motionTimelineSource?.clips && Object.keys(motionTimelineSource.clips).length > 0;
+      const hasMotionNames = motionTimelineSource?.objectNames && Object.keys(motionTimelineSource.objectNames).length > 0;
+
+      if (hasMotionTracks || hasMotionClips || hasMotionNames) {
+        if (!this.motionTimeline) {
+          this.connectTimelineInstances();
+        }
+
+        if (this.motionTimeline) {
         try {
           console.log("=== MotionTimeline 데이터 복원 시작 (2순위) ===");
-          // 올바른 경로로 데이터 확인
           const correctMotionTimelineData = projectData.scene?.object?.userData?.motionTimeline;
           console.log("올바른 경로의 motionTimeline:", correctMotionTimelineData);
           console.log("올바른 경로의 tracks:", correctMotionTimelineData?.tracks);
 
-          // 기존 경로도 확인 (비교용)
           console.log("기존 경로의 motionTimeline:", projectData.motionTimeline);
           console.log("기존 경로의 tracks:", projectData.motionTimeline?.tracks);
 
@@ -1212,13 +1473,26 @@ Editor.prototype = {
 
           // 올바른 경로에서 데이터 가져오기
           const correctMotionTimeline = projectData.scene?.object?.userData?.motionTimeline;
-          if (correctMotionTimeline) {
-            this.scene.userData.motionTimeline = correctMotionTimeline;
-            console.log("올바른 경로에서 motionTimeline 데이터 설정 완료");
-          } else {
-            // 기존 경로로 폴백
-            this.scene.userData.motionTimeline = projectData.motionTimeline;
-            console.log("기존 경로에서 motionTimeline 데이터 설정 완료");
+          let resolvedMotionTimeline;
+          try {
+            const { DataCompressor } = await import('./utils/DataCompressor.js');
+            resolvedMotionTimeline = DataCompressor.resolveMotionTimelineForLoad(
+              correctMotionTimeline,
+              motionTimelineSource,
+              projectData.motionTimeline,
+            );
+          } catch (normalizeError) {
+            console.warn("MotionTimeline 데이터 정규화 실패:", normalizeError);
+            resolvedMotionTimeline = correctMotionTimeline || motionTimelineSource || projectData.motionTimeline;
+          }
+
+          if (resolvedMotionTimeline) {
+            this.scene.userData.motionTimeline = resolvedMotionTimeline;
+            console.log(
+              correctMotionTimeline
+                ? "올바른 경로에서 motionTimeline 데이터 설정 완료"
+                : "대체 경로에서 motionTimeline 데이터 설정 완료"
+            );
           }
           console.log("scene.userData.motionTimeline 설정 완료:", this.scene.userData.motionTimeline);
           console.log("scene.userData.motionTimeline.tracks 키들:", Object.keys(this.scene.userData.motionTimeline.tracks || {}));
@@ -1234,10 +1508,14 @@ Editor.prototype = {
 
           // MotionTimeline에서 데이터 로드
           console.log("motionTimeline.onAfterLoad() 호출 중...");
+          this.motionTimeline._onAfterLoadCalled = false;
           this.motionTimeline.onAfterLoad();
           console.log("=== MotionTimeline 데이터 복원 완료 (2순위) ===");
         } catch (error) {
           console.error("MotionTimeline 데이터 복원 중 오류:", error);
+        }
+        } else {
+          console.warn("MotionTimeline 데이터는 있으나 motionTimeline 인스턴스를 찾을 수 없습니다.");
         }
       } else {
         console.log("MotionTimeline 데이터가 없거나 motionTimeline 인스턴스가 없습니다.");
@@ -1319,10 +1597,17 @@ Editor.prototype = {
 
 
       // 🔧 4순위: AudioTimeline 데이터 복원
-      if (this.scene.userData.audioTimeline) {
+      const audioTimelineSource =
+        projectData.audioTimeline
+        || projectData.scene?.object?.userData?.audioTimeline
+        || this.scene.userData?.audioTimeline;
+
+      if (audioTimelineSource) {
+        if (!this.scene.userData) this.scene.userData = {};
+        this.scene.userData.audioTimeline = audioTimelineSource;
+
         try {
           console.log("=== AudioTimeline 데이터 복원 시작 (4순위) ===");
-          console.log("scene.userData.audioTimeline:", this.scene.userData.audioTimeline);
           console.log("this.audioTimeline 존재:", !!this.audioTimeline);
           console.log("this.audioTimeline 타입:", typeof this.audioTimeline);
           console.log("this.audioTimeline 값:", this.audioTimeline);
@@ -1331,6 +1616,7 @@ Editor.prototype = {
 
           if (this.audioTimeline && this.audioTimeline.onAfterLoad) {
             console.log("audioTimeline.onAfterLoad() 호출 중...");
+            this.audioTimeline._onAfterLoadCalled = false;
             this.audioTimeline.onAfterLoad();
             console.log("=== AudioTimeline 데이터 복원 완료 (4순위) ===");
           } else {
@@ -1409,6 +1695,11 @@ Editor.prototype = {
       } else {
         console.log("scene.userData.audioTimeline이 없어서 AudioTimeline 복원을 건너뜁니다.");
       }
+
+      // 모든 타임라인 복원 후 — 무대 배경 + 모션 트랙 UI 최종 재생성
+      this.restoreStageAfterProjectLoad();
+      this.refreshMotionTimelineAfterSceneLoad();
+      this.refreshAudioTimelineAfterSceneLoad();
 
       // LightTimeline 데이터가 없거나 lightTimeline 인스턴스가 없습니다.
       if (!projectData.lightTimeline && !this.scene.userData.lightTimeline) {
@@ -1609,71 +1900,38 @@ Editor.prototype = {
       // skeleton 정보 강제 포함
       this.ensureSkeletonData(sceneData);
       console.log("skeleton 정보 강제 포함 완료");
-      // children을 별도 파일로 저장 (안전한 처리)
+      // children 저장: motion=경로참조, mesh=geometry포함, Stage=경량참조
       if (originalChildren.length > 0) {
         console.log("children 개수:", originalChildren.length);
-        // children을 개별적으로 처리하여 오류 발생 시에도 일부 데이터는 저장
-        const childrenData = [];
-        const failedChildren = [];
-        for (let i = 0; i < originalChildren.length; i++) {
-          try {
-            const childData = originalChildren[i].toJSON();
-            childrenData.push(childData);
-            console.log(`child ${i} 처리 완료`);
-          } catch (childError) {
-            console.warn(`child ${i} 처리 실패:`, childError);
-            failedChildren.push(i);
-            // 실패한 child는 기본 구조만 추가
-            childrenData.push({
-              uuid: originalChildren[i].uuid || `failed_child_${i}`,
-              type: originalChildren[i].type || "Object3D",
-              name: originalChildren[i].name || `Failed_Child_${i}`,
-              children: [],
-              userData: {}
-            });
-          }
-        }
-        if (failedChildren.length > 0) {
-          console.warn("처리 실패한 children:", failedChildren);
-        }
+        const { SceneObjectSerializer } = await import('./utils/SceneObjectSerializer.js');
+        const childrenData = SceneObjectSerializer.collectChildrenForSave(originalChildren);
+        const savedCount = childrenData.filter(Boolean).length;
+        console.log(`직렬화된 children: ${savedCount}개 (원본 ${originalChildren.length}개)`);
+
         try {
-          // 각 child를 개별 파일로 저장
           const childrenFiles = [];
           const timestamp = Date.now();
           for (let i = 0; i < childrenData.length; i++) {
+            if (!childrenData[i]) continue;
             try {
               const childSize = JSON.stringify(childrenData[i]).length;
-              console.log(`child ${i} 크기:`, childSize, "bytes");
-              if (childSize > 100000) { // 100KB 이상이면 개별 파일로 저장
+              console.log(`child ${i} (${childrenData[i].saveType}) 크기:`, childSize, "bytes");
+              if (childSize > 100000) {
                 const fileName = `scene_child_${timestamp}_${i}.json`;
-                childrenFiles.push({
-                  index: i,
-                  fileName: fileName,
-                  data: childrenData[i]
-                });
-                console.log(`child ${i}를 개별 파일로 저장:`, fileName);
+                childrenFiles.push({ index: i, fileName, data: childrenData[i] });
               } else {
-                // 작은 child는 나중에 배열에 포함
-                childrenFiles.push({
-                  index: i,
-                  fileName: null,
-                  data: childrenData[i]
-                });
+                childrenFiles.push({ index: i, fileName: null, data: childrenData[i] });
               }
             } catch (childSizeError) {
-              console.warn(`child ${i} 크기 측정 실패, 개별 파일로 저장:`, childSizeError);
+              console.warn(`child ${i} 크기 측정 실패:`, childSizeError);
               const fileName = `scene_child_${timestamp}_${i}.json`;
-              childrenFiles.push({
-                index: i,
-                fileName: fileName,
-                data: childrenData[i]
-              });
+              childrenFiles.push({ index: i, fileName, data: childrenData[i] });
             }
           }
           // 큰 child → 분리 파일, 작은 child → 인덱스별 inlineChildSlots (순서 유지, 조명 등 누락 방지)
           const inlineChildSlots = {};
           childrenFiles.forEach(({ index, fileName, data }) => {
-            if (!fileName) inlineChildSlots[String(index)] = data;
+            if (!fileName && data) inlineChildSlots[String(index)] = data;
           });
           const largeChildrenFiles = childrenFiles
             .filter(item => item.fileName !== null)
@@ -1692,8 +1950,16 @@ Editor.prototype = {
             sceneData.object.sceneChildCount = originalChildren.length;
             sceneData.object.largeChildrenFiles = largeChildrenFiles;
           } else {
-            // 모든 children이 작은 경우
-            sceneData.object.children = childrenData;
+            // 작은 children도 inlineChildSlots에만 저장 (Three.js parseAsync와 형식 충돌 방지)
+            const inlineOnly = {};
+            childrenData.forEach((data, i) => {
+              if (data) inlineOnly[String(i)] = data;
+            });
+            sceneData.object.children = [];
+            sceneData.object.inlineChildSlots = inlineOnly;
+            sceneData.object.sceneChildCount = originalChildren.length;
+            sceneData.object.largeChildrenFiles = [];
+            console.log(`children inline 저장: ${Object.keys(inlineOnly).length}개`);
           }
         } catch (sizeError) {
           console.error("children 데이터 처리 실패:", sizeError);
@@ -1769,6 +2035,7 @@ Editor.prototype = {
       environment: environment,
       motionTimeline: this.scene.userData.motionTimeline || null, // MotionTimeline 데이터 저장
       lightTimeline: this.scene.userData.lightTimeline || null, // LightTimeline 데이터 저장
+      audioTimeline: this.scene.userData.audioTimeline || null, // AudioTimeline 데이터 저장
       music: this.music ? this.music.toJSON() : undefined, // music 정보 저장
     };
 
@@ -1839,8 +2106,9 @@ Editor.prototype = {
 
           for (let i = 0; i < originalChildren.length; i++) {
             try {
-              const childData = originalChildren[i].toJSON();
-              childrenFileData.push(childData);
+              const { SceneObjectSerializer } = await import('./utils/SceneObjectSerializer.js');
+              const childData = SceneObjectSerializer.serializeChild(originalChildren[i]);
+              if (childData) childrenFileData.push(childData);
             } catch (childError) {
               console.warn(`분리된 children 생성 중 child ${i} 처리 실패:`, childError);
               failedChildren.push(i);
@@ -1886,7 +2154,9 @@ Editor.prototype = {
 
           for (let i = 0; i < originalChildren.length; i++) {
             try {
-              const childData = originalChildren[i].toJSON();
+              const { SceneObjectSerializer } = await import('./utils/SceneObjectSerializer.js');
+              const childData = SceneObjectSerializer.serializeChild(originalChildren[i]);
+              if (!childData) continue;
               const childSize = JSON.stringify(childData).length;
 
               if (childSize > 100000) { // 100KB 이상이면 개별 파일로 저장
@@ -1957,6 +2227,51 @@ Editor.prototype = {
       }
 
       const splitResult = DataSplitter.splitProjectData(baseData, options);
+
+      // scene children 백업: 개별 scene_child_*.json 분리가 없고, 크기가 작을 때만 단일 파일로 저장
+      const hasLargeChildSplit = Array.isArray(baseData.scene?.object?.largeChildrenFiles)
+        && baseData.scene.object.largeChildrenFiles.length > 0;
+
+      if (!hasLargeChildSplit) {
+        try {
+          const allChildrenBackup = [];
+          for (let i = 0; i < this.scene.children.length; i++) {
+            try {
+              allChildrenBackup.push(this.scene.children[i].toJSON());
+            } catch (childErr) {
+              console.warn(`all_scene_children 백업 중 child ${i} 실패:`, childErr);
+            }
+          }
+          if (allChildrenBackup.length > 0) {
+            let backupSize = 0;
+            try {
+              backupSize = JSON.stringify(allChildrenBackup).length;
+            } catch (sizeErr) {
+              console.warn('all_scene_children 크기 측정 실패, 백업 생략:', sizeErr);
+              backupSize = Infinity;
+            }
+
+            const MAX_BACKUP_BYTES = 5 * 1024 * 1024; // 5MB
+            if (backupSize <= MAX_BACKUP_BYTES) {
+              const backupFileName = 'all_scene_children.json';
+              splitResult.splitFiles[backupFileName] = allChildrenBackup;
+              if (!splitResult.fileReferences.includes(backupFileName)) {
+                splitResult.fileReferences.push(backupFileName);
+              }
+              if (splitResult.baseData.scene?.object) {
+                splitResult.baseData.scene.object.allSceneChildrenFile = backupFileName;
+              }
+              console.log(`all_scene_children.json 백업 저장: ${allChildrenBackup.length}개 (${backupSize} bytes)`);
+            } else {
+              console.warn(`all_scene_children 백업 생략: ${backupSize} bytes (한도 ${MAX_BACKUP_BYTES})`);
+            }
+          }
+        } catch (backupErr) {
+          console.warn('all_scene_children 백업 생성 실패:', backupErr);
+        }
+      } else {
+        console.log('개별 scene_child 파일이 있어 all_scene_children.json 백업 생략');
+      }
 
       // children 파일 데이터 추가
       if (childrenFileData && baseData.scene && baseData.scene.object && baseData.scene.object.childrenFile) {
