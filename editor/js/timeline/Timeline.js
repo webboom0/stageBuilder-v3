@@ -1779,6 +1779,16 @@ class Timeline {
       const deltaTime = Math.min((now - lastTime) / 1000, 0.1); // 탭 전환 시 급점프 방지
       lastTime = now;
 
+      // QLab/Ensemble (MVP) — 재생 중 tick
+      try {
+        if (this.editor?.actorsManager?.update) {
+          this.editor.actorsManager.update(deltaTime);
+        }
+        if (this.editor?.showControl?.tick) {
+          this.editor.showControl.tick(deltaTime);
+        }
+      } catch (e) {}
+
       // 실제 시간 기반으로 프레임 계산
       const frameDelta = deltaTime * this.timelineSettings.framesPerSecond * playbackSpeed;
       currentFrame += frameDelta;

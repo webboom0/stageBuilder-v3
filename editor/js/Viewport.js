@@ -352,6 +352,18 @@ function Viewport(editor) {
 
   function handleClick() {
     if (onDownPosition.distanceTo(onUpPosition) === 0) {
+      const pick = editor.showControl?.getGroupPathPickMode?.();
+      if (pick) {
+        const picked = editor.showControl.applyGroupPathPickFromNormalized(
+          onUpPosition.x,
+          onUpPosition.y,
+        );
+        if (picked) {
+          render();
+          return;
+        }
+      }
+
       const intersects = selector.getPointerIntersects(onUpPosition, camera);
       signals.intersectionsDetected.dispatch(intersects);
 
@@ -660,6 +672,9 @@ function Viewport(editor) {
     }
 
     renderer = newRenderer;
+    container.renderer = renderer;
+    editor.renderer = renderer;
+    editor.viewport = { dom: container.dom, renderer };
 
     renderer.setAnimationLoop(animate);
     renderer.setClearColor(0xaaaaaa);

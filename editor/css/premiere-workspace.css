@@ -1777,15 +1777,134 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   grid-column: 1;
   background: var(--panel) !important;
   display: flex !important;
-  flex-direction: column !important;
+  flex-direction: row !important;
   overflow: hidden !important;
   min-height: 0 !important;
 }
 
+.sb-left-rail {
+  width: 36px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 3px;
+  background: var(--head);
+  border-right: 1px solid var(--line);
+  z-index: 2;
+  order: 0;
+}
+
+.sb-left-dock {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  order: 1;
+}
+
+.sb-left-dock .sb-rail-panel-slot {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sb-left-dock .sb-rail-panel-slot[hidden] {
+  display: none !important;
+}
+
+.sb-left-dock .floating-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sb-left-dock .floating-panel > :not(.panel-header):not(.sb-panel-resize-handle) {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sb-left-dock .sb-showcontrol-section {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sb-left-dock .sb-sc-section-host,
+.sb-left-dock .sb-sc-section-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sb-left-dock .sb-showcontrol-section,
+.sb-left-dock .sb-showcontrol-panel,
+.sb-left-dock .sb-ens,
+.sb-left-dock .sb-ens-pane,
+.sb-left-dock .sb-sc-pane {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.sb-left-dock .sb-sc-mini-top {
+  flex-shrink: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, #1f242a, #15181c);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.sb-left-dock .sb-sc-mini-top .go {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 0;
+  background: linear-gradient(180deg, #52db73, #27b34a);
+  color: #07140b;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.sb-left-dock .sb-sc-body {
+  grid-template-columns: 1fr !important;
+}
+
+.sb-left-dock .sb-ens-grid {
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)) !important;
+}
+
 .sb-left .sec {
-  padding: 4px 8px 2px !important;
-  font-size: 9px !important;
-  letter-spacing: 0.8px !important;
+  display: none !important;
+}
+
+.sb-left-properties {
+  flex: 0 0 auto;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* Clip/Keyframe — Properties 패널과 중복 → UI 숨김 (로직은 유지) */
@@ -2132,8 +2251,31 @@ body.sb-panel-resize-active * {
   pointer-events: none;
 }
 
+.sb-left-dock [data-panel-id="properties"] .Panel,
+.sb-left-dock [data-panel-id="properties"] .TabbedPanel,
+.sb-left-dock [data-panel-id="properties"] #properties > .Panel {
+  padding: 0 !important;
+}
+
+.sb-left-dock [data-panel-id="properties"] .Row.ec-row,
+.sb-left-dock [data-panel-id="properties"] .Row.ec-row-group {
+  margin: 1px 8px !important;
+}
+
+.sb-left-dock [data-panel-id="properties"] .sb-anim-play-row.ec-row {
+  margin: 4px 8px 6px !important;
+}
+
+.sb-left-dock .floating-panel .panel-header {
+  flex-shrink: 0;
+  min-height: 26px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .sb-left-properties .sb-properties-panel .panel-header {
-  display: none !important;
+  display: flex !important;
 }
 
 .sb-left-inspector .property-panel {

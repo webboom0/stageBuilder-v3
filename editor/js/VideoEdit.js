@@ -2,6 +2,8 @@ import { UIPanel, UIInput, UIButton, UIRow } from "./libs/ui.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { Timeline } from "./timeline/Timeline.js";
+import { ShowControl } from "./showcontrol/ShowControl.js";
+import { ActorsManager } from "./actors/ActorsManager.js";
 import { NANSEOL_FRONT_SPOT_PRESETS } from "./Sidebar.Nanseol.js";
 import {
   arenaFloorLayoutFromBackground,
@@ -43,6 +45,30 @@ function VideoEdit(editor) {
 
   // Timeline 인스턴스를 editor에 저장하여 전역적으로 접근 가능하도록 함
   editor.timeline = timeline;
+
+  // Show-control + Actors manager (MVP)
+  if (!editor.showControl) {
+    editor.showControl = new ShowControl(editor);
+    editor.showControl.loadFromSceneUserData();
+    editor.showControl.ensureDefaultShow();
+  }
+  if (!editor.actorsManager) {
+    editor.actorsManager = new ActorsManager(editor);
+    editor.actorsManager.restoreFromSceneUserData();
+  }
+
+  // renderer 준비 후 pointer 리스너 연결
+  if (editor.signals?.rendererCreated) {
+    editor.signals.rendererCreated.add(() => {
+      try {
+        editor.actorsManager?.attach?.();
+      } catch (e) {}
+      if (!editor.viewport && editor.renderer) {
+        const vp = document.querySelector("#viewport");
+        if (vp) editor.viewport = { dom: vp, renderer: editor.renderer };
+      }
+    });
+  }
 
   // flex 높이 체인 유지 — 불필요한 Panel 래퍼 제거
   const shellLayout =

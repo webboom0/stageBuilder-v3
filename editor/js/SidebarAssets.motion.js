@@ -1,50 +1,7 @@
 import { UIButton } from "./libs/ui.js";
 import { getFbxApiUrl, FBX_UPLOAD_CONFIG, validateFBXFile } from "./config/fbx-upload-config.js";
 import { loadMotionFileAndCreateTrack } from "./utils/motionTimelineAutoTrack.js";
-
-/** 서버 없음·연결 실패·목록 비어 있음 → 패널에 항상 이 목록 표시 (files/fbx) */
-const DEFAULT_LOCAL_FBX_LIST = [
-    
-    { path: "../files/fbx/Sitting.fbx", name: "Sitting", displayName: "Sitting", filename: "Sitting.fbx" },
-    { path: "../files/fbx/Character1.fbx", name: "Character1", displayName: "Character1", filename: "Character1.fbx" },
-    { path: "../files/fbx/Character2.fbx", name: "Character2", displayName: "Character2", filename: "Character2.fbx" },
-    // { path: "../files/fbx/1.fbx", name: "1", displayName: "1", filename: "1.fbx" },
-    // { path: "../files/fbx/2.fbx", name: "2", displayName: "2", filename: "2.fbx" },
-    { path: "../files/fbx/Belly Dance.fbx", name: "Belly Dance", displayName: "Belly Dance", filename: "Belly Dance.fbx" },
-    { path: "../files/fbx/Samba Dancing.fbx", name: "Samba Dancing", displayName: "Samba Dancing", filename: "Samba Dancing.fbx" },
-];
-
-function cloneDefaultLocalFbxList() {
-    return DEFAULT_LOCAL_FBX_LIST.map((f) => ({ ...f }));
-}
-
-function fbxListFilenameKey(f) {
-    return String(f.filename || f.name || "").toLowerCase();
-}
-
-/**
- * 서버에 없는 로컬 전용 FBX(예: 1.fbx, 2.fbx)를 목록 앞에 붙임.
- * 서버만 쓰면 업로드 안 된 파일은 절대 안 나옴.
- */
-function prependLocalOnlyFbx(serverList) {
-    const onServer = new Set(
-        (serverList || []).map(fbxListFilenameKey).filter(Boolean)
-    );
-    const extra = DEFAULT_LOCAL_FBX_LIST.filter((f) => {
-        const k = fbxListFilenameKey(f);
-        return k && !onServer.has(k);
-    }).map((f) => ({ ...f }));
-    return extra.length ? [...extra, ...serverList] : serverList;
-}
-
-/** 서버 응답 대기 제한 (무응답 시 로컬 목록으로 폴백) */
-function fetchFbxListWithTimeout(url, ms) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    return fetch(url, { signal: ctrl.signal, credentials: "include" }).finally(() =>
-        clearTimeout(t)
-    );
-}
+import { loadMotionFbxCatalog } from "./utils/motionFbxCatalog.js";
 
 export function createMotionPanel(editor) {
     // 선택된 FBX 항목을 추적하는 변수
@@ -484,7 +441,7 @@ export function createMotionPanel(editor) {
 
         try {
             console.log("📡 FBX 파일 목록 로드 중...");
-            const fbxFiles = await loadFBXFilesFromFolder();
+            const fbxFiles = await loadMotionFbxCatalog();
             console.log("📥 로드된 FBX 파일 수:", fbxFiles ? fbxFiles.length : 0);
 
             if (!fbxFiles || fbxFiles.length === 0) {
@@ -984,55 +941,6 @@ export function createMotionPanel(editor) {
         if (existingProgress) {
             existingProgress.remove();
             console.log("🧹 진행 상태 메시지 제거됨");
-        }
-    }
-
-    // FBX 파일 목록: 서버에 등록된 목록이 있을 때만 서버 사용, 그 외는 전부 로컬 기본 목록
-    async function loadFBXFilesFromFolder() {
-        const url = getFbxApiUrl(FBX_UPLOAD_CONFIG.ENDPOINTS.GET_FILES);
-        try {
-            console.log("FBX 목록 요청:", url);
-            const response = await fetchFbxListWithTimeout(url, 5000);
-
-            if (!response.ok) {
-                console.warn("FBX 서버 응답 실패 → 로컬 기본 목록", response.status);
-                return cloneDefaultLocalFbxList();
-            }
-
-            let fbxFiles;
-            try {
-                fbxFiles = await response.json();
-            } catch (e) {
-                console.warn("FBX 목록 JSON 파싱 실패 → 로컬 기본 목록", e);
-                return cloneDefaultLocalFbxList();
-            }
-
-            if (!Array.isArray(fbxFiles) || fbxFiles.length === 0) {
-                console.log("서버에 등록된 FBX 없음 → 로컬 기본 목록 사용");
-                return cloneDefaultLocalFbxList();
-            }
-
-            const processedFiles = fbxFiles.map((file) => ({
-                path: `..${file.path}`,
-                name: file.name,
-                displayName: file.displayName,
-                filename: file.filename,
-            }));
-            const merged = prependLocalOnlyFbx(processedFiles);
-            console.log(
-                "서버 FBX + 로컬 전용 병합:",
-                merged.length,
-                "개 (서버",
-                processedFiles.length,
-                ")"
-            );
-            return merged;
-        } catch (error) {
-            console.warn(
-                "FBX 서버 미연결/타임아웃 → 로컬 기본 목록:",
-                error && error.name === "AbortError" ? "timeout" : error
-            );
-            return cloneDefaultLocalFbxList();
         }
     }
 

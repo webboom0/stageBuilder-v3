@@ -148,12 +148,60 @@ function Editor() {
   this.lightTimeline = null;
   this.audioTimeline = null;
 
+  // Show-control / ensemble (MVP)
+  this.showControl = null;
+  this.actorsManager = null;
+
+  // Work lights (MA "노란 박스" 밝기)
+  this._workLights = null;
+  this._workLightLevel = 0;
+
   this.addCamera(this.camera);
+
+  // 기본 work light 생성 (암전=0)
+  this.initWorkLights();
 }
 
 
 
 Editor.prototype = {
+  initWorkLights: function () {
+    if (!this.scene) return;
+    if (this._workLights) return;
+
+    const g = new THREE.Group();
+    g.name = "_WorkLights";
+    g.userData.type = "workLights";
+
+    const amb = new THREE.AmbientLight(0xffffff, 0);
+    const hemi = new THREE.HemisphereLight(0x9fb4d4, 0x202833, 0);
+    const key = new THREE.DirectionalLight(0xfff2e0, 0);
+    key.position.set(20, 60, 30);
+    key.castShadow = false;
+
+    g.add(amb, hemi, key);
+    this.scene.add(g);
+    this._workLights = { group: g, amb, hemi, key };
+
+    const saved = this.scene.userData?.workLightLevel ?? 0;
+    this.setWorkLightLevel(saved);
+  },
+
+  setWorkLightLevel: function (level01) {
+    const v = Math.max(0, Math.min(1, Number(level01) || 0));
+    this._workLightLevel = v;
+    if (!this.scene.userData) this.scene.userData = {};
+    this.scene.userData.workLightLevel = v;
+
+    if (!this._workLights) this.initWorkLights();
+    if (this._workLights) {
+      // Keep stage readable but not too bright
+      this._workLights.amb.intensity = 0.55 * v;
+      this._workLights.hemi.intensity = 0.9 * v;
+      this._workLights.key.intensity = 1.25 * v;
+    }
+    if (this.signals?.rendererUpdated) this.signals.rendererUpdated.dispatch();
+  },
   setScene: function (scene) {
     try {
       // 재로드 시 기존 자식이 남아 중복·UUID 충돌이 나지 않도록 먼저 비움
@@ -606,6 +654,10 @@ Editor.prototype = {
     this.mixer.stopAllAction();
 
     this.deselect();
+
+    // work lights re-init (scene was wiped)
+    this._workLights = null;
+    this.initWorkLights();
 
     // 타임라인 UI/트랙 맵 정리 (프로젝트 열기 전 중복 트랙 방지)
     try {
@@ -1703,6 +1755,24 @@ Editor.prototype = {
       this.restoreStageAfterProjectLoad();
       this.refreshMotionTimelineAfterSceneLoad();
       this.refreshAudioTimelineAfterSceneLoad();
+
+      // Work light + show-control + actors restore (MVP)
+      try {
+        this.initWorkLights();
+        const wl = this.scene.userData?.workLightLevel;
+        if (wl !== undefined) this.setWorkLightLevel(wl);
+      } catch (e) {}
+      try {
+        if (this.actorsManager?.restoreFromSceneUserData) {
+          this.actorsManager.restoreFromSceneUserData();
+          this.actorsManager.attach?.();
+        }
+      } catch (e) {}
+      try {
+        if (this.showControl?.loadFromSceneUserData) {
+          this.showControl.loadFromSceneUserData();
+        }
+      } catch (e) {}
 
       // LightTimeline 데이터가 없거나 lightTimeline 인스턴스가 없습니다.
       if (!projectData.lightTimeline && !this.scene.userData.lightTimeline) {
