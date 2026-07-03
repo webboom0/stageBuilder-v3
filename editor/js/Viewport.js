@@ -1071,6 +1071,11 @@ function Viewport(editor) {
       needsUpdate = true;
     }
 
+    if (editor.fixtureEngine?.built) {
+      editor.fixtureEngine.update();
+      needsUpdate = true;
+    }
+
     if (needsUpdate === true) render();
 
     updatePT();
@@ -1114,6 +1119,8 @@ function Viewport(editor) {
 
   function render() {
     startTime = performance.now();
+
+    editor.fixtureEngine?.update?.();
 
     renderer.setViewport(
       0,

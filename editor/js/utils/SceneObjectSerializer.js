@@ -5,8 +5,12 @@ const STAGE_INTERNAL_NAMES = new Set([
   "_Background",
   "_Floor",
   "_Light",
+  "_StageFrontSpot_L",
   "_StageFrontSpot_C",
+  "_StageFrontSpot_R",
+  "_StageFrontSpotTarget_L",
   "_StageFrontSpotTarget_C",
+  "_StageFrontSpotTarget_R",
 ]);
 
 function resolveFbxPath(fileName, userData = {}) {

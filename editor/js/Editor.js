@@ -6,6 +6,8 @@ import { History as _History } from "./History.js";
 import { Strings } from "./Strings.js";
 import { Storage as _Storage } from "./Storage.js";
 import { Selector } from "./Selector.js";
+import { getFixtureEngine } from "./lighting/FixtureEngine.js";
+import { applyStartupBlackout } from "./lighting/houseStageLights.js";
 
 var _DEFAULT_CAMERA = new THREE.PerspectiveCamera(50, 1, 0.01, 1000);
 _DEFAULT_CAMERA.name = "Camera";
@@ -156,6 +158,9 @@ function Editor() {
   this._workLights = null;
   this._workLightLevel = 0;
 
+  // grandMA-style fixture rig (Phase 1)
+  this.fixtureEngine = null;
+
   this.addCamera(this.camera);
 
   // 기본 work light 생성 (암전=0)
@@ -202,8 +207,28 @@ Editor.prototype = {
     }
     if (this.signals?.rendererUpdated) this.signals.rendererUpdated.dispatch();
   },
+
+  initFixtureEngine: function (options = {}) {
+    const engine = getFixtureEngine(this);
+    const build = options.build === true;
+    const restore = options.restore !== false && !!this.scene?.userData?.fixtureEngine?.built;
+    if (engine.built && engine.root?.parent) {
+      engine.fitToStage();
+      engine.update();
+    } else if (build || restore) {
+      engine.ensureRig();
+    }
+    if (engine.built) {
+      this.lightTimeline?.fixtureBridge?.ensureTracks?.();
+    }
+    if (typeof window !== "undefined") window.fixtureEngine = engine;
+    return engine;
+  },
+
   setScene: function (scene) {
     try {
+      this.fixtureEngine?.disposeRig?.();
+
       // 재로드 시 기존 자식이 남아 중복·UUID 충돌이 나지 않도록 먼저 비움
       while (this.scene.children.length > 0) {
         this.removeObject(this.scene.children[0]);
@@ -908,6 +933,8 @@ Editor.prototype = {
       // 배경은 있으나 기본 천장 조명이 없으면 추가 (새 파일 시작 시와 동일)
       if (!hasLights && typeof bg.ensureDefaultStageLights === 'function') {
         bg.ensureDefaultStageLights();
+      } else if (!this.scene.userData?.houseStageLights) {
+        applyStartupBlackout(this);
       }
     }
 
@@ -1100,6 +1127,17 @@ Editor.prototype = {
         }
       } catch (err) {
         console.error('오디오 동기화 재시도 실패:', err);
+      }
+    }
+
+    const lightTimeline = window.timeline?.timelines?.light || this.lightTimeline;
+    if (lightTimeline?.rebuildKeyframeUIAfterLoad) {
+      this.lightTimeline = lightTimeline;
+      try {
+        lightTimeline.rebuildKeyframeUIAfterLoad();
+        lightTimeline.fixtureBridge?.applyAtTime?.(lightTimeline.currentTime || 0);
+      } catch (err) {
+        console.error("조명 키프레임 UI 재복원 실패:", err);
       }
     }
   },
@@ -1651,68 +1689,45 @@ Editor.prototype = {
         console.log("MotionTimeline 데이터가 없으므로 트랙을 생성하지 않습니다.");
       }
 
-      // 🔧 3순위: LightTimeline 데이터 복원
-      if (projectData.lightTimeline || this.scene.userData.lightTimeline) {
+      // 🔧 3순위: LightTimeline 데이터 복원 (lightTracks·tracks·픽스처 fx_* 모두 지원)
+      const lightTimelineSource =
+        projectData.scene?.object?.userData?.lightTimeline ||
+        projectData.lightTimeline ||
+        this.scene.userData?.lightTimeline;
+
+      const hasLightTracks =
+        lightTimelineSource?.lightTracks &&
+        Object.keys(lightTimelineSource.lightTracks).length > 0;
+      const hasTracksDump =
+        lightTimelineSource?.tracks &&
+        Object.keys(lightTimelineSource.tracks).length > 0;
+      const hasFixtureKeyframesInDump =
+        hasTracksDump &&
+        Object.keys(lightTimelineSource.tracks).some((k) =>
+          String(k).startsWith("fixture-rig-"),
+        );
+
+      if (
+        lightTimelineSource &&
+        (hasLightTracks || hasTracksDump || hasFixtureKeyframesInDump)
+      ) {
         try {
           console.log("=== LightTimeline 데이터 복원 시작 (3순위) ===");
+          this.connectTimelineInstances();
 
-          // 올바른 경로에서 lightTimeline 데이터 가져오기
-          const correctLightTimelineData = projectData.scene?.object?.userData?.lightTimeline;
-          console.log("올바른 경로의 lightTimeline:", correctLightTimelineData);
-          console.log("올바른 경로의 tracks:", correctLightTimelineData?.tracks);
+          if (!this.scene.userData) this.scene.userData = {};
+          this.scene.userData.lightTimeline = lightTimelineSource;
 
-          // 기존 경로도 확인 (비교용)
-          console.log("기존 경로의 lightTimeline:", projectData.lightTimeline);
-          console.log("기존 경로의 tracks:", projectData.lightTimeline?.tracks);
+          console.log("lightTracks 키들:", Object.keys(lightTimelineSource.lightTracks || {}));
+          console.log("tracks 키들:", Object.keys(lightTimelineSource.tracks || {}));
 
-          // scene.userData에서 lightTimeline 데이터 확인
-          console.log("scene.userData.lightTimeline:", this.scene.userData.lightTimeline);
-          console.log("scene.userData.lightTimeline tracks:", this.scene.userData.lightTimeline?.tracks);
-
-          // 사용할 lightTimeline 데이터 결정
-          let lightTimelineData = null;
-          if (correctLightTimelineData?.tracks) {
-            lightTimelineData = correctLightTimelineData;
-            console.log("올바른 경로의 tracks 키들:", Object.keys(correctLightTimelineData.tracks));
-            console.log("올바른 경로의 tracks 타입:", typeof correctLightTimelineData.tracks);
-          } else if (this.scene.userData.lightTimeline?.tracks) {
-            lightTimelineData = this.scene.userData.lightTimeline;
-            console.log("scene.userData의 tracks 키들:", Object.keys(this.scene.userData.lightTimeline.tracks));
-            console.log("scene.userData의 tracks 타입:", typeof this.scene.userData.lightTimeline.tracks);
-          }
-
-          if (lightTimelineData) {
-            // scene.userData에 lightTimeline 데이터 저장 (올바른 경로 사용)
-            if (correctLightTimelineData) {
-              this.scene.userData.lightTimeline = correctLightTimelineData;
-              console.log("올바른 경로에서 lightTimeline 데이터 설정 완료");
-            } else if (projectData.lightTimeline) {
-              this.scene.userData.lightTimeline = projectData.lightTimeline;
-              console.log("기존 경로에서 lightTimeline 데이터 설정 완료");
-            } else if (this.scene.userData.lightTimeline) {
-              console.log("scene.userData.lightTimeline이 이미 존재합니다");
-            } else {
-              console.warn("lightTimeline 데이터를 찾을 수 없습니다");
-            }
-
-            console.log("scene.userData.lightTimeline 설정 완료:", this.scene.userData.lightTimeline);
-            console.log("scene.userData.lightTimeline.tracks 키들:", Object.keys(this.scene.userData.lightTimeline.tracks || {}));
-
-            // 저장된 데이터 상세 확인
-            console.log("=== Editor.js에서 저장된 데이터 확인 ===");
-            console.log("lightTimeline 데이터 타입:", typeof this.scene.userData.lightTimeline);
-            console.log("lightTimeline 데이터 키들:", Object.keys(this.scene.userData.lightTimeline));
-
-            if (this.scene.userData.lightTimeline.lightTracks) {
-              console.log("lightTracks 개수:", Object.keys(this.scene.userData.lightTimeline.lightTracks).length);
-              console.log("lightTracks 키들:", Object.keys(this.scene.userData.lightTimeline.lightTracks));
-            }
-
-            // LightTimeline에서 데이터 로드
+          if (this.lightTimeline?.onAfterLoad) {
             console.log("lightTimeline.onAfterLoad() 호출 중...");
             this.lightTimeline.onAfterLoad();
-            console.log("=== LightTimeline 데이터 복원 완료 (3순위) ===");
+          } else {
+            console.warn("lightTimeline 인스턴스 또는 onAfterLoad가 없습니다");
           }
+          console.log("=== LightTimeline 데이터 복원 완료 (3순위) ===");
         } catch (error) {
           console.error("LightTimeline 데이터 복원 중 오류:", error);
         }
@@ -1802,6 +1817,19 @@ Editor.prototype = {
         console.warn("그룹 타임라인 복원 실패:", groupRestoreError);
       }
 
+      try {
+        if (this.scene.userData?.fixtureEngine) {
+          this.initFixtureEngine({ restore: true });
+        }
+        if (!this.scene.userData?.houseStageLights) {
+          applyStartupBlackout(this);
+        }
+        this.connectTimelineInstances();
+        this.lightTimeline?.rebuildKeyframeUIAfterLoad?.();
+      } catch (fixtureRestoreError) {
+        console.warn("FixtureEngine 복원 실패:", fixtureRestoreError);
+      }
+
     } catch (error) {
       console.error("JSON 데이터 로드 중 전체 오류:", error);
       throw error; // 상위로 오류 전파
@@ -1885,47 +1913,30 @@ Editor.prototype = {
         console.log("onBeforeSave 완료 후 scene.userData.motionTimeline:", this.scene.userData.motionTimeline);
         console.log("onBeforeSave 후 tracks 키들:", Object.keys(this.scene.userData.motionTimeline?.tracks || {}));
         console.log("=== MotionTimeline 데이터 저장 완료 ===");
-
-        // LightTimeline 데이터 저장
-        if (this.lightTimeline) {
-          try {
-            console.log("=== LightTimeline 데이터 저장 시작 ===");
-            console.log("this.lightTimeline:", this.lightTimeline);
-            console.log("this.scene.userData.lightTimeline 존재:", !!this.scene.userData?.lightTimeline);
-
-            if (this.scene.userData?.lightTimeline) {
-              console.log("저장 전 lightTimeline 데이터:", this.scene.userData.lightTimeline);
-              console.log("tracks 키들:", Object.keys(this.scene.userData.lightTimeline.tracks || {}));
-            }
-
-            this.lightTimeline.onBeforeSave();
-
-            console.log("onBeforeSave 완료 후 scene.userData.lightTimeline:", this.scene.userData.lightTimeline);
-            console.log("onBeforeSave 후 tracks 키들:", Object.keys(this.scene.userData.lightTimeline?.tracks || {}));
-            console.log("=== LightTimeline 데이터 저장 완료 ===");
-          } catch (error) {
-            console.error("LightTimeline 데이터 저장 중 오류:", error);
-          }
-        } else {
-          console.log("lightTimeline 인스턴스가 없어서 저장하지 않습니다.");
-          // LightTimeline 인스턴스가 없다면 생성 시도
-          if (window.timeline && window.timeline.timelines && window.timeline.timelines.light) {
-            this.lightTimeline = window.timeline.timelines.light;
-            console.log("LightTimeline 인스턴스를 window.timeline에서 찾아서 연결했습니다.");
-            try {
-              console.log("=== LightTimeline 데이터 저장 시작 ===");
-              this.lightTimeline.onBeforeSave();
-              console.log("=== LightTimeline 데이터 저장 완료 ===");
-            } catch (error) {
-              console.error("LightTimeline 데이터 저장 중 오류:", error);
-            }
-          }
-        }
       } catch (error) {
         console.error("MotionTimeline 데이터 저장 중 오류:", error);
       }
     } else {
       console.log("motionTimeline 인스턴스가 없어서 저장하지 않습니다.");
+    }
+
+    // LightTimeline 데이터 저장 (motionTimeline 여부와 무관)
+    try {
+      this.connectTimelineInstances?.();
+      const lightTl =
+        this.lightTimeline || window.timeline?.timelines?.light;
+      if (lightTl?.onBeforeSave) {
+        this.lightTimeline = lightTl;
+        console.log("=== LightTimeline 데이터 저장 시작 ===");
+        lightTl.onBeforeSave();
+        console.log(
+          "lightTracks 키들:",
+          Object.keys(this.scene.userData?.lightTimeline?.lightTracks || {}),
+        );
+        console.log("=== LightTimeline 데이터 저장 완료 ===");
+      }
+    } catch (error) {
+      console.error("LightTimeline 데이터 저장 중 오류:", error);
     }
 
     // AudioTimeline 데이터 저장
@@ -1988,6 +1999,7 @@ Editor.prototype = {
         this.showControl.loadFromSceneUserData();
       }
       this.showControl?.persistToSceneUserData?.();
+      this.fixtureEngine?.persistToSceneUserData?.();
       const { persistGroupFoldersToUserData } = await import("./showcontrol/motionTimelineGroupFolder.js");
       persistGroupFoldersToUserData(this);
     } catch (persistScError) {

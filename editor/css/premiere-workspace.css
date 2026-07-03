@@ -1170,6 +1170,20 @@ body {
   opacity: 1;
 }
 
+.sb-tl .timeline-track.fixture-timeline .light-type-badge--fixture {
+  background: #ffcc44;
+  color: #1a1a1a;
+  opacity: 1;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.sb-tl .track-name--fixture {
+  font-size: 10px;
+  color: rgba(255, 204, 68, 0.9);
+  font-family: JetBrains Mono, monospace;
+}
+
 /* 모션 트랙 헤더 — 눈 / 키프레임 / 잠금 */
 .sb-tl .tl-section-motion .track-header .track-controls,
 .sb-tl .timeline-track[data-uuid] > .motion-tracks > .track-header .track-controls {

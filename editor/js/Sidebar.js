@@ -80,10 +80,9 @@ function Sidebar(editor) {
   kfHost.hidden = true;
   propertiesPanel.appendChild(kfHost);
 
-  const scCuesPanel = createPanel("QLab · Cues", createShowControlSection(editor, "cues"));
   const scGroupsPanel = createPanel("QLab · Groups", createShowControlSection(editor, "groups"));
-  const scTargetsPanel = createPanel("QLab · Targets", createShowControlSection(editor, "targets"));
   const scMaPanel = createPanel("MA Lighting", createShowControlSection(editor, "ma"));
+  // QLab Cues / Targets — 미구현, 레일에서 비표시
 
   leftRail.registerPanel({
     id: "properties",
@@ -94,24 +93,10 @@ function Sidebar(editor) {
   });
 
   leftRail.registerPanel({
-    id: "sc-cues",
-    icon: "fas fa-play",
-    label: "QLab · 큐 스택",
-    panelEl: scCuesPanel,
-  });
-
-  leftRail.registerPanel({
     id: "sc-groups",
     icon: "fas fa-users",
     label: "QLab · 그룹 / Ensemble",
     panelEl: scGroupsPanel,
-  });
-
-  leftRail.registerPanel({
-    id: "sc-targets",
-    icon: "fas fa-crosshairs",
-    label: "QLab · Control Targets",
-    panelEl: scTargetsPanel,
   });
 
   leftRail.registerPanel({

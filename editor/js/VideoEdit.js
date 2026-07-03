@@ -5,6 +5,7 @@ import { Timeline } from "./timeline/Timeline.js";
 import { ShowControl } from "./showcontrol/ShowControl.js";
 import { ActorsManager } from "./actors/ActorsManager.js";
 import { NANSEOL_FRONT_SPOT_PRESETS } from "./Sidebar.Nanseol.js";
+import { applyStartupBlackout, tagHouseLightsForBlackout, readHouseLightLevels, applyHouseLightLevels } from "./lighting/houseStageLights.js";
 import {
   arenaFloorLayoutFromBackground,
 } from "./arenaStageLayout.js";
@@ -344,23 +345,26 @@ function VideoEdit(editor) {
       const existingLight = this.stageGroup.children.find(
         (child) => child.name === "_Light",
       );
+      let added = false;
 
-      if (existingLight) {
-        return;
+      if (!existingLight) {
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x181818, 0.92);
+        hemiLight.position.set(0, 1, 0);
+        hemiLight.name = "_Light";
+        hemiLight.userData.baseIntensity = 0.92;
+        hemiLight.intensity = 0;
+        this.stageGroup.add(hemiLight);
+        added = true;
       }
 
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x181818, 0.92);
-      hemiLight.position.set(0, 1, 0);
-      hemiLight.name = "_Light";
-      this.stageGroup.add(hemiLight);
+      for (const cfg of NANSEOL_FRONT_SPOT_PRESETS) {
+        const suffix = cfg.name.replace("난설_조명_앞_", "");
+        const spotName = `_StageFrontSpot_${suffix}`;
+        if (this.stageGroup.children.some((c) => c.name === spotName)) continue;
 
-      const cfg = NANSEOL_FRONT_SPOT_PRESETS.find(
-        (p) => p.name === "난설_조명_앞_C",
-      );
-      if (cfg) {
         const target = new THREE.Object3D();
         target.position.set(cfg.target[0], cfg.target[1], cfg.target[2]);
-        target.name = "_StageFrontSpotTarget_C";
+        target.name = `_StageFrontSpotTarget_${suffix}`;
         target.userData.isBackground = false;
         target.userData.notEditable = false;
         target.userData.notSelectable = false;
@@ -375,16 +379,10 @@ function VideoEdit(editor) {
           cfg.penumbra,
           0,
         );
-        spot.name = "_StageFrontSpot_C";
-        spot.position.set(1.89, 72.905, 225.001);
-        spot.intensity = 2.24;
-        spot.distance = 519.7;
-        spot.angle = 1.13;
-        spot.penumbra = 0.14;
-        spot.decay = 0.0;
-        spot.color.setHex(0xffffff);
-        spot.visible = true;
+        spot.name = spotName;
+        spot.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
         spot.target = target;
+        spot.visible = true;
         spot.userData.isBackground = false;
         spot.userData.notEditable = false;
         spot.userData.notSelectable = false;
@@ -392,22 +390,24 @@ function VideoEdit(editor) {
         spot.castShadow = true;
         spot.shadow.mapSize.set(2048, 2048);
         spot.shadow.bias = -0.00025;
+        spot.userData.baseIntensity = cfg.intensity;
+        spot.intensity = 0;
         this.stageGroup.add(spot);
+        added = true;
       }
 
-      const editableStageSpotNames = ["_StageFrontSpot_C", "_StageFrontSpotTarget_C"];
-      editableStageSpotNames.forEach((name) => {
-        const obj = this.stageGroup.children.find((child) => child.name === name);
-        if (!obj) return;
-        if (!obj.userData) obj.userData = {};
-        obj.userData.isBackground = false;
-        obj.userData.notEditable = false;
-        obj.userData.notSelectable = false;
-        obj.userData.selectSelf = true;
-      });
+      tagHouseLightsForBlackout(this.stageGroup);
+      const savedHouse = editor.scene?.userData?.houseStageLights;
+      if (savedHouse) {
+        applyHouseLightLevels(editor, readHouseLightLevels(editor.scene));
+      } else {
+        applyStartupBlackout(editor);
+      }
 
-      console.log("기본 무대 조명(_Light, _StageFrontSpot_C) 추가 완료");
-      editor.signals.sceneGraphChanged.dispatch();
+      if (added) {
+        console.log("기본 무대 조명(_Light, _StageFrontSpot L/C/R) 추가 완료");
+        editor.signals.sceneGraphChanged.dispatch();
+      }
     },
     create: function (stageFile = "../files/stage/background.fbx") {
       console.log("background");

@@ -3,6 +3,34 @@ import * as THREE from "three";
 const mouse = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
 
+function isViewportSelectionBlocked(object, sceneRoot) {
+  let o = object;
+  while (o && o !== sceneRoot) {
+    const ud = o.userData || {};
+    if (ud.notSelectable || ud.isFixtureRig || ud.isFixture) return true;
+    if (o.name === "_FixtureRig") return true;
+    if (o.isLight === true) return true;
+    const name = o.name;
+    if (
+      typeof name === "string" &&
+      (name.startsWith("_StageFrontSpot") || name.startsWith("_Light"))
+    ) {
+      return true;
+    }
+    o = o.parent;
+  }
+  return false;
+}
+
+function pickSelectableIntersect(intersects, sceneRoot) {
+  for (let i = 0; i < intersects.length; i++) {
+    if (!isViewportSelectionBlocked(intersects[i].object, sceneRoot)) {
+      return intersects[i];
+    }
+  }
+  return null;
+}
+
 class Selector {
   constructor(editor) {
     const signals = editor.signals;
@@ -13,8 +41,9 @@ class Selector {
     // signals
 
     signals.intersectionsDetected.add((intersects) => {
-      if (intersects.length > 0) {
-        const object = intersects[0].object;
+      const hit = pickSelectableIntersect(intersects, this.editor.scene);
+      if (hit) {
+        const object = hit.object;
 
         if (object.userData.object !== undefined) {
           // helper
@@ -52,17 +81,23 @@ class Selector {
   }
 
   select(object) {
+    let topParent = null;
+
     if (object !== null && object !== this.editor.scene) {
-      // 최상위 부모 객체 찾기 (scene 바로 아래 객체까지만)
-      let topParent = object;
+      topParent = object;
       while (topParent.parent && topParent.parent !== this.editor.scene) {
         topParent = topParent.parent;
       }
 
-      // 이미 같은 객체가 선택되어 있다면 리턴
+      if (isViewportSelectionBlocked(topParent, this.editor.scene)) {
+        topParent = null;
+      }
+    }
+
+    if (topParent !== null) {
       if (this.editor.selected === topParent) return;
 
-      let uuid = topParent.uuid;
+      const uuid = topParent.uuid;
       this.editor.selected = topParent;
       this.editor.config.setKey("selected", uuid);
     } else {

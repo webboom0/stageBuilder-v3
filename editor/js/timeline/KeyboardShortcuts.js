@@ -254,6 +254,11 @@ export class KeyboardShortcuts {
         }
 
         const editor = this.motionTimeline.editor;
+        const feSel = editor?.fixtureEngine?.getSelectionIds?.() || [];
+        if (!allAtPlayhead && feSel.length > 0) {
+            return lightTimeline.addKeyframeAtPlayhead();
+        }
+
         const selected = editor?.selected;
         const lightTrackEl = document.querySelector(
             ".light-timeline.timeline-track--selected",
@@ -500,6 +505,9 @@ export class KeyboardShortcuts {
 
     // 키프레임 추가 — 모션 또는 조명 (타임라인 DOM 선택 우선)
     addKeyframe() {
+        const editor = this.motionTimeline.editor;
+        const feSel = editor?.fixtureEngine?.getSelectionIds?.() || [];
+
         const motionTrackEl = document.querySelector(
             ".timeline-track--selected[data-uuid]:not(.light-timeline)",
         );
@@ -517,6 +525,24 @@ export class KeyboardShortcuts {
             return;
         }
 
+        // MA Console 픽스처/그룹 선택 → Light FX 트랙에 키프레임
+        if (feSel.length > 0) {
+            const result = this.tryAddLightKeyframe();
+            if (result.success) {
+                const n = result.count || feSel.length;
+                this.showSuccess(
+                    n > 1
+                        ? `✓ 픽스처 ${n}개 키프레임 (Light 타임라인)`
+                        : "✓ 픽스처 키프레임 추가됨",
+                );
+            } else {
+                this.showWarning(
+                    result.message || "픽스처 키프레임을 추가할 수 없습니다.",
+                );
+            }
+            return;
+        }
+
         if (lightTrackEl?.dataset?.objectId) {
             const result = this.tryAddLightKeyframe();
             if (result.success) {
@@ -529,7 +555,6 @@ export class KeyboardShortcuts {
             return;
         }
 
-        const editor = this.motionTimeline.editor;
         const selected = editor?.selected;
         const isLightObject =
             selected?.isLight || selected?.name?.includes("_Target");

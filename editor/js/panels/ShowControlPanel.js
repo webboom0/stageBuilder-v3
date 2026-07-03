@@ -1,7 +1,26 @@
 import { ShowControl } from "../showcontrol/ShowControl.js";
 import { findSceneObjectForCatalogEntry } from "../utils/motionFbxCatalog.js";
 import { computeFormationOffsets, FORMATION_LABELS } from "../showcontrol/groupFormation.js";
+import { rigFixtureCount, RIG_MATRIX } from "../lighting/fixtureTypes.js";
+import {
+  readHouseLightLevels,
+  setHouseLightLevel,
+  applyStageGrand,
+  readStageGrand,
+} from "../lighting/houseStageLights.js";
+import { mountMaConsole } from "../lighting/MaConsolePanel.js";
 import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, GROUP_ROT_Y_OPTIONS, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
+
+function readFixtureProgMode(fixtures = []) {
+  if (!fixtures.length) return "none";
+  const dims = fixtures.map((f) => {
+    const o = Object.assign({}, f.home, f.attr, f.prog);
+    return Math.round(Number(o.dim) || 0);
+  });
+  if (dims.every((d) => d === 0)) return "off";
+  if (dims.every((d) => d === 50)) return "50";
+  return "mixed";
+}
 
 function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
   if (!host) return;
@@ -252,7 +271,112 @@ export function createShowControlPanel(editor, options = {}) {
       color: var(--ql-dim);
     }
     .sb-sc-sec b{ color: var(--ql-ink); font-weight: 700; }
+    .sb-sc-sec--ma b{ color: #ffcc44; }
     .sb-sc-pane{ padding: 10px; overflow-x:hidden; overflow-y:auto; min-height:0; min-width:0; }
+    .sb-ma-bar{
+      display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    }
+    .sb-ma-grand-label{
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px; color: rgba(255,255,255,0.65); white-space:nowrap;
+    }
+    .sb-ma-grand-label b{ color: #ffcc44; font-weight: 700; }
+    .sb-ma-grand-slider{
+      flex:1; min-width:100px; max-width:200px;
+      -webkit-appearance:none; height:4px; border-radius:3px;
+      background: rgba(255,255,255,0.15); outline:none;
+    }
+    .sb-ma-grand-slider::-webkit-slider-thumb{
+      -webkit-appearance:none; width:11px; height:16px; border-radius:2px;
+      background:#ffcc44; cursor:pointer;
+    }
+    .sb-ma-pill{
+      font-size:10px; padding:4px 10px; border-radius:4px;
+      border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.3);
+      color:rgba(255,255,255,0.65); cursor:pointer;
+    }
+    .sb-ma-pill.on{ border-color:rgba(255,204,68,0.5); color:#ffcc44; background:rgba(255,204,68,0.12); }
+    .sb-ma-pill.on.red{ border-color:rgba(224,88,78,0.5); color:#e0584e; background:rgba(224,88,78,0.12); }
+    .sb-sc-ec.ec-row{ margin:6px 0; }
+    .sb-sc-ec.ec-row label{ width:88px; font-size:11px; color:rgba(255,255,255,0.55); }
+    .sb-sc-ec.ec-row .val{ min-width:42px; font-family:"JetBrains Mono",monospace; font-size:11px; color:rgba(255,255,255,0.78); text-align:right; }
+    .sb-sc-ec.ec-row input[type=range].lt::-webkit-slider-thumb{ background:#7a5cc0; }
+
+    /* grandMA3 Fixture Sheet (Phase 2) */
+    .sb-ma-console-wrap{ margin-top:8px; }
+    .sb-ma-console{ padding-bottom:4px; }
+    .sb-ma-sheet-head{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
+    .sb-ma-chip{ font-size:10px; padding:3px 8px; border-radius:4px; border:1px solid rgba(255,204,68,0.35); background:rgba(0,0,0,0.3); color:rgba(255,204,68,0.9); cursor:pointer; }
+    .sb-ma-chip.off{ border-color:rgba(255,255,255,0.15); color:rgba(255,255,255,0.55); }
+    .sb-ma-chip.on{ background:rgba(255,204,68,0.18); }
+    .sb-ma-selinfo{ margin-left:auto; font-size:10px; color:rgba(255,255,255,0.45); font-family:JetBrains Mono,monospace; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sb-ma-sel-dim{ display:flex; align-items:center; gap:8px; margin-bottom:8px; padding:6px 8px; border:1px solid rgba(255,255,255,0.08); border-radius:5px; background:rgba(0,0,0,0.22); }
+    .sb-ma-sel-dim label{ font-size:10px; color:rgba(255,204,68,0.85); min-width:52px; flex-shrink:0; }
+    .sb-ma-sel-dim input[type=range]{ flex:1; min-width:0; }
+    .sb-ma-sel-dim .val{ font-size:10px; font-family:JetBrains Mono,monospace; color:rgba(255,255,255,0.65); min-width:48px; text-align:right; flex-shrink:0; }
+    .sb-ma-fixgrid{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); grid-template-rows:repeat(3,auto); gap:4px; margin-bottom:10px; }
+    .sb-ma-empty{ grid-column:1/-1; font-size:11px; color:rgba(255,255,255,0.45); padding:12px 4px; }
+    .sb-ma-fx{ position:relative; display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px 3px; border:1px solid rgba(255,255,255,0.08); border-radius:5px; background:rgba(0,0,0,0.35); cursor:pointer; min-height:46px; }
+    .sb-ma-fx.sel{ border-color:rgba(255,204,68,0.95); box-shadow:0 0 0 2px rgba(255,204,68,0.45), 0 0 12px rgba(255,160,40,0.25); background:rgba(255,204,68,0.08); }
+    .sb-ma-fx.prog{ border-color:rgba(57,211,255,0.35); }
+    .sb-ma-fx.off{ opacity:0.45; }
+    .sb-ma-fx-id{ font-size:9px; font-family:JetBrains Mono,monospace; color:rgba(255,204,68,0.85); }
+    .sb-ma-fx-sw{ width:14px; height:8px; border-radius:2px; border:1px solid rgba(255,255,255,0.15); }
+    .sb-ma-fx-nm{ font-size:8px; color:rgba(255,255,255,0.45); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sb-ma-fx-dim{ font-size:9px; font-family:JetBrains Mono,monospace; color:rgba(255,255,255,0.65); }
+    .sb-ma-fx-bar{ width:100%; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; }
+    .sb-ma-fx-bar i{ display:block; height:100%; background:linear-gradient(90deg,#5a4f8a,#ffcc44); }
+    .sb-ma-subsec{ font-size:9px; letter-spacing:1px; text-transform:uppercase; color:rgba(255,255,255,0.4); margin:6px 0 4px; }
+    .sb-ma-groups{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; margin-bottom:8px; }
+    .sb-ma-grp{ font-size:10px; padding:5px 6px; text-align:left; border:1px solid rgba(255,255,255,0.1); border-radius:4px; background:rgba(0,0,0,0.25); color:rgba(255,255,255,0.65); cursor:pointer; }
+    .sb-ma-grp .gn{ color:rgba(255,204,68,0.85); font-family:JetBrains Mono,monospace; margin-right:4px; }
+    .sb-ma-grp .cnt{ color:rgba(255,255,255,0.35); float:right; }
+    .sb-ma-grp.empty{ opacity:0.35; pointer-events:none; }
+    .sb-ma-grp.on{ border-color:rgba(255,204,68,0.85); background:rgba(255,204,68,0.16); color:rgba(255,255,255,0.95); box-shadow:0 0 0 1px rgba(255,204,68,0.35); }
+    .sb-ma-kf-hint{ font-weight:400; font-size:9px; color:rgba(255,255,255,0.35); margin-left:6px; letter-spacing:0; }
+    .sb-ma-attr-tabs{ display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+    .sb-ma-tab{ font-size:10px; padding:3px 8px; border-radius:3px; border:1px solid rgba(255,255,255,0.1); background:transparent; color:rgba(255,255,255,0.5); cursor:pointer; }
+    .sb-ma-tab.on{ border-color:rgba(57,211,255,0.5); color:#6ec8ff; background:rgba(57,211,255,0.08); box-shadow:inset 0 -2px 0 #39d3ff; }
+    .sb-ma-exec-wrap{ margin:10px 0; padding:8px; border:1px solid rgba(255,255,255,0.08); border-radius:6px; background:rgba(0,0,0,0.28); }
+    .sb-ma-exec-head{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+    .sb-ma-exec-title{ font-size:9px; letter-spacing:1px; color:rgba(255,255,255,0.45); flex:1; }
+    .sb-ma-exec-act{ font-size:10px; padding:2px 8px; border:1px solid rgba(255,255,255,0.15); border-radius:3px; background:rgba(0,0,0,0.35); color:rgba(255,255,255,0.65); cursor:pointer; }
+    .sb-ma-exec-act:hover{ border-color:rgba(255,204,68,0.4); color:#ffcc44; }
+    .sb-ma-exec-bank{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
+    .sb-ma-exec-col{ display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px 6px; border:1px solid transparent; border-radius:5px; cursor:pointer; }
+    .sb-ma-exec-col.sel{ border-color:rgba(255,140,40,0.65); box-shadow:0 0 0 1px rgba(255,140,40,0.2) inset; }
+    .sb-ma-exec-led{ width:100%; height:16px; border:1px solid #2a4a2a; border-radius:2px; background:#142414; display:flex; align-items:center; justify-content:center; }
+    .sb-ma-exec-led i{ display:block; width:10px; height:10px; border-radius:1px; background:#1e3a1e; }
+    .sb-ma-exec-led.on i{ background:#3ecf5a; box-shadow:0 0 6px rgba(62,207,90,0.6); }
+    .sb-ma-exec-fader{ writing-mode:vertical-lr; direction:rtl; width:28px; height:72px; margin:0; accent-color:#39d3ff; cursor:pointer; }
+    .sb-ma-exec-off{ font-size:8px; padding:1px 6px; border:1px solid rgba(255,255,255,0.12); border-radius:2px; background:rgba(0,0,0,0.4); color:rgba(255,255,255,0.5); cursor:pointer; }
+    .sb-ma-exec-num{ font-size:9px; font-family:JetBrains Mono,monospace; color:rgba(255,255,255,0.35); }
+    .sb-ma-exec-name{ font-size:8px; color:rgba(255,255,255,0.55); text-align:center; line-height:1.2; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sb-ma-enc-wrap{ margin:8px 0; }
+    .sb-ma-knobs{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-bottom:8px; min-height:88px; }
+    .sb-ma-knob{ display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .sb-ma-knob.off{ opacity:0.4; pointer-events:none; }
+    .sb-ma-knob-dial{ width:52px; height:52px; cursor:ns-resize; touch-action:none; }
+    .sb-ma-knob-svg{ width:100%; height:100%; }
+    .sb-ma-knob-ring{ fill:rgba(0,0,0,0.45); stroke:rgba(255,255,255,0.12); stroke-width:2; }
+    .sb-ma-knob-needle{ stroke:#ff8c28; stroke-width:3; stroke-linecap:round; }
+    .sb-ma-knob-dash{ color:rgba(255,255,255,0.35); font-size:18px; line-height:52px; display:block; text-align:center; }
+    .sb-ma-knob-lbl{ font-size:9px; letter-spacing:0.5px; color:rgba(255,255,255,0.45); text-transform:uppercase; }
+    .sb-ma-knob-val{ font-size:10px; font-family:JetBrains Mono,monospace; color:rgba(255,255,255,0.75); }
+    .sb-ma-color-wrap{ margin:8px 0; padding:8px; border:1px solid rgba(255,255,255,0.08); border-radius:6px; background:rgba(0,0,0,0.22); }
+    .sb-ma-color-wrap.dim{ opacity:0.4; pointer-events:none; }
+    .sb-ma-color-grid{ display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:3px; margin-bottom:8px; }
+    .sb-ma-swatch{ aspect-ratio:1; border:1px solid rgba(255,255,255,0.15); border-radius:2px; cursor:pointer; padding:0; min-height:14px; }
+    .sb-ma-swatch:hover{ box-shadow:0 0 0 1px #ffcc44; transform:scale(1.08); }
+    .sb-ma-rgb-row label{ min-width:14px !important; color:rgba(255,255,255,0.5); }
+    .sb-ma-cmdline{ font-family:JetBrains Mono,monospace; font-size:11px; padding:6px 8px; background:#0a0a0c; border:1px solid rgba(255,255,255,0.1); border-radius:4px; margin-bottom:6px; color:rgba(255,255,255,0.75); min-height:28px; }
+    .sb-ma-cmdline .pmt{ color:rgba(255,204,68,0.75); margin-right:6px; }
+    .sb-ma-cmdline .cur{ color:rgba(255,204,68,0.9); animation:sbMaBlink 1s step-end infinite; }
+    @keyframes sbMaBlink{ 50%{ opacity:0; } }
+    .sb-ma-keys{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:3px; }
+    .sb-ma-key{ font-size:10px; padding:5px 2px; border:1px solid rgba(255,255,255,0.12); border-radius:3px; background:rgba(0,0,0,0.35); color:rgba(255,255,255,0.65); cursor:pointer; }
+    .sb-ma-key.wide{ grid-column:span 2; }
+    .sb-ma-key:hover{ border-color:rgba(255,204,68,0.35); color:#ffcc44; }
     .sb-form{
       display:grid;
       grid-template-columns: 72px minmax(0, 1fr);
@@ -275,19 +399,30 @@ export function createShowControlPanel(editor, options = {}) {
       outline: none;
     }
     .sb-form input:focus, .sb-form select:focus{ border-color: rgba(57,211,255,0.35); }
-    .sb-rowbtns{ display:flex; gap:8px; margin-top: 10px; }
+    .sb-rowbtns{ display:flex; flex-wrap:wrap; gap:6px; margin-top: 10px; }
     .sb-rowbtns .btn{
+      flex: 1 1 calc(33.333% - 4px);
+      min-width: 0;
+      max-width: 100%;
       height: 30px;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.12);
       background: rgba(0,0,0,0.25);
       color: var(--ql-ink);
       cursor: pointer;
-      padding: 0 10px;
-      font-size: 11px;
+      padding: 0 6px;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-sizing: border-box;
     }
     .sb-rowbtns .btn.go{ background: rgba(52,199,89,0.15); border-color: rgba(52,199,89,0.35); }
+    .sb-rowbtns .btn.on{ background: rgba(255,204,68,0.14); border-color: rgba(255,204,68,0.45); color: #ffcc44; }
     .sb-rowbtns .btn.del{ background: rgba(224,88,78,0.12); border-color: rgba(224,88,78,0.30); }
+    .sb-rowbtns .btn:only-child{ flex: 1 1 100%; }
+    .sb-rowbtns .btn:disabled{ opacity:0.38; cursor:not-allowed; }
+    .sb-rowbtns .btn:not(:disabled):active{ transform:scale(0.97); filter:brightness(1.15); }
     .sb-cuelist{
       border-top: 1px solid var(--ql-line);
       margin-top: 10px;
@@ -1615,100 +1750,240 @@ export function createShowControlPanel(editor, options = {}) {
   const mountMASection = (host) => {
     host.innerHTML = "";
 
-    const sec = document.createElement("div");
-    sec.className = "sb-sc-sec";
-    sec.innerHTML = `MA Lighting <b>INTENSITY</b> <span style="margin-left:auto;color:rgba(255,255,255,0.5)">무대 확인용 WORK</span>`;
-    host.appendChild(sec);
+    const secGrand = document.createElement("div");
+    secGrand.className = "sb-sc-sec sb-sc-sec--ma";
+    secGrand.innerHTML = `grandMA3 <b>GRAND</b> <span style="margin-left:auto;color:rgba(255,204,68,0.75);font-size:10px">무대 전체 · WORK·Fill</span>`;
+    host.appendChild(secGrand);
 
-    const pane = document.createElement("div");
-    pane.className = "sb-sc-pane";
-    host.appendChild(pane);
-
-    pane.innerHTML = `
-      <div class="sb-form">
-        <label>WORK</label>
-        <input id="sbWorkLight" type="range" min="0" max="100" value="0" />
-        <label></label><div id="sbWorkLightVal" style="color:rgba(255,255,255,0.78);text-align:right;font-family:JetBrains Mono">0%</div>
+    const paneGrand = document.createElement("div");
+    paneGrand.className = "sb-sc-pane sb-ma-grand-pane";
+    paneGrand.innerHTML = `
+      <div class="sb-ma-bar">
+        <span class="sb-ma-grand-label">GRAND <b id="sbGrandVal">0%</b></span>
+        <input id="sbGrand" class="sb-ma-grand-slider" type="range" min="0" max="100" value="0" />
+        <button type="button" class="sb-ma-pill" id="sbMaBlackout">BLACKOUT</button>
+        <button type="button" class="sb-ma-pill" id="sbMaWork">☀ WORK</button>
       </div>
-      <div class="hint" style="margin-top:10px;color:rgba(255,255,255,0.55);font-size:11px">
-        프로그램 실행 후 무대 확인을 위해 먼저 WORK 밝기를 조정하세요.
+      <div class="hint" style="margin-top:8px;color:rgba(255,255,255,0.5);font-size:11px">
+        GRAND = 무대 전체 밝기 (작업등·환경광) · 핀·픽스처 스팟은 아래 HOUSE / Programmer에서 조절
       </div>
     `;
+    host.appendChild(paneGrand);
 
-    const workSlider = pane.querySelector("#sbWorkLight");
-    const workVal = pane.querySelector("#sbWorkLightVal");
-    const syncWork = () => {
-      const level = editor.scene?.userData?.workLightLevel ?? 0;
-      workSlider.value = String(Math.round(clamp01(level) * 100));
-      workVal.textContent = `${workSlider.value}%`;
+    const grandSlider = paneGrand.querySelector("#sbGrand");
+    const grandVal = paneGrand.querySelector("#sbGrandVal");
+    const blackoutBtn = paneGrand.querySelector("#sbMaBlackout");
+    const workBtn = paneGrand.querySelector("#sbMaWork");
+
+    const syncGrand = () => {
+      const grand = readStageGrand(editor.scene);
+      grandSlider.value = String(Math.round(grand * 100));
+      grandVal.textContent = `${grandSlider.value}%`;
+      blackoutBtn.classList.toggle("on", !!editor.fixtureEngine?.blackout);
+      const wl = editor.scene?.userData?.workLightLevel ?? 0;
+      workBtn.classList.toggle("on", wl > 0.01);
     };
-    syncWork();
-    workSlider.addEventListener("input", () => {
-      const v = clamp01(Number(workSlider.value) / 100);
-      editor.setWorkLightLevel?.(v);
-      workVal.textContent = `${Math.round(v * 100)}%`;
+    syncGrand();
+
+    grandSlider.addEventListener("input", () => {
+      const v = clamp01(Number(grandSlider.value) / 100);
+      applyStageGrand(editor, v);
+      grandVal.textContent = `${Math.round(v * 100)}%`;
     });
+    blackoutBtn.onclick = () => {
+      editor.initFixtureEngine?.({ build: false });
+      const fe = editor.fixtureEngine;
+      if (!fe) return;
+      fe.setBlackout(!fe.blackout);
+      blackoutBtn.classList.toggle("on", fe.blackout);
+      blackoutBtn.classList.toggle("red", fe.blackout);
+      editor.signals.rendererUpdated?.dispatch?.();
+    };
+    workBtn.onclick = () => {
+      const on = (editor.scene?.userData?.workLightLevel ?? 0) <= 0.001;
+      editor.setWorkLightLevel?.(on ? 0.62 : 0);
+      syncGrand();
+      sharedUI.refreshAll?.();
+    };
 
-    const secR = document.createElement("div");
-    secR.className = "sb-sc-sec";
-    secR.style.marginTop = "8px";
-    secR.innerHTML = `POSITION <span style="margin-left:auto;color:rgba(255,255,255,0.5)">선택 조명</span>`;
-    host.appendChild(secR);
+    const secHouse = document.createElement("div");
+    secHouse.className = "sb-sc-sec sb-sc-sec--lt";
+    secHouse.style.marginTop = "8px";
+    secHouse.innerHTML = `HOUSE · 핀조명 <span style="margin-left:auto;color:rgba(255,255,255,0.5);font-size:10px">FOH Pin · Fill</span>`;
+    host.appendChild(secHouse);
 
-    const paneR = document.createElement("div");
-    paneR.className = "sb-sc-pane";
-    host.appendChild(paneR);
-
-    const obj = editor.selected && editor.selected.isLight ? editor.selected : null;
-    paneR.innerHTML = `
-      <div style="color:rgba(255,255,255,0.65);font-size:11px;margin-bottom:8px">
-        ${obj ? `선택됨: <b style="color:rgba(255,255,255,0.90)">${obj.name || obj.uuid}</b>` : "조명을 선택하세요."}
+    const paneHouse = document.createElement("div");
+    paneHouse.className = "sb-sc-pane";
+    const houseLevels = readHouseLightLevels(editor.scene);
+    paneHouse.innerHTML = `
+      <div class="ec-row sb-sc-ec"><label>Stage Fill</label><input type="range" class="lt" id="sbHouseFill" min="0" max="100" value="${Math.round((houseLevels.fill ?? 0) * 100)}" /><span class="val" id="sbHouseFillVal">${Math.round((houseLevels.fill ?? 0) * 100)}%</span></div>
+      <div class="ec-row sb-sc-ec"><label>FOH Left</label><input type="range" class="lt" id="sbHouseL" min="0" max="100" value="${Math.round((houseLevels.fohL ?? 0) * 100)}" /><span class="val" id="sbHouseLVal">${Math.round((houseLevels.fohL ?? 0) * 100)}%</span></div>
+      <div class="ec-row sb-sc-ec"><label>FOH Center</label><input type="range" class="lt" id="sbHouseC" min="0" max="100" value="${Math.round((houseLevels.fohC ?? 0) * 100)}" /><span class="val" id="sbHouseCVal">${Math.round((houseLevels.fohC ?? 0) * 100)}%</span></div>
+      <div class="ec-row sb-sc-ec"><label>FOH Right</label><input type="range" class="lt" id="sbHouseR" min="0" max="100" value="${Math.round((houseLevels.fohR ?? 0) * 100)}" /><span class="val" id="sbHouseRVal">${Math.round((houseLevels.fohR ?? 0) * 100)}%</span></div>
+      <div class="hint" style="margin-top:8px;color:rgba(255,255,255,0.5);font-size:11px">
+        FOH Left/Center/Right = 핀스팟(_StageFrontSpot) · Stage Fill은 GRAND와 연동
       </div>
-      <div class="sb-form">
-        <label>ON/OFF</label><input id="sbLightOn" type="checkbox" ${obj && obj.visible !== false && (obj.intensity ?? 0) > 0 ? "checked" : ""} ${obj ? "" : "disabled"} />
-        <label>Pos X</label><input id="sbLx" type="number" step="0.1" value="${obj ? obj.position.x.toFixed(1) : 0}" ${obj ? "" : "disabled"} />
-        <label>Pos Y</label><input id="sbLy" type="number" step="0.1" value="${obj ? obj.position.y.toFixed(1) : 0}" ${obj ? "" : "disabled"} />
-        <label>Pos Z</label><input id="sbLz" type="number" step="0.1" value="${obj ? obj.position.z.toFixed(1) : 0}" ${obj ? "" : "disabled"} />
-        <label>Pan(Y)</label><input id="sbPan" type="number" step="1" value="${obj ? (obj.rotation.y * 180 / Math.PI).toFixed(0) : 0}" ${obj ? "" : "disabled"} />
-        <label>Tilt(X)</label><input id="sbTilt" type="number" step="1" value="${obj ? (obj.rotation.x * 180 / Math.PI).toFixed(0) : 0}" ${obj ? "" : "disabled"} />
-        <label>Intensity</label><input id="sbInt" type="range" min="0" max="100" value="${obj ? Math.round((obj.intensity ?? 0) * 100) : 0}" ${obj ? "" : "disabled"} />
+    `;
+    host.appendChild(paneHouse);
+
+    const bindHouse = (id, valId, key) => {
+      const el = paneHouse.querySelector(id);
+      const vel = paneHouse.querySelector(valId);
+      el.addEventListener("input", () => {
+        const v = clamp01(Number(el.value) / 100);
+        setHouseLightLevel(editor, key, v);
+        vel.textContent = `${Math.round(v * 100)}%`;
+        editor.signals.rendererUpdated?.dispatch?.();
+      });
+    };
+    bindHouse("#sbHouseFill", "#sbHouseFillVal", "fill");
+    bindHouse("#sbHouseL", "#sbHouseLVal", "fohL");
+    bindHouse("#sbHouseC", "#sbHouseCVal", "fohC");
+    bindHouse("#sbHouseR", "#sbHouseRVal", "fohR");
+
+    const secFix = document.createElement("div");
+    secFix.className = "sb-sc-sec";
+    secFix.style.marginTop = "8px";
+    secFix.innerHTML = `FIXTURE RIG <b>${rigFixtureCount()}</b> <span style="margin-left:auto;color:rgba(255,255,255,0.5)">${RIG_MATRIX.rows}×${RIG_MATRIX.cols}</span>`;
+    host.appendChild(secFix);
+
+    const paneFix = document.createElement("div");
+    paneFix.className = "sb-sc-pane";
+    host.appendChild(paneFix);
+
+    paneFix.innerHTML = `
+      <div style="color:rgba(255,255,255,0.65);font-size:11px;margin-bottom:8px">
+        픽스처: <b id="sbFixCount" style="color:rgba(255,204,68,0.95)">0</b> · Programmer로 개별 출력
+      </div>
+      <div class="sb-rowbtns" style="margin-top:0">
+        <button type="button" class="btn go" id="sbFixBuild">리그 생성 / 재배치</button>
+      </div>
+      <div class="sb-rowbtns" style="margin-top:8px">
+        <button type="button" class="btn" id="sbFixAllOn" disabled>Prog 50%</button>
+        <button type="button" class="btn" id="sbFixAllOff" disabled>Prog OFF</button>
+        <button type="button" class="btn" id="sbFixClear" disabled>Clear</button>
+      </div>
+      <div class="hint" id="sbFixHint" style="margin-top:6px;color:rgba(255,255,255,0.45);font-size:10px">
+        「리그 생성 / 재배치」 후 Programmer 버튼 사용
+      </div>
+      <div class="ec-row sb-sc-ec" style="margin-top:10px">
+        <label>Fixture Bus</label>
+        <input type="range" class="lt" id="sbFixBus" min="0" max="100" value="100" />
+        <span class="val" id="sbFixBusVal">100%</span>
       </div>
       <div class="hint" style="margin-top:10px;color:rgba(255,255,255,0.55);font-size:11px">
-        조명 개별 ON/OFF 설정 가능 · POSITION 메뉴에서 위치/각도 조정
+        트러스 픽스처만 Fixture Bus × Programmer · GRAND와 별개
       </div>
     `;
 
-    if (obj) {
-      const on = paneR.querySelector("#sbLightOn");
-      const lx = paneR.querySelector("#sbLx");
-      const ly = paneR.querySelector("#sbLy");
-      const lz = paneR.querySelector("#sbLz");
-      const pan = paneR.querySelector("#sbPan");
-      const tilt = paneR.querySelector("#sbTilt");
-      const inten = paneR.querySelector("#sbInt");
+    const fixBus = paneFix.querySelector("#sbFixBus");
+    const fixBusVal = paneFix.querySelector("#sbFixBusVal");
+    const btnFixBuild = paneFix.querySelector("#sbFixBuild");
+    const btnFixAllOn = paneFix.querySelector("#sbFixAllOn");
+    const btnFixAllOff = paneFix.querySelector("#sbFixAllOff");
+    const btnFixClear = paneFix.querySelector("#sbFixClear");
+    const fixHint = paneFix.querySelector("#sbFixHint");
+    const syncFixBus = () => {
+      const bus = editor.fixtureEngine?.fixtureBus ?? 1;
+      fixBus.value = String(Math.round(bus * 100));
+      fixBusVal.textContent = `${fixBus.value}%`;
+    };
+    fixBus.addEventListener("input", () => {
+      const v = clamp01(Number(fixBus.value) / 100);
+      editor.fixtureEngine?.setFixtureBus?.(v);
+      fixBusVal.textContent = `${Math.round(v * 100)}%`;
+    });
+    const syncFixCount = () => {
+      const n = editor.fixtureEngine?.getFixtures?.()?.length || 0;
+      const el = paneFix.querySelector("#sbFixCount");
+      if (el) el.textContent = String(n);
+      syncGrand();
+      syncFixBus();
+      syncFixButtons();
+    };
+    const syncFixButtons = () => {
+      const fe = editor.fixtureEngine;
+      const list = fe?.getFixtures?.() || [];
+      const ready = fe?.built && list.length > 0;
+      [btnFixAllOn, btnFixAllOff, btnFixClear].forEach((b) => {
+        if (b) b.disabled = !ready;
+      });
+      if (!ready) {
+        btnFixAllOn?.classList.remove("on");
+        btnFixAllOff?.classList.remove("on");
+        return;
+      }
+      const mode = readFixtureProgMode(list);
+      btnFixAllOn?.classList.toggle("on", mode === "50");
+      btnFixAllOff?.classList.toggle("on", mode === "off");
+      btnFixClear?.classList.remove("on");
+    };
+    const flashFixHint = (msg) => {
+      if (!fixHint) return;
+      fixHint.textContent = msg;
+      fixHint.style.color = "rgba(255,204,68,0.85)";
+      clearTimeout(flashFixHint._t);
+      flashFixHint._t = setTimeout(() => {
+        fixHint.textContent = "「리그 생성 / 재배치」 후 Programmer 버튼 사용";
+        fixHint.style.color = "rgba(255,255,255,0.45)";
+      }, 2200);
+    };
+    const requireFixRig = () => {
+      const fe = editor.fixtureEngine;
+      if (fe?.built && fe.getFixtures?.()?.length) return fe;
+      flashFixHint("먼저 「리그 생성 / 재배치」를 눌러주세요");
+      return null;
+    };
+    syncFixCount();
 
-      on.onchange = () => {
-        const enabled = !!on.checked;
-        obj.visible = enabled;
-        if (enabled) {
-          obj.intensity = obj.userData?.savedIntensity ?? Math.max(0.01, obj.intensity || 1);
-        } else {
-          obj.userData.savedIntensity = obj.intensity;
-          obj.intensity = 0;
-        }
-        editor.signals.sceneGraphChanged.dispatch();
-      };
-      const bindNum = (el, fn) => el.addEventListener("change", () => { fn(Number(el.value)); editor.signals.sceneGraphChanged.dispatch(); });
-      bindNum(lx, (v) => (obj.position.x = v));
-      bindNum(ly, (v) => (obj.position.y = v));
-      bindNum(lz, (v) => (obj.position.z = v));
-      bindNum(pan, (v) => (obj.rotation.y = (v * Math.PI) / 180));
-      bindNum(tilt, (v) => (obj.rotation.x = (v * Math.PI) / 180));
-      inten.oninput = () => {
-        obj.intensity = Number(inten.value) / 100;
-        editor.signals.sceneGraphChanged.dispatch();
-      };
-    }
+    const maWrap = document.createElement("div");
+    maWrap.className = "sb-ma-console-wrap";
+    host.appendChild(maWrap);
+
+    const maConsole = mountMaConsole(maWrap, editor, {
+      onSelectionChange: () => sharedUI.syncFixPanel?.(),
+      onFixtureChange: () => sharedUI.syncFixPanel?.(),
+    });
+    sharedUI.refreshers.maConsole = () => maConsole.refresh({ light: true });
+    editor.refreshMaConsole = () => maConsole.refresh({ light: true });
+    sharedUI.syncFixPanel = () => {
+      syncFixCount();
+      syncFixButtons();
+    };
+
+    btnFixBuild.onclick = () => {
+      editor.initFixtureEngine?.({ build: true });
+      syncFixCount();
+      editor.lightTimeline?.fixtureBridge?.ensureTracks?.();
+      maConsole.refresh();
+      flashFixHint(`픽스처 ${editor.fixtureEngine?.getFixtures?.()?.length || 0}개 · Light 타임라인에 FX 트랙 추가됨`);
+      editor.signals.rendererUpdated?.dispatch?.();
+    };
+    btnFixAllOn.onclick = () => {
+      if (!requireFixRig()) return;
+      editor.fixtureEngine.setAllDim(50);
+      syncFixButtons();
+      maConsole.refresh();
+      flashFixHint("Programmer 전체 50% 적용 · Fixture Bus 확인");
+      editor.signals.rendererUpdated?.dispatch?.();
+    };
+    btnFixAllOff.onclick = () => {
+      if (!requireFixRig()) return;
+      editor.fixtureEngine.setAllDim(0);
+      editor.fixtureEngine.setBlackout(false);
+      syncFixButtons();
+      maConsole.refresh();
+      flashFixHint("Programmer 전체 OFF");
+      editor.signals.rendererUpdated?.dispatch?.();
+    };
+    btnFixClear.onclick = () => {
+      if (!requireFixRig()) return;
+      editor.fixtureEngine.clearProgrammer();
+      syncFixButtons();
+      maConsole.refresh();
+      flashFixHint("Programmer Clear");
+      editor.signals.rendererUpdated?.dispatch?.();
+    };
   };
 
   const renderMA = () => {
@@ -1724,11 +1999,26 @@ export function createShowControlPanel(editor, options = {}) {
       if (section === "cues") mountCueSection(sectionHost);
       else if (section === "groups") mountGroupSection(sectionHost);
       else if (section === "targets") mountTargetsSection(sectionHost);
-      else if (section === "ma") mountMASection(sectionHost);
+      else if (section === "ma") {
+        if (sectionHost.querySelector(".sb-ma-console-wrap")) {
+          sharedUI.refreshers.maConsole?.();
+          sharedUI.syncFixPanel?.();
+        } else {
+          mountMASection(sectionHost);
+        }
+      }
       return;
     }
-    if (view === "ma") renderMA();
-    else renderQLab();
+    if (view === "ma") {
+      if (leftCol?.querySelector(".sb-ma-console-wrap")) {
+        sharedUI.refreshers.maConsole?.();
+        sharedUI.syncFixPanel?.();
+      } else {
+        renderMA();
+      }
+      return;
+    }
+    renderQLab();
   };
 
   const refreshKey = section || "full";
