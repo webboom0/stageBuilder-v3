@@ -1,15 +1,9 @@
 import { buildDefaultMaGroups } from "./maGroups.js";
-import { createMaCommandHandler } from "./maCommand.js";
-import {
-  applyExecutorLevel,
-  loadExecutors,
-  saveExecutors,
-  storeExecutorFromSelection,
-} from "./maExecutors.js";
 import { mountMaKnob } from "./maKnob.js";
 import { liveToRgb255, MA_COLOR_SWATCHES } from "./maColorPalette.js";
+import { fixtureTrackId } from "./fixtureLightTimeline.js";
 
-const ATTR_TABS = ["Dimmer", "Position", "Color", "Beam", "Gobo"];
+const ATTR_TABS = ["Dimmer", "Position", "Color", "Beam"];
 
 const KNOB_LAYOUT = {
   Dimmer: [
@@ -30,7 +24,6 @@ const KNOB_LAYOUT = {
     null,
     null,
   ],
-  Gobo: [null, null, null, null],
 };
 
 function fmtLive(f, attr) {
@@ -44,24 +37,18 @@ function bumpRender(editor) {
   editor.signals?.rendererUpdated?.dispatch?.();
 }
 
-/**
- * grandMA3 Fixture Sheet + Executors + Encoders + Command line
- */
+/** 타임라인 키프레임 편집용 Fixture Sheet (선택 · 그룹 · 인코더) */
 export function mountMaConsole(host, editor, hooks = {}) {
   host.innerHTML = "";
 
   let groups = {};
   let attrPage = "Dimmer";
-  let cmdTokens = [];
-  let parseCommand = () => ({ ok: false, msg: "" });
-  let executors = loadExecutors(editor.scene);
-  let selectedExec = executors.find((e) => e.selected)?.id ?? 5;
   let lastFixtureCount = 0;
   const knobs = [];
 
   const sec = document.createElement("div");
   sec.className = "sb-sc-sec sb-sc-sec--ma";
-  sec.innerHTML = `FIXTURE SHEET <span style="margin-left:auto;color:rgba(255,204,68,0.75);font-size:10px">Select · Prog</span>`;
+  sec.innerHTML = `FIXTURE SHEET <span style="margin-left:auto;color:rgba(255,204,68,0.75);font-size:10px">선택 · 키프레임</span>`;
   host.appendChild(sec);
 
   const pane = document.createElement("div");
@@ -70,9 +57,8 @@ export function mountMaConsole(host, editor, hooks = {}) {
     <div class="sb-ma-sheet-head">
       <button type="button" class="sb-ma-chip" id="maSelOut">SEL OUT</button>
       <button type="button" class="sb-ma-chip" id="maSelFull">SEL FULL</button>
-      <button type="button" class="sb-ma-chip off" id="maAllOut">ALL OUT</button>
-      <button type="button" class="sb-ma-chip" id="maHighlt">HIGHLT</button>
-      <button type="button" class="sb-ma-chip" id="maClear">CLEAR</button>
+      <button type="button" class="sb-ma-chip" id="maClear">선택 초기화</button>
+      <button type="button" class="sb-ma-chip acc" id="maFxKfAdd" title="선택 픽스처 키프레임 추가 (K)">+ 키</button>
       <span class="sb-ma-selinfo" id="maSelInfo">선택 없음</span>
     </div>
     <div class="sb-ma-sel-dim" id="maSelDimRow">
@@ -82,16 +68,16 @@ export function mountMaConsole(host, editor, hooks = {}) {
     </div>
     <div class="sb-ma-fixgrid" id="maFixGrid"></div>
     <div class="sb-ma-groups-wrap">
-      <div class="sb-ma-subsec">GROUPS <span class="sb-ma-kf-hint">선택 후 K → Light FX</span></div>
-      <div class="sb-ma-groups" id="maGroups"></div>
-    </div>
-    <div class="sb-ma-exec-wrap">
-      <div class="sb-ma-exec-head">
-        <span class="sb-ma-exec-title">EXECUTORS</span>
-        <button type="button" class="sb-ma-exec-act" id="maExecGo">Go</button>
-        <button type="button" class="sb-ma-exec-act" id="maExecStore">Store</button>
+      <div class="sb-ma-subsec-row">
+        <div class="sb-ma-subsec">GROUPS</div>
+        <div class="sb-ma-grp-tools">
+          <button type="button" class="sb-ma-chip acc" id="maGrpKfAdd" title="선택 그룹 키프레임 추가 (K)">+ 키</button>
+          <button type="button" class="sb-ma-chip" id="maGrpKfPrev" title="이전 키">◀</button>
+          <button type="button" class="sb-ma-chip" id="maGrpKfNext" title="다음 키">▶</button>
+          <button type="button" class="sb-ma-chip off" id="maGrpKfDel" title="플레이헤드 키 삭제">⌫</button>
+        </div>
       </div>
-      <div class="sb-ma-exec-bank" id="maExecBank"></div>
+      <div class="sb-ma-groups" id="maGroups"></div>
     </div>
     <div class="sb-ma-enc-wrap">
       <div class="sb-ma-attr-tabs" id="maAttrTabs"></div>
@@ -105,12 +91,8 @@ export function mountMaConsole(host, editor, hooks = {}) {
         <div class="ec-row sb-sc-ec sb-ma-rgb-row"><label>B</label><input type="range" class="lt" id="maRgbB" min="0" max="255" value="255" disabled /><span class="val" id="maRgbBVal">255</span></div>
       </div>
     </div>
-    <div class="sb-ma-cmd">
-      <div class="sb-ma-cmdline" id="maCmdEcho"><span class="pmt">›</span><span class="txt"></span><span class="cur">▌</span></div>
-      <div class="sb-ma-keys" id="maKeys"></div>
-    </div>
     <div class="hint" style="margin-top:8px;color:rgba(255,255,255,0.45);font-size:10px">
-      EXECUTOR 페이더 · Position 노브 · 컬러 팔레트 · <code>Fixture 11 At Out</code>
+      값 조절 후 <b>+ 키</b> 또는 <b>K</b>로 플레이헤드에 키프레임 저장
     </div>
   `;
   host.appendChild(pane);
@@ -119,12 +101,10 @@ export function mountMaConsole(host, editor, hooks = {}) {
   const groupsEl = pane.querySelector("#maGroups");
   const tabsEl = pane.querySelector("#maAttrTabs");
   const knobsEl = pane.querySelector("#maKnobs");
-  const execBank = pane.querySelector("#maExecBank");
   const colorGrid = pane.querySelector("#maColorGrid");
   const selInfo = pane.querySelector("#maSelInfo");
   const selDimSlider = pane.querySelector("#maSelDim");
   const selDimVal = pane.querySelector("#maSelDimVal");
-  const cmdEcho = pane.querySelector("#maCmdEcho .txt");
   const rgbR = pane.querySelector("#maRgbR");
   const rgbG = pane.querySelector("#maRgbG");
   const rgbB = pane.querySelector("#maRgbB");
@@ -133,18 +113,9 @@ export function mountMaConsole(host, editor, hooks = {}) {
     return editor.fixtureEngine;
   }
 
-  function persistExecutors() {
-    saveExecutors(editor.scene, executors);
-  }
-
   function refreshGroupsMap() {
     const fe = engine();
     groups = buildDefaultMaGroups(fe?.getFixtures?.() || []);
-    parseCommand = createMaCommandHandler({
-      engine: fe,
-      groups,
-      onRefresh: refresh,
-    });
   }
 
   function refreshGroupsMapIfNeeded() {
@@ -166,17 +137,58 @@ export function mountMaConsole(host, editor, hooks = {}) {
     return true;
   }
 
+  function syncTimelineFromSelection() {
+    const sel = engine()?.getSelectionIds?.() || [];
+    const lt = editor.lightTimeline;
+    const bridge = editor.timeline?.selectionBridge;
+    if (!lt?.tracks?.size) return;
+
+    bridge?.clearTrackHighlights?.();
+
+    if (!sel.length) {
+      lt.selectedTrackId = null;
+      return;
+    }
+
+    const trackIds = sel
+      .map((fid) => fixtureTrackId(fid))
+      .filter((id) => lt.tracks.has(id));
+    if (!trackIds.length) return;
+
+    lt.selectedTrackId = trackIds[0];
+    trackIds.forEach((trackId) => {
+      const track = lt.tracks.get(trackId);
+      if (track?.element) {
+        track.element.classList.add("timeline-track--selected");
+      }
+    });
+
+    const firstEl = lt.tracks.get(trackIds[0])?.element;
+    firstEl?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }
+
+  function addKeyframesForCurrentSelection() {
+    const lt = editor.lightTimeline;
+    const res =
+      lt?.fixtureBridge?.addKeyframesForSelection?.() ||
+      lt?.addKeyframeAtPlayhead?.();
+    if (res && !res.success && res.message) {
+      console.warn("[MA]", res.message);
+    }
+    return res;
+  }
+
   function syncSelectionUI() {
     refreshSheet();
     refreshGroups();
     buildKnobs();
     syncRgbSliders();
     syncSelDimRow();
+    syncTimelineFromSelection();
     const sel = engine()?.getSelectionIds?.() || [];
     selInfo.textContent = sel.length
       ? `${sel.length} selected · #${sel.join(", #")}`
       : "선택 없음";
-    pane.querySelector("#maHighlt")?.classList.toggle("on", !!engine()?.highlight);
   }
 
   function applyKnobAttr(attr, val) {
@@ -187,50 +199,6 @@ export function mountMaConsole(host, editor, hooks = {}) {
     refreshSheet();
     if (attr === "dim") syncSelDimRow();
     bumpRender(editor);
-  }
-
-  function buildExecutors() {
-    execBank.innerHTML = "";
-    executors.forEach((ex) => {
-      const col = document.createElement("div");
-      col.className = "sb-ma-exec-col" + (ex.id === selectedExec ? " sel" : "");
-      col.innerHTML = `
-        <div class="sb-ma-exec-led${ex.level > 0 ? " on" : ""}"><i></i></div>
-        <input type="range" class="sb-ma-exec-fader" min="0" max="100" orient="vertical" value="${ex.level}" />
-        <button type="button" class="sb-ma-exec-off">OFF</button>
-        <div class="sb-ma-exec-num">${ex.id}</div>
-        <div class="sb-ma-exec-name">${ex.name}</div>
-      `;
-      const fader = col.querySelector(".sb-ma-exec-fader");
-      const led = col.querySelector(".sb-ma-exec-led");
-      col.querySelector(".sb-ma-exec-off").onclick = (ev) => {
-        ev.stopPropagation();
-        ex.level = 0;
-        applyExecutorLevel(engine(), groups, ex);
-        persistExecutors();
-        refreshExecutors();
-        bumpRender(editor);
-      };
-      fader.addEventListener("input", () => {
-        ex.level = Number(fader.value);
-        led.classList.toggle("on", ex.level > 0);
-        applyExecutorLevel(engine(), groups, ex);
-        persistExecutors();
-        refreshSheet();
-        bumpRender(editor);
-      });
-      col.onclick = () => {
-        selectedExec = ex.id;
-        executors.forEach((e) => { e.selected = e.id === ex.id; });
-        persistExecutors();
-        refreshExecutors();
-      };
-      execBank.appendChild(col);
-    });
-  }
-
-  function refreshExecutors() {
-    buildExecutors();
   }
 
   function buildKnobs() {
@@ -256,13 +224,13 @@ export function mountMaConsole(host, editor, hooks = {}) {
         max,
         value: val,
         unit,
-        disabled: !sel.length || attrPage === "Gobo",
+        disabled: !sel.length,
         onChange: (v) => applyKnobAttr(attr, v),
       });
       knobs.push(knob);
     });
     knobsEl.style.display = attrPage === "Color" ? "none" : "";
-    pane.querySelector("#maColorWrap")?.classList.toggle("dim", attrPage === "Gobo");
+    pane.querySelector("#maColorWrap")?.classList.toggle("dim", false);
   }
 
   function buildColorGrid() {
@@ -315,61 +283,6 @@ export function mountMaConsole(host, editor, hooks = {}) {
   rgbR?.addEventListener("input", onRgbInput);
   rgbG?.addEventListener("input", onRgbInput);
   rgbB?.addEventListener("input", onRgbInput);
-
-  function updateCmdEcho() {
-    cmdEcho.textContent = cmdTokens.join(" ");
-  }
-
-  function cmdPush(tok) {
-    cmdTokens.push(tok);
-    updateCmdEcho();
-  }
-
-  function cmdBack() {
-    cmdTokens.pop();
-    updateCmdEcho();
-  }
-
-  function cmdEnter() {
-    const raw = cmdTokens.join(" ");
-    if (raw.trim()) {
-      const res = parseCommand(raw);
-      if (res.msg) console.log("[MA]", res.msg);
-    }
-    cmdTokens = [];
-    updateCmdEcho();
-    refresh();
-    bumpRender(editor);
-  }
-
-  function buildKeys() {
-    const keysEl = pane.querySelector("#maKeys");
-    const keys = [
-      ["Fixture", "Fixture"], ["Group", "Group"], ["At", "At"], ["Thru", "Thru"], ["Full", "Full"],
-      ["Clear", "__clr"], ["Highlt", "Highlight"], ["1", "1"], ["2", "2"], ["3", "3"],
-      ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"], ["8", "8"], ["9", "9"],
-      ["0", "0"], ["+", "+"], ["-", "-"], ["Out", "Out"], ["⌫", "__bs"], ["Enter", "__ent"],
-    ];
-    keysEl.innerHTML = "";
-    keys.forEach(([lbl, tok]) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "sb-ma-key" + (tok === "__ent" ? " wide" : "");
-      b.textContent = lbl;
-      b.onclick = () => {
-        if (tok === "__ent") cmdEnter();
-        else if (tok === "__bs") cmdBack();
-        else if (tok === "__clr") {
-          if (cmdTokens.length) {
-            cmdTokens = [];
-            updateCmdEcho();
-          } else engine()?.clearProgrammer?.();
-          refresh();
-        } else cmdPush(tok);
-      };
-      keysEl.appendChild(b);
-    });
-  }
 
   function refreshSheet() {
     const fe = engine();
@@ -442,7 +355,7 @@ export function mountMaConsole(host, editor, hooks = {}) {
         "sb-ma-grp" +
         (g.ids?.length ? "" : " empty") +
         (active ? " on" : "");
-      b.innerHTML = `<span class="gn">G${n}</span> ${g.name} <span class="cnt">${g.ids?.length || 0}</span>`;
+      b.innerHTML = `<span class="gn">G${n}</span><span class="gn-name">${g.name}</span><span class="cnt">${g.ids?.length || 0}</span>`;
       if (g.ids?.length) {
         b.onclick = () => {
           applySelection(g.ids);
@@ -463,9 +376,13 @@ export function mountMaConsole(host, editor, hooks = {}) {
         attrPage = pg;
         refreshTabs();
         buildKnobs();
+        pane.querySelector("#maColorWrap").style.display =
+          pg === "Color" ? "" : "none";
       };
       tabsEl.appendChild(t);
     });
+    pane.querySelector("#maColorWrap").style.display =
+      attrPage === "Color" ? "" : "none";
   }
 
   function syncSelDimRow() {
@@ -480,8 +397,8 @@ export function mountMaConsole(host, editor, hooks = {}) {
     }
     selDimSlider.disabled = false;
     const f0 = fe.getFixture(sel[0]);
-    const live = f0?.live || f0?.attr || {};
-    const dim = Math.round(Number(live.dim) || 0);
+    const src = f0?.attr || f0?.live || {};
+    const dim = Math.round(Number(src.dim) || 0);
     selDimSlider.value = String(dim);
     selDimVal.textContent = sel.length > 1 ? `${dim}% (${sel.length})` : `${dim}%`;
   }
@@ -490,7 +407,6 @@ export function mountMaConsole(host, editor, hooks = {}) {
     refreshGroupsMapIfNeeded();
     syncSelectionUI();
     if (!light) {
-      refreshExecutors();
       refreshTabs();
     }
     hooks.onFixtureChange?.();
@@ -513,7 +429,6 @@ export function mountMaConsole(host, editor, hooks = {}) {
   pane.querySelector("#maSelOut").onclick = () => {
     const fe = engine();
     if (!fe?.setSelectionDim?.(0)) return;
-    if (fe.highlight) fe.setHighlight(false);
     refresh();
     bumpRender(editor);
   };
@@ -522,42 +437,29 @@ export function mountMaConsole(host, editor, hooks = {}) {
     refresh();
     bumpRender(editor);
   };
-  pane.querySelector("#maAllOut").onclick = () => {
-    engine()?.setAllDim?.(0);
-    engine()?.setBlackout?.(false);
-    engine()?.setAllEnabled?.(true);
-    executors.forEach((e) => { e.level = 0; });
-    persistExecutors();
-    refresh();
-    bumpRender(editor);
-  };
-  pane.querySelector("#maHighlt").onclick = () => {
-    engine()?.setHighlight?.(!engine()?.highlight);
-    refresh();
-    bumpRender(editor);
-  };
   pane.querySelector("#maClear").onclick = () => {
     engine()?.clearProgrammer?.();
     refresh();
     bumpRender(editor);
   };
-  pane.querySelector("#maExecGo").onclick = () => {
-    const ex = executors.find((e) => e.id === selectedExec);
-    if (!ex || !engine()?.built) return;
-    applyExecutorLevel(engine(), groups, ex);
-    refresh();
-    bumpRender(editor);
-  };
-  pane.querySelector("#maExecStore").onclick = () => {
-    const ex = executors.find((e) => e.id === selectedExec);
-    if (!ex) return;
-    storeExecutorFromSelection(engine(), ex);
-    persistExecutors();
-    refreshExecutors();
-  };
+
+  pane.querySelector("#maFxKfAdd")?.addEventListener("click", () => {
+    addKeyframesForCurrentSelection();
+  });
+  pane.querySelector("#maGrpKfAdd")?.addEventListener("click", () => {
+    addKeyframesForCurrentSelection();
+  });
+  pane.querySelector("#maGrpKfPrev")?.addEventListener("click", () => {
+    editor.lightTimeline?.fixtureBridge?.navigateSelectionKeyframes?.("prev");
+  });
+  pane.querySelector("#maGrpKfNext")?.addEventListener("click", () => {
+    editor.lightTimeline?.fixtureBridge?.navigateSelectionKeyframes?.("next");
+  });
+  pane.querySelector("#maGrpKfDel")?.addEventListener("click", () => {
+    editor.lightTimeline?.fixtureBridge?.deleteSelectionKeyframesAtPlayhead?.();
+  });
 
   buildColorGrid();
-  buildKeys();
   refresh();
 
   return { refresh, syncSelectionUI };

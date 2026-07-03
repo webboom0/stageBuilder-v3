@@ -80,9 +80,8 @@ function Sidebar(editor) {
   kfHost.hidden = true;
   propertiesPanel.appendChild(kfHost);
 
-  const scGroupsPanel = createPanel("QLab · Groups", createShowControlSection(editor, "groups"));
-  const scMaPanel = createPanel("MA Lighting", createShowControlSection(editor, "ma"));
-  // QLab Cues / Targets — 미구현, 레일에서 비표시
+  const scGroupsPanel = createPanel("그룹 / Ensemble", createShowControlSection(editor, "groups"));
+  const scMaPanel = createPanel("조명", createShowControlSection(editor, "ma"));
 
   leftRail.registerPanel({
     id: "properties",
@@ -95,14 +94,14 @@ function Sidebar(editor) {
   leftRail.registerPanel({
     id: "sc-groups",
     icon: "fas fa-users",
-    label: "QLab · 그룹 / Ensemble",
+    label: "그룹 / Ensemble",
     panelEl: scGroupsPanel,
   });
 
   leftRail.registerPanel({
     id: "sc-ma",
     icon: "fas fa-lightbulb",
-    label: "grandMA · 조명",
+    label: "조명",
     panelEl: scMaPanel,
   });
 

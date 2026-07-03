@@ -256,6 +256,31 @@ export class FixtureEngine {
     return this.fixtures;
   }
 
+  /** 키프레임에 저장할 편집 값 (attr + prog, Bus/Blackout 미적용) */
+  getFixtureCaptureState(fid) {
+    const f = this.fmap[fid];
+    if (!f) return null;
+    const out = Object.assign({}, f.home, f.attr);
+    const p = f.prog || {};
+    for (const k of Object.keys(p)) {
+      if (k === "dim" && p.dim != null) out.dim = p.dim;
+      else if (p[k] != null) out[k] = p[k];
+    }
+    return out;
+  }
+
+  /** prog 임시값을 attr에 반영 (키프레임 추가 직후) */
+  commitFixtureEditToAttr(fid) {
+    const f = this.fmap[fid];
+    const cap = this.getFixtureCaptureState(fid);
+    if (!f || !cap) return;
+    for (const k of ["dim", "pan", "tilt", "zoom", "focus", "r", "g", "b"]) {
+      if (cap[k] != null) f.attr[k] = cap[k];
+    }
+    f.prog = {};
+    this.persistToSceneUserData();
+  }
+
   setFixtureBus(v) {
     this.fixtureBus = Math.max(0, Math.min(1, Number(v) || 0));
     this.persistToSceneUserData();
@@ -434,9 +459,12 @@ export class FixtureEngine {
     this.fixtures.forEach((f) => {
       const out = Object.assign({}, f.home, f.attr);
 
-      // 재생 중이거나 비선택 픽스처: 타임라인 프리뷰 적용
-      // 편집 중 선택 픽스처: Programmer(attr/prog)가 타임라인보다 우선
-      const useTimelineLayer = f.tl && (playing || !f.sel);
+      // 재생 중 · 비선택 · (타임라인 우선이고 prog 편집 없음) → 타임라인 프리뷰
+      // prog가 있으면 선택 픽스처는 인코더 편집값 우선
+      const progActive = f.prog && Object.keys(f.prog).length > 0;
+      const useTimelineLayer =
+        f.tl &&
+        (playing || !f.sel || (this.timelinePriority && !progActive));
       if (useTimelineLayer) {
         out.dim = f.tl.dim ?? out.dim;
         out.pan = f.tl.pan ?? out.pan;

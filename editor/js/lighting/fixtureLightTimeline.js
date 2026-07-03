@@ -70,7 +70,11 @@ export function createFixtureLightBridge(lightTimeline, editor) {
 
   function addFixtureTrack(fid, label, row) {
     const trackId = fixtureTrackId(fid);
-    if (lt.tracks.has(trackId)) return lt.tracks.get(trackId);
+    if (lt.tracks.has(trackId)) {
+      const existing = lt.tracks.get(trackId);
+      if (existing && existing.fid == null) existing.fid = fid;
+      return existing;
+    }
 
     const trackElement = document.createElement("div");
     trackElement.className = "timeline-track light-timeline fixture-timeline";
@@ -160,9 +164,25 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     return list.length;
   }
 
-  function readLive(fid) {
-    const f = fe()?.getFixture(fid);
-    return f?.live || f?.attr || f?.home || {};
+  function readCapture(fid) {
+    const engine = fe();
+    return (
+      engine?.getFixtureCaptureState?.(fid) ||
+      engine?.getFixture(fid)?.attr ||
+      {}
+    );
+  }
+
+  function writeFixtureKeyframesAtTime(trackObjectId, time, cap) {
+    const dim = Math.round(Number(cap.dim) || 0);
+    const pan = Math.round(Number(cap.pan) || 0);
+    const tilt = Math.round(Number(cap.tilt) || 0);
+    const color = new THREE.Vector3(cap.r ?? 1, cap.g ?? 1, cap.b ?? 1);
+
+    lt.addKeyframeForProperty(trackObjectId, "dim", time, dim);
+    lt.addKeyframeForProperty(trackObjectId, "pan", time, pan);
+    lt.addKeyframeForProperty(trackObjectId, "tilt", time, tilt);
+    lt.addKeyframeForProperty(trackObjectId, "color", time, color);
   }
 
   function addKeyframeAtPlayhead(trackObjectId) {
@@ -186,21 +206,17 @@ export function createFixtureLightBridge(lightTimeline, editor) {
       };
     }
 
-    const live = readLive(fid);
-    const dim = Math.round(Number(live.dim) || 0);
-    const pan = Math.round(Number(live.pan) || 0);
-    const tilt = Math.round(Number(live.tilt) || 0);
-    const color = new THREE.Vector3(live.r ?? 1, live.g ?? 1, live.b ?? 1);
+    const cap = readCapture(fid);
+    writeFixtureKeyframesAtTime(trackObjectId, time, cap);
 
-    lt.addKeyframeForProperty(trackObjectId, "dim", time, dim);
-    lt.addKeyframeForProperty(trackObjectId, "pan", time, pan);
-    lt.addKeyframeForProperty(trackObjectId, "tilt", time, tilt);
-    lt.addKeyframeForProperty(trackObjectId, "color", time, color);
+    fe()?.commitFixtureEditToAttr?.(fid);
+    lt.timelineData?.precomputeAnimationData?.();
+    applyAtTime(time);
 
     return { success: true, trackId: trackObjectId, time };
   }
 
-  /** MA Console 그룹/다중 선택 → 선택 픽스처 전체에 키프레임 */
+  /** MA Console 그룹/다중 선택 → 픽스처별 값을 각자 캡처 후 일괄 키프레임 */
   function addKeyframesForSelection() {
     const engine = fe();
     const ids = engine?.getSelectionIds?.() || [];
@@ -224,7 +240,8 @@ export function createFixtureLightBridge(lightTimeline, editor) {
 
     const time = lt.getPlayheadTimeSeconds();
     lt.currentTime = time;
-    let count = 0;
+
+    const pending = [];
     const failures = [];
 
     ids.forEach((fid) => {
@@ -238,15 +255,29 @@ export function createFixtureLightBridge(lightTimeline, editor) {
         failures.push(`#${fid}: 플레이헤드가 클립 밖`);
         return;
       }
-      const res = addKeyframeAtPlayhead(trackId);
-      if (res.success) count++;
-      else if (res.message) failures.push(res.message);
+      pending.push({ fid, trackId, cap: readCapture(fid) });
     });
 
-    if (count > 0) return { success: true, count, time };
+    if (!pending.length) {
+      return {
+        success: false,
+        message: failures[0] || "키프레임 추가 실패",
+      };
+    }
+
+    pending.forEach(({ fid, trackId, cap }) => {
+      writeFixtureKeyframesAtTime(trackId, time, cap);
+      engine.commitFixtureEditToAttr?.(fid);
+    });
+
+    lt.timelineData?.precomputeAnimationData?.();
+    applyAtTime(time);
+
     return {
-      success: false,
-      message: failures[0] || "키프레임 추가 실패",
+      success: true,
+      count: pending.length,
+      time,
+      failures: failures.length ? failures : undefined,
     };
   }
 
@@ -290,7 +321,8 @@ export function createFixtureLightBridge(lightTimeline, editor) {
 
     lt.tracks.forEach((track) => {
       if (!track.isFixture) return;
-      const fid = track.fid;
+      const fid = track.fid ?? parseFixtureFid(track.objectId);
+      if (fid == null) return;
       const f = engine.getFixture(fid);
       if (!f) return;
 
@@ -356,6 +388,97 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     });
   }
 
+  function collectSelectionKeyframeTimes() {
+    const ids = fe()?.getSelectionIds?.() || [];
+    const times = new Set();
+    ids.forEach((fid) => {
+      const trackId = fixtureTrackId(fid);
+      FIXTURE_TL_PROPS.forEach((prop) => {
+        const td = lt._resolveTrackData(trackId, prop);
+        if (!td) return;
+        for (let i = 0; i < td.keyframeCount; i++) {
+          times.add(Number(Number(td.times[i]).toFixed(3)));
+        }
+      });
+    });
+    return Array.from(times).sort((a, b) => a - b);
+  }
+
+  function navigateSelectionKeyframes(direction) {
+    const times = collectSelectionKeyframeTimes();
+    if (!times.length) return { success: false, message: "키프레임 없음" };
+
+    const t = lt.getPlayheadTimeSeconds?.() ?? lt.currentTime ?? 0;
+    let target = null;
+    if (direction === "prev") {
+      for (let i = times.length - 1; i >= 0; i--) {
+        if (times[i] < t - 0.02) {
+          target = times[i];
+          break;
+        }
+      }
+      if (target == null) target = times[times.length - 1];
+    } else {
+      for (let i = 0; i < times.length; i++) {
+        if (times[i] > t + 0.02) {
+          target = times[i];
+          break;
+        }
+      }
+      if (target == null) target = times[0];
+    }
+
+    lt.movePlayheadToTime?.(target);
+    lt.currentTime = target;
+
+    const fid = fe()?.getSelectionIds?.()?.[0];
+    if (fid) {
+      const trackId = fixtureTrackId(fid);
+      const track = lt.tracks.get(trackId);
+      if (track?.element) {
+        lt.selectLightTrack?.(trackId);
+        const tol = 0.02;
+        const kf = track.sprite?.querySelector(".keyframe");
+        let match = null;
+        track.sprite?.querySelectorAll(".keyframe").forEach((el) => {
+          const kt = parseFloat(el.dataset.time);
+          if (!Number.isNaN(kt) && Math.abs(kt - target) < tol) match = el;
+        });
+        if (match) {
+          lt.selectKeyframe(
+            trackId,
+            target,
+            match,
+            match.dataset.property || "dim",
+          );
+        }
+      }
+    }
+
+    applyAtTime(target);
+    return { success: true, time: target };
+  }
+
+  function deleteSelectionKeyframesAtPlayhead() {
+    const ids = fe()?.getSelectionIds?.() || [];
+    if (!ids.length) return { success: false, message: "픽스처 선택 필요" };
+
+    const time = lt.getPlayheadTimeSeconds?.() ?? lt.currentTime ?? 0;
+    let count = 0;
+    ids.forEach((fid) => {
+      const trackId = fixtureTrackId(fid);
+      const track = lt.tracks.get(trackId);
+      if (!track) return;
+      if (lt._deleteKeyframesAtTimeForTrack?.(track, time, { clearSelection: false })) {
+        count++;
+      }
+    });
+
+    lt.clearSelectedKeyframe?.();
+    applyAtTime(time);
+    return { success: count > 0, count };
+  }
+
   return {
     ensureTracks,
     applyAtTime,
@@ -363,6 +486,8 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     addKeyframeAtPlayhead,
     addKeyframesForSelection,
     restoreKeyframeUI,
+    navigateSelectionKeyframes,
+    deleteSelectionKeyframesAtPlayhead,
     isFixtureTrack: isFixtureTrackId,
     fixtureTrackId,
   };

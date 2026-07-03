@@ -17,7 +17,7 @@ export function mountShowControlDrawer(editor) {
   drawer.className = "sb-drawer";
   drawer.innerHTML = `
     <div class="sb-drawer__bar">
-      <div class="sb-drawer__title"><b>QLab</b> · MA Lighting</div>
+      <div class="sb-drawer__title"><b>쇼 컨트롤</b> · 조명 · 그룹</div>
       <div class="sb-drawer__sp"></div>
       <button type="button" class="sb-drawer__btn" data-act="toggle">▲</button>
       <button type="button" class="sb-drawer__btn" data-act="close">✕</button>

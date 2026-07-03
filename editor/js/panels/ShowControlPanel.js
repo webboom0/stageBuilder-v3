@@ -11,17 +11,6 @@ import {
 import { mountMaConsole } from "../lighting/MaConsolePanel.js";
 import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, GROUP_ROT_Y_OPTIONS, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
 
-function readFixtureProgMode(fixtures = []) {
-  if (!fixtures.length) return "none";
-  const dims = fixtures.map((f) => {
-    const o = Object.assign({}, f.home, f.attr, f.prog);
-    return Math.round(Number(o.dim) || 0);
-  });
-  if (dims.every((d) => d === 0)) return "off";
-  if (dims.every((d) => d === 50)) return "50";
-  return "mixed";
-}
-
 function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
   if (!host) return;
   fmtTypes.forEach((fmt) => {
@@ -307,6 +296,8 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-ma-console{ padding-bottom:4px; }
     .sb-ma-sheet-head{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
     .sb-ma-chip{ font-size:10px; padding:3px 8px; border-radius:4px; border:1px solid rgba(255,204,68,0.35); background:rgba(0,0,0,0.3); color:rgba(255,204,68,0.9); cursor:pointer; }
+    .sb-ma-chip.acc{ border-color:rgba(57,211,255,0.5); color:#6ec8ff; background:rgba(57,211,255,0.1); }
+    .sb-ma-chip.acc:hover{ border-color:rgba(57,211,255,0.75); background:rgba(57,211,255,0.16); }
     .sb-ma-chip.off{ border-color:rgba(255,255,255,0.15); color:rgba(255,255,255,0.55); }
     .sb-ma-chip.on{ background:rgba(255,204,68,0.18); }
     .sb-ma-selinfo{ margin-left:auto; font-size:10px; color:rgba(255,255,255,0.45); font-family:JetBrains Mono,monospace; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -328,9 +319,13 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-ma-fx-bar i{ display:block; height:100%; background:linear-gradient(90deg,#5a4f8a,#ffcc44); }
     .sb-ma-subsec{ font-size:9px; letter-spacing:1px; text-transform:uppercase; color:rgba(255,255,255,0.4); margin:6px 0 4px; }
     .sb-ma-groups{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; margin-bottom:8px; }
-    .sb-ma-grp{ font-size:10px; padding:5px 6px; text-align:left; border:1px solid rgba(255,255,255,0.1); border-radius:4px; background:rgba(0,0,0,0.25); color:rgba(255,255,255,0.65); cursor:pointer; }
-    .sb-ma-grp .gn{ color:rgba(255,204,68,0.85); font-family:JetBrains Mono,monospace; margin-right:4px; }
-    .sb-ma-grp .cnt{ color:rgba(255,255,255,0.35); float:right; }
+    .sb-ma-subsec-row{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin:8px 0 4px; flex-wrap:wrap; }
+    .sb-ma-subsec{ font-size:9px; letter-spacing:1px; color:rgba(255,255,255,0.45); }
+    .sb-ma-grp-tools{ display:flex; gap:4px; flex-wrap:wrap; }
+    .sb-ma-grp{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; position:relative; min-height:38px; font-size:10px; padding:5px 6px 14px; text-align:left; border:1px solid rgba(255,255,255,0.1); border-radius:4px; background:rgba(0,0,0,0.25); color:rgba(255,255,255,0.65); cursor:pointer; }
+    .sb-ma-grp .gn{ color:rgba(255,204,68,0.85); font-family:JetBrains Mono,monospace; margin-right:0; line-height:1.2; }
+    .sb-ma-grp .gn-name{ font-size:9px; line-height:1.25; color:rgba(255,255,255,0.75); width:100%; word-break:keep-all; overflow-wrap:break-word; white-space:normal; }
+    .sb-ma-grp .cnt{ position:absolute; right:5px; bottom:3px; font-size:8px; color:rgba(255,255,255,0.35); float:none; }
     .sb-ma-grp.empty{ opacity:0.35; pointer-events:none; }
     .sb-ma-grp.on{ border-color:rgba(255,204,68,0.85); background:rgba(255,204,68,0.16); color:rgba(255,255,255,0.95); box-shadow:0 0 0 1px rgba(255,204,68,0.35); }
     .sb-ma-kf-hint{ font-weight:400; font-size:9px; color:rgba(255,255,255,0.35); margin-left:6px; letter-spacing:0; }
@@ -724,7 +719,7 @@ export function createShowControlPanel(editor, options = {}) {
   document.head.appendChild(style);
 
   // --- view state
-  let view = "qlab"; // 'qlab' | 'ma'
+  let view = "ensemble"; // 'ensemble' | 'ma'
   let selectedCueIndex = editor.showControl.standbyIndex || 0;
   const sharedUI = getSharedUI(editor);
 
@@ -745,8 +740,8 @@ export function createShowControlPanel(editor, options = {}) {
   } else {
     root.innerHTML = `
     <div class="sb-sc-top">
-      <button type="button" class="pill on" data-view="qlab">▶ QLab</button>
-      <button type="button" class="pill" data-view="ma">grandMA3</button>
+      <button type="button" class="pill on" data-view="ensemble">그룹 / Ensemble</button>
+      <button type="button" class="pill" data-view="ma">조명</button>
       <span class="sb">STANDBY</span>
       <b id="sbStandby">Q${selectedCueIndex + 1}</b>
       <button type="button" class="go" id="sbGoTop">GO</button>
@@ -1734,7 +1729,7 @@ export function createShowControlPanel(editor, options = {}) {
     renderRegistry();
   };
 
-  const renderQLab = () => {
+  const renderEnsemble = () => {
     if (!leftCol || !rightCol) return;
     leftCol.innerHTML = "";
     rightCol.innerHTML = "";
@@ -1752,7 +1747,7 @@ export function createShowControlPanel(editor, options = {}) {
 
     const secGrand = document.createElement("div");
     secGrand.className = "sb-sc-sec sb-sc-sec--ma";
-    secGrand.innerHTML = `grandMA3 <b>GRAND</b> <span style="margin-left:auto;color:rgba(255,204,68,0.75);font-size:10px">무대 전체 · WORK·Fill</span>`;
+    secGrand.innerHTML = `무대 밝기 <b>GRAND</b> <span style="margin-left:auto;color:rgba(255,204,68,0.75);font-size:10px">환경광 · 작업등</span>`;
     host.appendChild(secGrand);
 
     const paneGrand = document.createElement("div");
@@ -1765,7 +1760,7 @@ export function createShowControlPanel(editor, options = {}) {
         <button type="button" class="sb-ma-pill" id="sbMaWork">☀ WORK</button>
       </div>
       <div class="hint" style="margin-top:8px;color:rgba(255,255,255,0.5);font-size:11px">
-        GRAND = 무대 전체 밝기 (작업등·환경광) · 핀·픽스처 스팟은 아래 HOUSE / Programmer에서 조절
+        GRAND = 무대 전체 밝기 (작업등·환경광) · 핀스팟은 아래 HOUSE에서 조절
       </div>
     `;
     host.appendChild(paneGrand);
@@ -1853,18 +1848,13 @@ export function createShowControlPanel(editor, options = {}) {
 
     paneFix.innerHTML = `
       <div style="color:rgba(255,255,255,0.65);font-size:11px;margin-bottom:8px">
-        픽스처: <b id="sbFixCount" style="color:rgba(255,204,68,0.95)">0</b> · Programmer로 개별 출력
+        픽스처: <b id="sbFixCount" style="color:rgba(255,204,68,0.95)">0</b> · Light FX 타임라인 키프레임
       </div>
       <div class="sb-rowbtns" style="margin-top:0">
         <button type="button" class="btn go" id="sbFixBuild">리그 생성 / 재배치</button>
       </div>
-      <div class="sb-rowbtns" style="margin-top:8px">
-        <button type="button" class="btn" id="sbFixAllOn" disabled>Prog 50%</button>
-        <button type="button" class="btn" id="sbFixAllOff" disabled>Prog OFF</button>
-        <button type="button" class="btn" id="sbFixClear" disabled>Clear</button>
-      </div>
       <div class="hint" id="sbFixHint" style="margin-top:6px;color:rgba(255,255,255,0.45);font-size:10px">
-        「리그 생성 / 재배치」 후 Programmer 버튼 사용
+        리그 생성 후 아래 패널에서 값 조절 → + 키 / K로 키프레임 저장
       </div>
       <div class="ec-row sb-sc-ec" style="margin-top:10px">
         <label>Fixture Bus</label>
@@ -1872,16 +1862,13 @@ export function createShowControlPanel(editor, options = {}) {
         <span class="val" id="sbFixBusVal">100%</span>
       </div>
       <div class="hint" style="margin-top:10px;color:rgba(255,255,255,0.55);font-size:11px">
-        트러스 픽스처만 Fixture Bus × Programmer · GRAND와 별개
+        Fixture Bus = 트러스 픽스처 프리뷰 마스터 (키프레임 값 × Bus)
       </div>
     `;
 
     const fixBus = paneFix.querySelector("#sbFixBus");
     const fixBusVal = paneFix.querySelector("#sbFixBusVal");
     const btnFixBuild = paneFix.querySelector("#sbFixBuild");
-    const btnFixAllOn = paneFix.querySelector("#sbFixAllOn");
-    const btnFixAllOff = paneFix.querySelector("#sbFixAllOff");
-    const btnFixClear = paneFix.querySelector("#sbFixClear");
     const fixHint = paneFix.querySelector("#sbFixHint");
     const syncFixBus = () => {
       const bus = editor.fixtureEngine?.fixtureBus ?? 1;
@@ -1899,24 +1886,6 @@ export function createShowControlPanel(editor, options = {}) {
       if (el) el.textContent = String(n);
       syncGrand();
       syncFixBus();
-      syncFixButtons();
-    };
-    const syncFixButtons = () => {
-      const fe = editor.fixtureEngine;
-      const list = fe?.getFixtures?.() || [];
-      const ready = fe?.built && list.length > 0;
-      [btnFixAllOn, btnFixAllOff, btnFixClear].forEach((b) => {
-        if (b) b.disabled = !ready;
-      });
-      if (!ready) {
-        btnFixAllOn?.classList.remove("on");
-        btnFixAllOff?.classList.remove("on");
-        return;
-      }
-      const mode = readFixtureProgMode(list);
-      btnFixAllOn?.classList.toggle("on", mode === "50");
-      btnFixAllOff?.classList.toggle("on", mode === "off");
-      btnFixClear?.classList.remove("on");
     };
     const flashFixHint = (msg) => {
       if (!fixHint) return;
@@ -1924,15 +1893,9 @@ export function createShowControlPanel(editor, options = {}) {
       fixHint.style.color = "rgba(255,204,68,0.85)";
       clearTimeout(flashFixHint._t);
       flashFixHint._t = setTimeout(() => {
-        fixHint.textContent = "「리그 생성 / 재배치」 후 Programmer 버튼 사용";
+        fixHint.textContent = "리그 생성 후 아래 패널에서 값 조절 → + 키 / K로 키프레임 저장";
         fixHint.style.color = "rgba(255,255,255,0.45)";
       }, 2200);
-    };
-    const requireFixRig = () => {
-      const fe = editor.fixtureEngine;
-      if (fe?.built && fe.getFixtures?.()?.length) return fe;
-      flashFixHint("먼저 「리그 생성 / 재배치」를 눌러주세요");
-      return null;
     };
     syncFixCount();
 
@@ -1948,7 +1911,6 @@ export function createShowControlPanel(editor, options = {}) {
     editor.refreshMaConsole = () => maConsole.refresh({ light: true });
     sharedUI.syncFixPanel = () => {
       syncFixCount();
-      syncFixButtons();
     };
 
     btnFixBuild.onclick = () => {
@@ -1957,31 +1919,6 @@ export function createShowControlPanel(editor, options = {}) {
       editor.lightTimeline?.fixtureBridge?.ensureTracks?.();
       maConsole.refresh();
       flashFixHint(`픽스처 ${editor.fixtureEngine?.getFixtures?.()?.length || 0}개 · Light 타임라인에 FX 트랙 추가됨`);
-      editor.signals.rendererUpdated?.dispatch?.();
-    };
-    btnFixAllOn.onclick = () => {
-      if (!requireFixRig()) return;
-      editor.fixtureEngine.setAllDim(50);
-      syncFixButtons();
-      maConsole.refresh();
-      flashFixHint("Programmer 전체 50% 적용 · Fixture Bus 확인");
-      editor.signals.rendererUpdated?.dispatch?.();
-    };
-    btnFixAllOff.onclick = () => {
-      if (!requireFixRig()) return;
-      editor.fixtureEngine.setAllDim(0);
-      editor.fixtureEngine.setBlackout(false);
-      syncFixButtons();
-      maConsole.refresh();
-      flashFixHint("Programmer 전체 OFF");
-      editor.signals.rendererUpdated?.dispatch?.();
-    };
-    btnFixClear.onclick = () => {
-      if (!requireFixRig()) return;
-      editor.fixtureEngine.clearProgrammer();
-      syncFixButtons();
-      maConsole.refresh();
-      flashFixHint("Programmer Clear");
       editor.signals.rendererUpdated?.dispatch?.();
     };
   };
@@ -2018,7 +1955,7 @@ export function createShowControlPanel(editor, options = {}) {
       }
       return;
     }
-    renderQLab();
+    renderEnsemble();
   };
 
   const refreshKey = section || "full";

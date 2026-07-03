@@ -287,7 +287,25 @@ export class TimelineSelectionBridge {
 
     if (!baseId) return;
 
-
+    if (baseId.startsWith("fx_")) {
+      this.clearTrackHighlights();
+      const lightTimeline = this.editor.lightTimeline;
+      if (lightTimeline) {
+        lightTimeline.selectedTrackId = baseId;
+        const track = lightTimeline.tracks.get(baseId);
+        if (track?.element) {
+          this.highlightTrack(track.element);
+          track.element.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+        }
+      }
+      const fid = Number(baseId.replace(/^fx_/, ""));
+      const fe = this.editor.fixtureEngine;
+      if (!Number.isNaN(fid) && fe?.setSelection) {
+        fe.setSelection([fid]);
+        this.editor.refreshMaConsole?.();
+      }
+      return;
+    }
 
     const mainTrack = this.getRoot().querySelector(
 

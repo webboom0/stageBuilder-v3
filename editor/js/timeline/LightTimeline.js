@@ -1879,6 +1879,13 @@ export class LightTimeline extends BaseTimeline {
       return;
     }
 
+    const track = this.tracks.get(this._resolveLightPropertyTrackId(lightId, propertyName)) ||
+      this.tracks.get(lightId);
+    if (track?.isFixture) {
+      this.timelineData.dirty = true;
+      this.timelineData.precomputeAnimationData?.();
+    }
+
     if (result.isNew) {
       const uiTrackId = trackId.includes("_Target") ? trackId : baseLightId;
       this.addKeyframeUI(uiTrackId, propertyName, time);
@@ -6368,6 +6375,7 @@ export class LightTimeline extends BaseTimeline {
 
   _getLightKeyframePropertiesForTrack(track) {
     if (!track?.objectId) return [];
+    if (track.isFixture) return [...FIXTURE_TL_PROPS];
     if (track.objectId.includes("_Target")) return ["position"];
     return Object.keys(
       LIGHT_PROPERTIES[track.lightType] || LIGHT_PROPERTIES.SpotLight,
@@ -6392,9 +6400,11 @@ export class LightTimeline extends BaseTimeline {
         ? track.objectId
         : `${track.objectId}_${prop}`;
 
-      const trackData = this.timelineData.tracksById
-        .get(timelineDataLightId)
-        ?.get(prop);
+      const trackData = track.isFixture
+        ? this.timelineData.getTrackById(track.objectId, prop)
+        : this.timelineData.tracksById
+            .get(timelineDataLightId)
+            ?.get(prop);
       if (!trackData) return;
 
       if (
