@@ -134,7 +134,9 @@ function SidebarAssets(editor) {
       gap: 6px;
       padding: 8px;
     }
-    .floating-panel .Text {
+    .sb-assets-bundle .sidebar-panel .panel-header .Text,
+    .sb-assets-bundle .media-tabbed-panel > .Tabs + .Panels .Text:first-child,
+    .sb-mesh-bundle .sidebar-panel .panel-header .Text {
       display: none !important;
     }
   `;

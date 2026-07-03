@@ -349,14 +349,7 @@ class Timeline {
   }
 
   mountInspector() {
-    const tab = this.editor.tabRoot;
-    const panel =
-      tab?.querySelector("#keyframe-property-panel") ||
-      document.querySelector("#keyframe-property-panel");
-    if (panel) {
-      panel.style.display = "block";
-      panel.classList.add("premiere-inspector");
-    }
+    // 키프레임 패널은 Properties 패널 내부(#keyframe-property-panel)에서 관리
   }
 
   initializeUI() {

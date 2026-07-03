@@ -7,8 +7,13 @@ import {
   ensureGroupSegments,
   getGroupTotalDuration,
   newSegmentId,
+  normalizeSegment,
+  normalizeSegmentKind,
+  normalizeRotYDeg,
+  SEGMENT_KIND,
   syncLegacyFieldsFromSegments,
 } from "./groupSegments.js";
+import { persistGroupFoldersToUserData } from "./motionTimelineGroupFolder.js";
 
 export class ShowControl {
   constructor(editor) {
@@ -23,6 +28,7 @@ export class ShowControl {
     this.selectedGroupId = null;
     this.selectedSegmentId = null;
     this.selectedFbxSlotIndices = new Set();
+    this.selectedGroupMemberIds = new Set();
     this._fbxCatalog = null;
     this._timers = []; // { t, dur, fire } or { t, dur, tick }
     this._running = false;
@@ -44,6 +50,7 @@ export class ShowControl {
     } else {
       this._pathPick = { groupId, mode: m, segmentId: segmentId || null };
     }
+    this.editor?._syncStagePickOverlay?.();
     return !!this._pathPick;
   }
 
@@ -103,6 +110,7 @@ export class ShowControl {
       return false;
     }
     this._pathPick = null;
+    this.editor?._syncStagePickOverlay?.();
 
     this.editor.signals?.sceneGraphChanged?.dispatch?.();
     this.editor.signals?.timelineChanged?.dispatch?.();
@@ -128,11 +136,6 @@ export class ShowControl {
       this._normalizeRegistry();
     }
     if (data.selectedGroupId) this.selectedGroupId = data.selectedGroupId;
-    requestAnimationFrame(() => {
-      import("./motionTimelineGroupFolder.js").then(({ restoreAllGroupFolders }) => {
-        restoreAllGroupFolders(this.editor);
-      });
-    });
   }
 
   persistToSceneUserData() {
@@ -143,6 +146,7 @@ export class ShowControl {
       registry: this.registry,
       selectedGroupId: this.selectedGroupId,
     };
+    persistGroupFoldersToUserData(this.editor);
   }
 
   ensureRegistry() {
@@ -189,8 +193,10 @@ export class ShowControl {
       fromZ: Number(g.fromZ) || -2,
       toX: Number(g.toX) || 0,
       toZ: Number(g.toZ) || 2,
-      fromRotY: Number(g.fromRotY) || 0,
-      toRotY: Number(g.toRotY) || 0,
+      fromRotY: normalizeRotYDeg(g.fromRotY),
+      toRotY: normalizeRotYDeg(g.toRotY),
+      fromFormation: g.fromFormation || g.formation || "grid",
+      fromFormationSpacing: Math.max(0.5, Number(g.fromFormationSpacing ?? g.formationSpacing) || 30),
       segments: Array.isArray(g.segments) ? g.segments : undefined,
     };
     ensureGroupSegments(group);
@@ -248,6 +254,11 @@ export class ShowControl {
     const group = this.getGroup(groupId);
     if (!group || !patch) return;
     Object.assign(group, patch);
+    if (patch.fromRotY != null) group.fromRotY = normalizeRotYDeg(patch.fromRotY);
+    if (patch.fromFormation != null) group.fromFormation = patch.fromFormation;
+    if (patch.fromFormationSpacing != null) {
+      group.fromFormationSpacing = Math.max(0.5, Number(patch.fromFormationSpacing) || 30);
+    }
     syncLegacyFieldsFromSegments(group);
     this.persistToSceneUserData();
   }
@@ -277,19 +288,44 @@ export class ShowControl {
     return group.segments.find((s) => s.id === this.selectedSegmentId) || group.segments[0];
   }
 
-  addGroupSegment(groupId) {
+  addGroupSegment(groupId, kind = SEGMENT_KIND.move) {
     const group = this.getGroup(groupId);
     if (!group) return null;
     const segments = ensureGroupSegments(group);
     const last = segments[segments.length - 1];
-    const seg = {
-      id: newSegmentId(),
-      duration: 3,
+    const k = normalizeSegmentKind(kind);
+    const base = {
+      kind: k,
       formation: last?.formation || group.formation || "grid",
+      formationSpacing: Number(last?.formationSpacing) || group.formationSpacing || 30,
       anchorX: Number(last?.anchorX) || 0,
-      anchorZ: (Number(last?.anchorZ) || 0) + 5,
+      anchorZ: Number(last?.anchorZ) || 0,
       toRotY: Number(last?.toRotY) || 0,
     };
+    let seg;
+    if (k === SEGMENT_KIND.hold) {
+      seg = normalizeSegment({ ...base, duration: 3 }, group);
+    } else if (k === SEGMENT_KIND.exit) {
+      seg = normalizeSegment(
+        {
+          ...base,
+          duration: 2,
+          anchorZ: (Number(last?.anchorZ) || 0) + 8,
+          easing: last?.easing || "smooth",
+        },
+        group,
+      );
+    } else {
+      seg = normalizeSegment(
+        {
+          ...base,
+          duration: 3,
+          anchorZ: (Number(last?.anchorZ) || 0) + 5,
+          easing: last?.easing || "smooth",
+        },
+        group,
+      );
+    }
     segments.push(seg);
     this.selectedSegmentId = seg.id;
     syncLegacyFieldsFromSegments(group);
@@ -317,6 +353,12 @@ export class ShowControl {
     const seg = ensureGroupSegments(group).find((s) => s.id === segmentId);
     if (!seg) return;
     Object.assign(seg, patch);
+    if (patch.kind != null) seg.kind = normalizeSegmentKind(patch.kind);
+    if (patch.toRotY != null) seg.toRotY = normalizeRotYDeg(patch.toRotY);
+    if (patch.formationSpacing != null) {
+      seg.formationSpacing = Math.max(0.5, Number(patch.formationSpacing) || 30);
+    }
+    if (seg.kind === SEGMENT_KIND.hold) seg.easing = "linear";
     syncLegacyFieldsFromSegments(group);
     this.persistToSceneUserData();
   }
@@ -333,6 +375,7 @@ export class ShowControl {
     if (!this.getGroup(groupId)) return;
     this.selectedGroupId = groupId;
     this.selectedSegmentId = null;
+    this.selectedGroupMemberIds.clear();
     this._pathPick = null;
     this.persistToSceneUserData();
   }
@@ -396,10 +439,6 @@ export class ShowControl {
     const group = this.getGroup(groupId);
     if (!group) return false;
     const idx = Number(catalogIndex);
-    const exists = group.members.some(
-      (m) => Number(m?.catalogIndex) === idx || m?.filename === catalogEntry.filename,
-    );
-    if (exists) return true;
 
     const r = this.ensureRegistry();
     for (const g of r.groups) {
@@ -411,7 +450,12 @@ export class ShowControl {
       );
     }
 
-    group.members.push(this.createGroupMemberFromCatalog(catalogEntry, idx));
+    const dupCount = group.members.filter((m) => Number(m?.catalogIndex) === idx).length;
+    const member = this.createGroupMemberFromCatalog(catalogEntry, idx);
+    if (dupCount > 0) {
+      member.displayName = `${member.displayName} (${dupCount + 1})`;
+    }
+    group.members.push(member);
     this.persistToSceneUserData();
     return true;
   }
@@ -420,9 +464,12 @@ export class ShowControl {
     const group = this.getGroup(groupId);
     if (!group) return false;
     const id = Number(actorId);
-    const exists = group.members.some((m) => Number(m?.actorId) === id);
-    if (exists) return true;
-    group.members.push(this.createGroupMemberFromActor(id));
+    const dupCount = group.members.filter((m) => Number(m?.actorId) === id).length;
+    const member = this.createGroupMemberFromActor(id);
+    if (dupCount > 0) {
+      member.displayName = `${member.displayName} (${dupCount + 1})`;
+    }
+    group.members.push(member);
     this.persistToSceneUserData();
     return true;
   }
@@ -434,7 +481,29 @@ export class ShowControl {
       if (typeof m === "string") return m !== memberId;
       return m?.id !== memberId && m?.deployedUuid !== memberId;
     });
+    this.selectedGroupMemberIds.delete(memberId);
     this.persistToSceneUserData();
+  }
+
+  toggleGroupMemberSelection(memberId) {
+    if (!memberId) return;
+    if (this.selectedGroupMemberIds.has(memberId)) {
+      this.selectedGroupMemberIds.delete(memberId);
+    } else {
+      this.selectedGroupMemberIds.add(memberId);
+    }
+  }
+
+  clearGroupMemberSelection() {
+    this.selectedGroupMemberIds.clear();
+  }
+
+  removeSelectedMembersFromGroup(groupId) {
+    if (!groupId || !this.selectedGroupMemberIds.size) return 0;
+    const ids = [...this.selectedGroupMemberIds];
+    ids.forEach((id) => this.removeMemberFromGroup(groupId, id));
+    this.clearGroupMemberSelection();
+    return ids.length;
   }
 
   updateGroupMember(groupId, memberId, patch) {

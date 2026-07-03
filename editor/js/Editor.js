@@ -1790,6 +1790,18 @@ Editor.prototype = {
 
       await this.waitForProjectLoadCompletion();
 
+      try {
+        if (!this.showControl && this.scene.userData?.showControl) {
+          const { ShowControl } = await import("./showcontrol/ShowControl.js");
+          this.showControl = new ShowControl(this);
+          this.showControl.loadFromSceneUserData();
+        }
+        const { resyncAllGroupsAfterProjectLoad } = await import("./showcontrol/motionTimelineGroupFolder.js");
+        resyncAllGroupsAfterProjectLoad(this);
+      } catch (groupRestoreError) {
+        console.warn("그룹 타임라인 복원 실패:", groupRestoreError);
+      }
+
     } catch (error) {
       console.error("JSON 데이터 로드 중 전체 오류:", error);
       throw error; // 상위로 오류 전파
@@ -1968,6 +1980,19 @@ Editor.prototype = {
     // 기본 프로젝트 데이터 생성 (씬 데이터 안전 처리)
     let sceneData;
     let childrenFile = null;
+
+    try {
+      if (!this.showControl && this.scene.userData?.showControl) {
+        const { ShowControl } = await import("./showcontrol/ShowControl.js");
+        this.showControl = new ShowControl(this);
+        this.showControl.loadFromSceneUserData();
+      }
+      this.showControl?.persistToSceneUserData?.();
+      const { persistGroupFoldersToUserData } = await import("./showcontrol/motionTimelineGroupFolder.js");
+      persistGroupFoldersToUserData(this);
+    } catch (persistScError) {
+      console.warn("ShowControl 저장 동기화 실패:", persistScError);
+    }
 
     try {
       // scene.toJSON() 호출 전에 children 전체를 임시로 제거

@@ -1015,8 +1015,8 @@ border-radius: 5px 5px 2px 2px;
   padding: 3px 5px !important;
 }
 
-#keyframe-property-panel {
-  display: none;
+#keyframe-property-panel.sb-kf-panel-host:not(.kf-active) {
+  display: none !important;
 }
 
 .property-panel {

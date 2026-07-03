@@ -200,6 +200,118 @@ body {
   background: var(--panel) !important;
 }
 
+/* ── Unified dock panel titles (QLab / Keyframe style) ── */
+.sb-dock-panel-head,
+.sb-dock-section-head {
+  height: 30px !important;
+  min-height: 30px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  padding: 0 10px !important;
+  background: linear-gradient(180deg, #1b1f25, #171a1e) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+}
+
+.sb-dock-panel-head-title,
+.sb-dock-panel-head > .sb-dock-section-label {
+  flex: 1 1 auto !important;
+  min-width: 0;
+  display: block !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* color: rgba(255, 204, 68, 0.95) !important; */
+  color: rgb(154 134 255) !important;
+  font-weight: 700 !important;
+  font-size: 10.5px !important;
+  line-height: 30px !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-self: center !important;
+  margin: 0 !important;
+}
+
+.sb-dock-section-label {
+  color: rgb(154 134 255) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em;
+}
+
+.sb-dock-panel-head .button-group {
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  align-self: center !important;
+  gap: 2px !important;
+  height: 22px !important;
+  float: none !important;
+}
+
+.sb-dock-panel-head .button-group button,
+.floating-panel .panel-header.sb-dock-panel-head .button-group button {
+  float: none !important;
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+}
+
+.sb-dock-section-head b,
+.sb-dock-panel-head b {
+  color: rgba(255, 204, 68, 0.95) !important;
+  font-weight: 700 !important;
+}
+
+.sb-dock-section-hint {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 10px !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap;
+}
+
+.sb-left-dock .floating-panel > .panel-header.sb-dock-panel-head,
+.sb-right-dock .floating-panel > .panel-header.sb-dock-panel-head,
+.floating-panel > .panel-header.sb-dock-panel-head {
+  flex: 0 0 30px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow: hidden !important;
+  position: relative !important;
+  z-index: 2 !important;
+  padding: 0 8px 0 10px !important;
+}
+
 /* ── Floating panels (Scene, 무대, Properties…) ── */
 .floating-panel {
   background: var(--panel) !important;
@@ -211,16 +323,22 @@ body {
 }
 
 .floating-panel .panel-header {
-  height: 25px !important;
-  min-height: 25px !important;
-  background: var(--head) !important;
-  border-bottom: 1px solid var(--line) !important;
-  color: var(--ink-2) !important;
-  font-size: 11px !important;
-  letter-spacing: 0.3px !important;
-  padding: 0 11px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  background: linear-gradient(180deg, #1b1f25, #171a1e) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+  padding: 0 10px !important;
   display: flex !important;
   align-items: center !important;
+  justify-content: flex-start !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  text-align: left !important;
 }
 
 .floating-panel .panel-header button {
@@ -229,6 +347,7 @@ body {
   color: var(--ink-dim) !important;
   border-radius: 3px !important;
   font-size: 10px !important;
+  float: none !important;
 }
 
 .floating-panel .Panel,
@@ -241,14 +360,22 @@ body {
 #sidebar-right-dock .panel-header,
 #sidebar-assets .panel-header,
 .sidebar-panel .panel-header {
-  background: var(--head) !important;
-  border-bottom: 1px solid var(--line) !important;
-  color: var(--ink-2) !important;
-  font-size: 11px !important;
-  padding: 0 11px !important;
-  height: 25px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  background: linear-gradient(180deg, #1b1f25, #171a1e) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+  padding: 0 10px !important;
   display: flex !important;
   align-items: center !important;
+  justify-content: flex-start !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  text-align: left !important;
 }
 
 #sidebar-right-dock .TabbedPanel .Tabs,
@@ -281,14 +408,15 @@ body {
   padding: 0 !important;
 }
 
-#properties .TabbedPanel .Panels,
-#sidebar-properties-host .TabbedPanel .Panels {
+#properties > .Tabs,
+#sidebar-properties-host #properties > .Tabs {
+  min-height: 0 !important;
   padding: 0 !important;
+  box-shadow: none !important;
 }
 
-#properties .TabbedPanel .Tabs,
-#sidebar-properties-host .TabbedPanel .Tabs {
-  min-height: 26px !important;
+#properties > .Panels,
+#sidebar-properties-host #properties > .Panels {
   padding: 0 !important;
 }
 
@@ -1560,21 +1688,129 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   outline: none !important;
 }
 
-/* keyframe inspector — UI 숨김 (Properties와 중복) */
-#keyframe-property-panel,
-#sidebar-left-inspector #keyframe-property-panel,
-.tl-inspector-body #keyframe-property-panel {
+/* keyframe inspector — Properties 패널 하단에 통합 */
+#keyframe-property-panel.sb-kf-panel-host {
   display: none !important;
-  background: var(--panel) !important;
+  background: transparent !important;
+  border: none !important;
+  flex: 0 0 auto;
 }
 
-#sidebar-left-inspector .property-panel .Row,
-.tl-inspector-body .property-panel .Row {
+#keyframe-property-panel.sb-kf-panel-host.kf-active {
+  display: block !important;
+  border-top: 1px solid var(--line) !important;
+}
+
+.sb-properties-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.sb-properties-panel > .panel-header {
+  flex: 0 0 30px !important;
+}
+
+.sb-properties-panel > .sb-properties-body {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.sb-properties-panel > .sb-properties-body > #properties:not([hidden]) {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.sb-properties-panel > .sb-properties-body[hidden],
+.sb-properties-panel > .sb-properties-body > #properties[hidden] {
+  display: none !important;
+}
+
+.sb-properties-empty {
+  flex: 1 1 auto;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 12px;
+  color: var(--ink-dim);
+  font-size: 11px;
+  text-align: center;
+}
+
+.sb-properties-empty[hidden] {
+  display: none !important;
+}
+
+.sb-properties-panel.sb-properties-no-selection > #keyframe-property-panel.sb-kf-panel-host {
+  display: none !important;
+}
+
+.sb-left-dock .sb-properties-panel > .sb-properties-body > #properties > .Tabs {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid var(--line) !important;
+  background: var(--head) !important;
+}
+
+.sb-left-dock .sb-properties-panel > .sb-properties-body > #properties > .Tabs .Tab {
+  padding: 3px 10px !important;
+  line-height: 1.2 !important;
+}
+
+.sb-left-dock .sb-properties-panel > .sb-properties-body > #properties > .Panels {
+  padding: 0 0 8px !important;
+  margin: 0 !important;
+}
+
+.sb-left-dock .sb-properties-panel > .sb-properties-body > #properties > .Panels > .Panel {
+  padding: 0 !important;
+  margin: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex-grow: 0 !important;
+}
+
+.sb-left-dock .sb-properties-panel > #keyframe-property-panel.sb-kf-panel-host {
+  flex: 0 0 auto !important;
+  min-height: auto !important;
+  overflow: visible !important;
+}
+
+/* legacy selector — sb-properties-body 사용 */
+.sb-properties-panel > #properties:not([hidden]) {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.sb-properties-panel > #properties[hidden] {
+  display: none !important;
+}
+
+.sb-properties-panel .sb-kf-panel-host .property-panel .Row,
+.sb-kf-panel-host .property-panel .Row {
   margin: 2px 8px !important;
 }
 
-#sidebar-left-inspector .property-panel .Text,
-.tl-inspector-body .property-panel .Text {
+.sb-properties-panel .sb-kf-panel-host .property-panel .Text,
+.sb-kf-panel-host .property-panel .Text {
   width: 72px !important;
   font-size: 10px !important;
   color: var(--ink-dim) !important;
@@ -1760,7 +1996,7 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
 /* ── Editor grid: left properties | center viewport | right assets ── */
 .viewerWrapper.sb-editor-grid {
   display: grid !important;
-  grid-template-columns: 280px minmax(0, 1fr) minmax(0, 288px) !important;
+  grid-template-columns: 320px minmax(0, 1fr) minmax(0, 288px) !important;
   gap: 2px !important;
   overflow: hidden !important;
   flex: 1 !important;
@@ -1835,6 +2071,19 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.sb-left-dock .sb-properties-panel > .sb-properties-body {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.sb-left-dock .sb-properties-panel > #keyframe-property-panel.sb-kf-panel-host {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
 }
 
 .sb-left-dock .sb-showcontrol-section {
@@ -1842,15 +2091,16 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
+/* 내부 패널은 스크롤하지 않음 — 도크 1곳만 스크롤 (스크롤바로 오른쪽 잘림 방지) */
 .sb-left-dock .sb-sc-section-host,
 .sb-left-dock .sb-sc-section-body {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .sb-left-dock .sb-showcontrol-section,
@@ -1859,7 +2109,28 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
 .sb-left-dock .sb-ens-pane,
 .sb-left-dock .sb-sc-pane {
   max-width: 100%;
-  overflow-x: hidden;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.sb-left-dock .sb-sc-pane,
+.sb-left-dock .sb-ens-pane {
+  padding: 10px 8px 12px 10px !important;
+}
+
+.sb-left-dock .sb-ens,
+.sb-left-dock .sb-ens-step,
+.sb-left-dock .sb-ens-seg,
+.sb-left-dock .sb-form,
+.sb-left-dock .sb-form input,
+.sb-left-dock .sb-form select {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.sb-left-dock .sb-ens-step {
+  overflow: visible;
 }
 
 .sb-left-dock .sb-sc-mini-top {
@@ -1897,6 +2168,287 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)) !important;
 }
 
+.sb-left-dock .sb-chip,
+.sb-kf-panel-host .sb-chip {
+  max-width: 100%;
+  white-space: normal;
+  height: auto;
+  min-height: 22px;
+  line-height: 1.25;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.20);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.sb-left-dock .sb-chip:hover,
+.sb-kf-panel-host .sb-chip:hover {
+  border-color: rgba(255, 255, 255, 0.20);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.sb-left-dock .sb-chip.acc {
+  border-color: rgba(118, 185, 0, 0.35);
+  background: rgba(118, 185, 0, 0.10);
+  color: rgba(118, 185, 0, 0.90);
+}
+
+.sb-left-dock .sb-chip.cy,
+.sb-kf-panel-host .sb-chip.cy {
+  border-color: rgba(57, 211, 255, 0.35);
+  background: rgba(57, 211, 255, 0.08);
+  color: rgba(57, 211, 255, 0.90);
+}
+
+.sb-left-dock .sb-chip.lt {
+  border-color: rgba(255, 204, 68, 0.30);
+  background: rgba(255, 204, 68, 0.08);
+  color: rgba(255, 204, 68, 0.95);
+}
+
+.sb-left-dock .sb-chip.on,
+.sb-kf-panel-host .sb-chip.on {
+  border-color: rgba(57, 211, 255, 0.55);
+  background: rgba(57, 211, 255, 0.12);
+  color: rgba(57, 211, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(57, 211, 255, 0.12) inset;
+}
+
+/* 구간 종류 — 이동 / 대기 / 퇴장 */
+.sb-left-dock .sb-chip.seg-move,
+.sb-left-dock .sb-chip.sb-seg-kind.move {
+  border-color: rgba(57, 211, 255, 0.45);
+  background: rgba(57, 211, 255, 0.16);
+  color: rgba(190, 240, 255, 0.96);
+}
+
+.sb-left-dock .sb-chip.seg-move:hover,
+.sb-left-dock .sb-chip.sb-seg-kind.move:hover {
+  border-color: rgba(57, 211, 255, 0.65);
+  background: rgba(57, 211, 255, 0.24);
+  color: #fff;
+}
+
+.sb-left-dock .sb-chip.seg-hold,
+.sb-left-dock .sb-chip.sb-seg-kind.hold {
+  border-color: rgba(255, 204, 68, 0.45);
+  background: rgba(255, 204, 68, 0.14);
+  color: rgba(255, 228, 160, 0.96);
+}
+
+.sb-left-dock .sb-chip.seg-hold:hover,
+.sb-left-dock .sb-chip.sb-seg-kind.hold:hover {
+  border-color: rgba(255, 204, 68, 0.65);
+  background: rgba(255, 204, 68, 0.22);
+  color: #fff;
+}
+
+.sb-left-dock .sb-chip.seg-exit,
+.sb-left-dock .sb-chip.sb-seg-kind.exit {
+  border-color: rgba(255, 96, 96, 0.45);
+  background: rgba(255, 96, 96, 0.16);
+  color: rgba(255, 190, 190, 0.96);
+}
+
+.sb-left-dock .sb-chip.seg-exit:hover,
+.sb-left-dock .sb-chip.sb-seg-kind.exit:hover {
+  border-color: rgba(255, 96, 96, 0.65);
+  background: rgba(255, 96, 96, 0.24);
+  color: #fff;
+}
+
+.sb-left-dock .sb-chip.del,
+.sb-left-dock .sb-chip.mem-unreg {
+  border-color: rgba(255, 80, 80, 0.55);
+  background: rgba(255, 80, 80, 0.20);
+  color: rgba(255, 200, 200, 0.98);
+  font-weight: 600;
+}
+
+.sb-left-dock .sb-chip.del:hover,
+.sb-left-dock .sb-chip.mem-unreg:hover {
+  border-color: rgba(255, 80, 80, 0.78);
+  background: rgba(255, 80, 80, 0.30);
+  color: #fff;
+}
+
+.sb-left-dock .sb-ens-seg-hd {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 무대 위치 픽 — 패널 버튼 */
+.sb-left-dock .sb-stage-pick {
+  width: 100%;
+  margin: 4px 0 6px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  min-height: auto;
+  height: auto;
+  white-space: normal;
+  line-height: 1.25;
+  justify-content: flex-start;
+}
+
+.sb-left-dock .sb-stage-pick:hover {
+  border-color: rgba(57, 211, 255, 0.35);
+  background: rgba(57, 211, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.sb-left-dock .sb-stage-pick.picking {
+  border: 2px solid rgba(57, 211, 255, 0.75);
+  background: linear-gradient(135deg, rgba(57, 211, 255, 0.18) 0%, rgba(57, 211, 255, 0.08) 100%);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(57, 211, 255, 0.15) inset, 0 0 20px rgba(57, 211, 255, 0.2);
+  animation: sb-stage-pick-btn-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sb-stage-pick-btn-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(57, 211, 255, 0.15) inset, 0 0 16px rgba(57, 211, 255, 0.15); }
+  50% { box-shadow: 0 0 0 1px rgba(57, 211, 255, 0.3) inset, 0 0 28px rgba(57, 211, 255, 0.35); }
+}
+
+.sb-left-dock .sb-stage-pick-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 16px;
+  color: rgba(57, 211, 255, 0.85);
+}
+
+.sb-left-dock .sb-stage-pick.picking .sb-stage-pick-icon {
+  background: rgba(57, 211, 255, 0.22);
+  color: #fff;
+}
+
+.sb-left-dock .sb-stage-pick-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-left-dock .sb-stage-pick-title {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sb-left-dock .sb-stage-pick-hint {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.sb-left-dock .sb-stage-pick.picking .sb-stage-pick-hint {
+  opacity: 1;
+  color: rgba(180, 240, 255, 0.95);
+  font-weight: 600;
+}
+
+.sb-left-dock .sb-stage-pick-live {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(57, 211, 255, 0.9);
+  color: #0a1620;
+  animation: sb-stage-pick-live-blink 1s ease-in-out infinite;
+}
+
+@keyframes sb-stage-pick-live-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* 무대 위치 픽 — 뷰포트 오버레이 */
+.viewer.sb-stage-pick-mode {
+  cursor: crosshair !important;
+}
+
+.viewer.sb-stage-pick-mode canvas {
+  cursor: crosshair !important;
+}
+
+#sb-stage-pick-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.sb-stage-pick-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: rgba(10, 22, 32, 0.92);
+  border: 2px solid rgba(57, 211, 255, 0.65);
+  box-shadow: 0 0 24px rgba(57, 211, 255, 0.22), 0 8px 32px rgba(0, 0, 0, 0.45);
+  animation: sb-stage-pick-banner-pulse 1.6s ease-in-out infinite;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+}
+
+@keyframes sb-stage-pick-banner-pulse {
+  0%, 100% {
+    border-color: rgba(57, 211, 255, 0.5);
+    box-shadow: 0 0 18px rgba(57, 211, 255, 0.15), 0 8px 28px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    border-color: rgba(57, 211, 255, 0.95);
+    box-shadow: 0 0 32px rgba(57, 211, 255, 0.4), 0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+}
+
+.sb-stage-pick-banner-icon {
+  font-size: 20px;
+  color: rgba(57, 211, 255, 0.95);
+  flex-shrink: 0;
+}
+
+.sb-stage-pick-banner-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.sb-stage-pick-banner-esc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
 .sb-left .sec {
   display: none !important;
 }
@@ -1907,31 +2459,14 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   min-height: 0;
 }
 
-/* Clip/Keyframe — Properties 패널과 중복 → UI 숨김 (로직은 유지) */
-.sb-left .sec.cy,
-.sb-left-inspector,
-#sidebar-left-inspector,
-#keyframe-property-panel.sb-kf-panel-host {
+/* Clip/Keyframe — legacy inspector 숨김 */
+.sb-left .sec.cy {
   display: none !important;
-}
-
-.sb-left-inspector,
-.sb-left-properties {
-  flex: 0 0 auto;
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .sb-left-properties {
   flex: 1 1 0;
   padding: 0 !important;
-}
-
-.sb-left-inspector {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--line);
-  max-height: 120px;
-  overflow-y: auto;
 }
 
 .sb-kf-panel-host {
@@ -1944,10 +2479,6 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   border: none !important;
 }
 
-.sb-kf-panel-host .property-panel .position-row {
-  margin: 2px 8px !important;
-}
-
 .sb-kf-panel-host .property-panel .property-label,
 .sb-kf-panel-host .property-panel .Text {
   width: 72px !important;
@@ -1955,6 +2486,81 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   color: var(--ink-dim) !important;
   text-transform: uppercase !important;
   letter-spacing: 0.5px !important;
+}
+
+.sb-kf-section-head {
+  margin: 0;
+}
+
+.sb-kf-ease-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 8px 6px;
+  min-height: 28px;
+}
+
+.sb-kf-ease-row.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.sb-kf-ease-label {
+  flex: 0 0 72px;
+  font-size: 10px;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sb-kf-ease-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Keyframe easing — 비활성은 흐리게, 활성은 밝게 강조 */
+.sb-kf-panel-host .sb-kf-ease-chip {
+  min-width: 62px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.sb-kf-panel-host .sb-kf-ease-chip:hover:not(:disabled):not(.on) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.sb-kf-panel-host .sb-kf-ease-chip.on {
+  border-color: rgba(57, 211, 255, 0.92);
+  background: linear-gradient(180deg, rgba(57, 211, 255, 0.38) 0%, rgba(57, 211, 255, 0.18) 100%);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow:
+    0 0 0 1px rgba(57, 211, 255, 0.35) inset,
+    0 0 14px rgba(57, 211, 255, 0.28);
+}
+
+.sb-kf-panel-host .sb-kf-ease-chip.on:hover {
+  border-color: #7de8ff;
+  background: linear-gradient(180deg, rgba(57, 211, 255, 0.48) 0%, rgba(57, 211, 255, 0.24) 100%);
+  color: #ffffff;
+}
+
+.sb-kf-panel-host .property-panel .position-row {
+  margin: 2px 8px 10px !important;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 #sidebar-properties-host .Panel,
@@ -2253,8 +2859,11 @@ body.sb-panel-resize-active * {
 
 .sb-left-dock [data-panel-id="properties"] .Panel,
 .sb-left-dock [data-panel-id="properties"] .TabbedPanel,
-.sb-left-dock [data-panel-id="properties"] #properties > .Panel {
+.sb-left-dock [data-panel-id="properties"] #properties > .Panel,
+.sb-left-dock [data-panel-id="properties"] .sb-properties-body #properties > .Panels > .Panel {
   padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
 }
 
 .sb-left-dock [data-panel-id="properties"] .Row.ec-row,
@@ -2262,27 +2871,24 @@ body.sb-panel-resize-active * {
   margin: 1px 8px !important;
 }
 
+.sb-left-dock [data-panel-id="properties"] .Row.ec-row-group:first-child,
+.sb-left-dock [data-panel-id="properties"] .Panels > .Panel > .Row:first-child {
+  margin-top: 2px !important;
+}
+
 .sb-left-dock [data-panel-id="properties"] .sb-anim-play-row.ec-row {
   margin: 4px 8px 6px !important;
 }
 
-.sb-left-dock .floating-panel .panel-header {
-  flex-shrink: 0;
-  min-height: 26px;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.sb-left-dock .floating-panel > .panel-header.sb-dock-panel-head {
+  flex: 0 0 30px !important;
+  flex-shrink: 0 !important;
 }
 
 .sb-left-properties .sb-properties-panel .panel-header {
   display: flex !important;
 }
 
-.sb-left-inspector .property-panel {
-  padding: 4px 0 !important;
-}
-
-#sidebar-left-inspector #keyframe-property-panel,
 .sb-kf-panel-host {
   background: transparent !important;
   border: none !important;
@@ -2910,7 +3516,9 @@ body.sb-panel-resize-active * {
   color: var(--ink) !important;
 }
 
-.sb-right-dock .floating-panel .Text {
+/* Assets 패널 본문 중복 라벨만 숨김 — 도크 헤더 타이틀(.sb-dock-panel-head-title)은 제외 */
+.sb-right-dock .sb-assets-bundle .panel-content .Text,
+.sb-right-dock .sb-mesh-bundle .panel-content .Text {
   display: none !important;
 }
 
@@ -3112,12 +3720,12 @@ body.sb-panel-resize-active * {
 
   .viewerWrapper.sb-editor-grid {
     min-width: 1300px !important;
-    grid-template-columns: 280px 1fr 288px !important;
+    grid-template-columns: 320px 1fr 288px !important;
     overflow: visible !important;
   }
 
   .sb-left {
-    min-width: 280px !important;
+    min-width: 320px !important;
     flex-shrink: 0 !important;
   }
 

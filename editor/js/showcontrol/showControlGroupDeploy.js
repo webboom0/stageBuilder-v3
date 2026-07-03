@@ -1,13 +1,31 @@
 import * as THREE from "three";
 import { spawnCatalogEntryInScene } from "../utils/motionFbxCatalog.js";
 import { buildMemberWaypoints, getGroupClipRange } from "./groupSegments.js";
-import { organizeDeployedGroup } from "./motionTimelineGroupFolder.js";
+import { organizeDeployedGroup, pruneStaleGroupDeployTracks } from "./motionTimelineGroupFolder.js";
 import {
-  applyClipToSprite,
-  applyMemberGroupSegments,
+  applyGroupMemberTimeline,
   getMotionTimeline,
-  setClipPreset,
 } from "./groupTimelineKeyframes.js";
+
+function countSameCatalogMembers(group, member) {
+  const idx = Number(member?.catalogIndex);
+  const file = member?.filename;
+  return (group?.members || []).filter((m) => {
+    if (Number.isFinite(idx) && Number(m?.catalogIndex) === idx) return true;
+    if (file && m?.filename === file) return true;
+    return false;
+  }).length;
+}
+
+/** 같은 FBX가 그룹에 2명 이상일 때만 새 인스턴스 필요 */
+function memberNeedsNewCatalogInstance(editor, group, member) {
+  if (member?.deployedUuid) {
+    const existing = editor.scene?.getObjectByProperty?.("uuid", member.deployedUuid);
+    if (existing) return false;
+    member.deployedUuid = null;
+  }
+  return countSameCatalogMembers(group, member) > 1;
+}
 
 function ensureTrackForObject(editor, motionTimeline, object, displayName) {
   let trackEl = motionTimeline.container?.querySelector(`[data-uuid="${object.uuid}"]`);
@@ -49,10 +67,8 @@ async function placeOnTimeline(editor, object, displayName, group, memberIndex) 
     );
   }
 
-  setClipPreset(editor, object.uuid, startTime, duration);
   ensureTrackForObject(editor, motionTimeline, object, displayName);
-  applyClipToSprite(motionTimeline, object.uuid, startTime, duration);
-  applyMemberGroupSegments(motionTimeline, editor, group, memberIndex, object.uuid);
+  applyGroupMemberTimeline(motionTimeline, editor, group, memberIndex, object.uuid);
 
   const trackEl = motionTimeline.container?.querySelector(`[data-uuid="${object.uuid}"]`);
   motionTimeline.restoreKeyframesUIFromTimelineData?.(trackEl, object.uuid);
@@ -81,14 +97,20 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
   let object = null;
   if (member.deployedUuid) {
     object = editor.scene?.getObjectByProperty?.("uuid", member.deployedUuid) || null;
+    if (!object) member.deployedUuid = null;
   }
   if (!object) {
-    object = await spawnCatalogEntryInScene(editor, entry);
+    const forceNew = memberNeedsNewCatalogInstance(editor, group, member);
+    object = await spawnCatalogEntryInScene(editor, entry, {
+      forceNew,
+      displayName: member.displayName || entry.displayName || entry.name,
+    });
   }
   if (!object) throw new Error(`FBX 배치 실패: ${member.displayName || entry.displayName}`);
 
   member.deployedUuid = object.uuid;
   member.displayName = member.displayName || object.name || entry.displayName;
+  if (member.displayName) object.name = member.displayName;
 
   return placeOnTimeline(editor, object, member.displayName, group, memberIndex);
 }
@@ -141,6 +163,7 @@ export async function deployGroupToStage(editor, group, catalog = []) {
 
   let count = 0;
   const errors = [];
+  const uuidsBefore = group.members.map((m) => m?.deployedUuid).filter(Boolean);
 
   for (let i = 0; i < members.length; i++) {
     const member = members[i];
@@ -161,6 +184,8 @@ export async function deployGroupToStage(editor, group, catalog = []) {
   }
 
   if (count > 0) {
+    const activeUuids = group.members.map((m) => m?.deployedUuid).filter(Boolean);
+    pruneStaleGroupDeployTracks(editor, group, activeUuids, uuidsBefore);
     organizeDeployedGroup(editor, group);
   }
 

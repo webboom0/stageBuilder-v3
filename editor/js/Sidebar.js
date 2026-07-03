@@ -45,9 +45,40 @@ function Sidebar(editor) {
   const nanseolPanel = createPanel("무대연출", new SidebarNanseol(editor).dom);
   const propertiesPanel = createPanel(
     "Properties",
-    new SidebarProperties(editor).dom,
+    (() => {
+      const body = document.createElement("div");
+      body.className = "sb-properties-body";
+      body.appendChild(new SidebarProperties(editor).dom);
+      return body;
+    })(),
   );
   propertiesPanel.classList.add("sb-properties-panel");
+
+  const propertiesEmpty = document.createElement("div");
+  propertiesEmpty.className = "sb-properties-empty";
+  propertiesEmpty.textContent = "씬에서 객체를 선택하세요";
+  const propertiesBody = propertiesPanel.querySelector(".sb-properties-body");
+  if (propertiesBody) {
+    propertiesPanel.insertBefore(propertiesEmpty, propertiesBody);
+  } else {
+    propertiesPanel.appendChild(propertiesEmpty);
+  }
+
+  const syncPropertiesPanel = (object) => {
+    const body = propertiesPanel.querySelector(".sb-properties-body");
+    const hasSelection = object !== null;
+    if (body) body.hidden = !hasSelection;
+    propertiesEmpty.hidden = hasSelection;
+    propertiesPanel.classList.toggle("sb-properties-no-selection", !hasSelection);
+  };
+  editor.signals.objectSelected.add(syncPropertiesPanel);
+  syncPropertiesPanel(editor.selected);
+
+  const kfHost = document.createElement("div");
+  kfHost.id = "keyframe-property-panel";
+  kfHost.className = "sb-kf-panel-host";
+  kfHost.hidden = true;
+  propertiesPanel.appendChild(kfHost);
 
   const scCuesPanel = createPanel("QLab · Cues", createShowControlSection(editor, "cues"));
   const scGroupsPanel = createPanel("QLab · Groups", createShowControlSection(editor, "groups"));

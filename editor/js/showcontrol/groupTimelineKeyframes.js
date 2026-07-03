@@ -1,5 +1,24 @@
 import * as THREE from "three";
-import { buildMemberWaypoints } from "./groupSegments.js";
+import { INTERPOLATION } from "../timeline/TimelineCore.js";
+import { buildMemberWaypoints, getGroupClipRange, normalizeSegmentEasing } from "./groupSegments.js";
+
+function easingToInterpolation(easing) {
+  return normalizeSegmentEasing(easing) === "smooth"
+    ? INTERPOLATION.SMOOTHSTEP
+    : INTERPOLATION.LINEAR;
+}
+
+function setKeyframeSpanEasing(motionTimeline, uuid, time, easing) {
+  const objectTracks = motionTimeline.timelineData?.getObjectTracks?.(uuid);
+  if (!objectTracks) return;
+  const interp = easingToInterpolation(easing);
+  ["position", "rotation", "scale"].forEach((prop) => {
+    const track = objectTracks.get(prop);
+    if (!track) return;
+    const idx = track.findKeyframeIndex(time);
+    if (idx !== -1) track.interpolations[idx] = interp;
+  });
+}
 
 export function getMotionTimeline(editor) {
   editor?.connectTimelineInstances?.();
@@ -17,6 +36,62 @@ export function clearObjectMotionKeyframes(motionTimeline, uuid) {
   objectTracks.forEach((trackData) => trackData.clearAllKeyframes?.());
 }
 
+/** 그룹 트랙: 클립 UI=전체 타임라인, 가시성은 playStart~playEnd (퇴장 구간일 때만 playEnd에서 숨김) */
+export function setGroupClipPreset(editor, objectUuid, playStart, playDuration, options = {}) {
+  const motionTimeline = getMotionTimeline(editor);
+  const totalSeconds = motionTimeline?.options?.totalSeconds || 180;
+  const endsWithExit = !!options.endsWithExit;
+  const playEnd = endsWithExit
+    ? playStart + Math.max(0.1, playDuration)
+    : totalSeconds;
+  if (!editor.scene.userData.motionTimeline) editor.scene.userData.motionTimeline = {};
+  if (!editor.scene.userData.motionTimeline.clips) {
+    editor.scene.userData.motionTimeline.clips = {};
+  }
+  editor.scene.userData.motionTimeline.clips[objectUuid] = {
+    left: 0,
+    width: 100,
+    duration: totalSeconds,
+    initialLeft: 0,
+    scGroupClip: "full",
+    playStart,
+    playEnd,
+    playDuration,
+    endsWithExit,
+    hideAfterShow: endsWithExit,
+  };
+}
+
+export function applyGroupTimelineClip(motionTimeline, objectUuid, playStart, playDuration, options = {}) {
+  const totalSeconds = motionTimeline?.options?.totalSeconds || 180;
+  const trackEl = motionTimeline.container?.querySelector(`[data-uuid="${objectUuid}"]`);
+  const sprite = trackEl?.querySelector?.(".animation-sprite");
+  if (!sprite) return false;
+
+  const endsWithExit = !!options.endsWithExit;
+  const playEnd = endsWithExit
+    ? playStart + Math.max(0.1, playDuration)
+    : totalSeconds;
+
+  sprite.style.left = "0%";
+  sprite.style.width = "100%";
+  sprite.dataset.scGroupClip = "full";
+  sprite.dataset.playStart = String(playStart);
+  sprite.dataset.playEnd = String(playEnd);
+  sprite.dataset.playDuration = String(playDuration);
+  sprite.dataset.endsWithExit = endsWithExit ? "1" : "0";
+  sprite.dataset.hideAfterShow = endsWithExit ? "1" : "0";
+  sprite.dataset.duration = String(totalSeconds);
+  sprite.dataset.initialLeft = "0";
+  sprite.dataset.previousDuration = String(totalSeconds);
+
+  if (trackEl) trackEl.dataset.scGroupTrack = "1";
+
+  motionTimeline.updateKeyframesInClip?.({ uuid: objectUuid }, sprite);
+  return true;
+}
+
+/** @deprecated 일반 트랙용 — 그룹은 applyGroupTimelineClip 사용 */
 export function setClipPreset(editor, objectUuid, startTime, duration) {
   const motionTimeline = getMotionTimeline(editor);
   const totalSeconds = motionTimeline?.options?.totalSeconds || 180;
@@ -47,6 +122,9 @@ export function applyClipToSprite(motionTimeline, objectUuid, startTime, duratio
   sprite.dataset.duration = String(Math.max(0.1, duration));
   sprite.dataset.initialLeft = String(left);
   sprite.dataset.previousDuration = sprite.dataset.duration;
+  delete sprite.dataset.scGroupClip;
+  delete sprite.dataset.playStart;
+  delete sprite.dataset.playEnd;
 
   motionTimeline.updateKeyframesInClip?.({ uuid: objectUuid }, sprite);
   return true;
@@ -66,40 +144,32 @@ export function applyMemberWaypointKeyframes(motionTimeline, editor, uuid, waypo
       obj.rotation.set(obj.rotation.x, THREE.MathUtils.degToRad(Number(wp.rotY) || 0), obj.rotation.z);
       motionTimeline._addKeyframeInternal?.(uuid, "position", wp.time, null);
     }
+    for (const wp of waypoints) {
+      if (wp.spanEasing) setKeyframeSpanEasing(motionTimeline, uuid, wp.time, wp.spanEasing);
+    }
     const first = waypoints[0];
     obj.position.set(first.x, first.y ?? 0, first.z);
     obj.rotation.set(obj.rotation.x, THREE.MathUtils.degToRad(Number(first.rotY) || 0), obj.rotation.z);
   } finally {
     motionTimeline._inHistoryPlayback = false;
   }
+  if (motionTimeline.timelineData) motionTimeline.timelineData.dirty = true;
   return true;
-}
-
-/** 그룹 멤버 이동 키프레임 (시작·끝) — 레거시 2키 */
-export function applyMemberMoveKeyframes(motionTimeline, editor, uuid, pos, startTime, duration, rot = {}) {
-  const waypoints = [
-    {
-      time: startTime,
-      x: pos.fromX,
-      y: pos.fromY ?? 0,
-      z: pos.fromZ,
-      rotY: rot.fromRotY ?? 0,
-    },
-    {
-      time: startTime + duration,
-      x: pos.toX,
-      y: pos.toY ?? 0,
-      z: pos.toZ,
-      rotY: rot.toRotY ?? 0,
-    },
-  ];
-  return applyMemberWaypointKeyframes(motionTimeline, editor, uuid, waypoints);
 }
 
 /** 그룹 segments 기반 멤버 키프레임 */
 export function applyMemberGroupSegments(motionTimeline, editor, group, memberIndex, uuid) {
   const waypoints = buildMemberWaypoints(group, memberIndex);
   return applyMemberWaypointKeyframes(motionTimeline, editor, uuid, waypoints);
+}
+
+export function applyGroupMemberTimeline(motionTimeline, editor, group, memberIndex, uuid) {
+  const totalSeconds = motionTimeline?.options?.totalSeconds || 180;
+  const { startTime, duration, endsWithExit } = getGroupClipRange(group, totalSeconds);
+  const clipOpts = { endsWithExit };
+  setGroupClipPreset(editor, uuid, startTime, duration, clipOpts);
+  applyGroupTimelineClip(motionTimeline, uuid, startTime, duration, clipOpts);
+  return applyMemberGroupSegments(motionTimeline, editor, group, memberIndex, uuid);
 }
 
 export function resolveSelectedGroupMemberUuid(editor, group) {

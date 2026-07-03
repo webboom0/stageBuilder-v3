@@ -85,12 +85,17 @@ export function findSceneObjectForCatalogEntry(editor, entry) {
   return found;
 }
 
-export async function spawnCatalogEntryInScene(editor, entry) {
-  const existing = findSceneObjectForCatalogEntry(editor, entry);
-  if (existing) return existing;
+export async function spawnCatalogEntryInScene(editor, entry, options = {}) {
+  const forceNew = !!options.forceNew;
+  if (!forceNew) {
+    const existing = findSceneObjectForCatalogEntry(editor, entry);
+    if (existing) return existing;
+  }
 
   const { waitForNewMotionObject, snapshotMotionUuids } = await import("./motionTimelineAutoTrack.js");
 
+  const displayName =
+    options.displayName || entry.displayName || entry.name || entry.filename || "Motion";
   const fileBlob = await fetch(entry.path).then((r) => {
     if (!r.ok) throw new Error(`FBX 파일을 불러올 수 없습니다: ${entry.path}`);
     return r.blob();
@@ -105,7 +110,7 @@ export async function spawnCatalogEntryInScene(editor, entry) {
 
   const meta = {
     fileName: entry.filename || entry.name,
-    displayName: entry.displayName || entry.name,
+    displayName,
     path: entry.path,
   };
   const before = snapshotMotionUuids(editor.scene);
@@ -117,6 +122,7 @@ export async function spawnCatalogEntryInScene(editor, entry) {
   if (meta.path) object.userData.filePath = meta.path;
   if (meta.fileName) object.userData.fileName = meta.fileName;
   if (meta.displayName) object.userData.displayName = meta.displayName;
+  if (displayName) object.name = displayName;
 
   editor.signals?.objectAdded?.dispatch?.(object);
   editor.signals?.sceneGraphChanged?.dispatch();

@@ -83,8 +83,8 @@ export function initResizableInSlot(slot, slotId) {
   panels.forEach((panel, index) => {
     const header = panel.querySelector(".panel-header");
     const title =
-      header?.childNodes[0]?.textContent?.trim() ||
-      header?.textContent?.trim() ||
+      header?.querySelector(".sb-dock-panel-head-title, .sb-dock-section-label")?.textContent?.trim() ||
+      header?.dataset?.panelTitle?.trim() ||
       `panel-${index}`;
     const storageKey = `dock-${slotId}-${title.replace(/\s+/g, "-")}`;
 

@@ -1,7 +1,109 @@
 import { ShowControl } from "../showcontrol/ShowControl.js";
 import { findSceneObjectForCatalogEntry } from "../utils/motionFbxCatalog.js";
 import { computeFormationOffsets, FORMATION_LABELS } from "../showcontrol/groupFormation.js";
-import { getGroupTotalDuration } from "../showcontrol/groupSegments.js";
+import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, GROUP_ROT_Y_OPTIONS, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
+
+function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
+  if (!host) return;
+  fmtTypes.forEach((fmt) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "sb-chip" + (currentFmt === fmt ? " on cy" : "");
+    b.textContent = FORMATION_LABELS[fmt] || fmt;
+    b.onclick = async (e) => {
+      e.stopPropagation();
+      await onPick(fmt);
+    };
+    host.appendChild(b);
+  });
+}
+
+function mountRotYChips(host, currentDeg, onPick) {
+  if (!host) return;
+  const cur = normalizeRotYDeg(currentDeg);
+  GROUP_ROT_Y_OPTIONS.forEach((deg) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "sb-chip" + (cur === deg ? " on cy" : "");
+    b.textContent = `${deg}°`;
+    b.style.cssText = "min-width:38px;padding:3px 6px;font-size:10px;justify-content:center";
+    b.onclick = (e) => {
+      e.stopPropagation();
+      onPick(deg);
+    };
+    host.appendChild(b);
+  });
+}
+
+function stagePickButtonHtml({ active, title, dataAttr, dataValue }) {
+  const dataPart = dataAttr ? ` data-${dataAttr}="${dataValue ?? ""}"` : "";
+  return `
+    <button type="button" class="sb-stage-pick${active ? " picking" : ""}"${dataPart}>
+      <span class="sb-stage-pick-icon" aria-hidden="true">⌖</span>
+      <span class="sb-stage-pick-body">
+        <strong class="sb-stage-pick-title">${title}</strong>
+        <span class="sb-stage-pick-hint">${active ? "무대를 클릭하세요 →" : "버튼을 누른 뒤 무대 클릭"}</span>
+      </span>
+      ${active ? '<span class="sb-stage-pick-live">PICK</span>' : ""}
+    </button>
+  `;
+}
+
+let stagePickEscBound = false;
+
+function bindStagePickEsc(editor) {
+  if (stagePickEscBound) return;
+  stagePickEscBound = true;
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!editor.showControl?.getGroupPathPickMode?.()) return;
+    editor.showControl.setGroupPathPickMode(null, null);
+    editor._syncStagePickOverlay?.();
+    editor._showControlPathPickDone?.();
+  });
+}
+
+function syncStagePickOverlay(editor) {
+  const pick = editor?.showControl?.getGroupPathPickMode?.();
+  const viewer = document.querySelector(".viewer.sb-program") || document.querySelector(".viewer");
+  if (!viewer) return;
+
+  let overlay = viewer.querySelector("#sb-stage-pick-overlay");
+
+  if (!pick) {
+    viewer.classList.remove("sb-stage-pick-mode");
+    document.body.classList.remove("sb-stage-pick-active");
+    overlay?.remove();
+    return;
+  }
+
+  let label = "위치";
+  if (pick.mode === "from") label = "시작 위치";
+  else if (pick.mode === "segmentAnchor") {
+    const group = editor.showControl.getGroup(pick.groupId);
+    const seg = group?.segments?.find((s) => s.id === pick.segmentId);
+    label = seg?.kind === SEGMENT_KIND.exit ? "퇴장 위치" : "끝 위치";
+  }
+
+  viewer.classList.add("sb-stage-pick-mode");
+  document.body.classList.add("sb-stage-pick-active");
+
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "sb-stage-pick-overlay";
+    overlay.innerHTML = `
+      <div class="sb-stage-pick-banner">
+        <span class="sb-stage-pick-banner-icon" aria-hidden="true">⌖</span>
+        <span class="sb-stage-pick-banner-text"></span>
+        <span class="sb-stage-pick-banner-esc">ESC 취소</span>
+      </div>
+    `;
+    viewer.appendChild(overlay);
+  }
+
+  const textEl = overlay.querySelector(".sb-stage-pick-banner-text");
+  if (textEl) textEl.textContent = `${label} 지정 — 무대를 클릭하세요`;
+}
 
 function clamp01(v) {
   const n = Number(v);
@@ -153,8 +255,8 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-sc-pane{ padding: 10px; overflow-x:hidden; overflow-y:auto; min-height:0; min-width:0; }
     .sb-form{
       display:grid;
-      grid-template-columns: 84px minmax(0, 1fr);
-      gap: 8px 10px;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 8px 8px;
       align-items:center;
       font-size: 11px;
       width:100%;
@@ -225,6 +327,8 @@ export function createShowControlPanel(editor, options = {}) {
       padding:8px;
       margin-top:6px;
       background:rgba(0,0,0,0.18);
+      box-sizing:border-box;
+      max-width:100%;
     }
     .sb-ens-seg.on{
       border-color:rgba(57,211,255,0.45);
@@ -236,7 +340,7 @@ export function createShowControlPanel(editor, options = {}) {
     }
     .sb-ens-seg-fmt{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
     .sb-ens-seg-fmt .sb-chip{font-size:10px;padding:3px 6px}
-    .sb-ens-pane{ overflow-x:hidden; overflow-y:auto; width:100%; min-width:0; }
+    .sb-ens-pane{ overflow:visible; width:100%; min-width:0; box-sizing:border-box; }
     .sb-ens-grid{
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
@@ -269,7 +373,8 @@ export function createShowControlPanel(editor, options = {}) {
       gap:8px;
       width:100%;
       min-width:0;
-      overflow:hidden;
+      box-sizing:border-box;
+      overflow:visible;
     }
     .sb-ens-step-num{
       color:rgba(255,204,68,0.85);
@@ -367,6 +472,119 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-chip.cy{ border-color: rgba(57,211,255,0.35); color: rgba(57,211,255,0.90); }
     .sb-chip.lt{ border-color: rgba(255,204,68,0.30); color: rgba(255,204,68,0.95); }
     .sb-chip.on{ border-color: rgba(57,211,255,0.55); color: rgba(57,211,255,0.95); box-shadow: 0 0 0 1px rgba(57,211,255,0.12) inset; }
+    .sb-chip.seg-move,
+    .sb-chip.sb-seg-kind.move{
+      border-color: rgba(57,211,255,0.42);
+      background: rgba(57,211,255,0.14);
+      color: rgba(190,240,255,0.96);
+    }
+    .sb-chip.seg-move:hover,
+    .sb-chip.sb-seg-kind.move:hover{
+      border-color: rgba(57,211,255,0.62);
+      background: rgba(57,211,255,0.22);
+      color: #fff;
+    }
+    .sb-chip.seg-hold,
+    .sb-chip.sb-seg-kind.hold{
+      border-color: rgba(255,204,68,0.42);
+      background: rgba(255,204,68,0.12);
+      color: rgba(255,228,160,0.96);
+    }
+    .sb-chip.seg-hold:hover,
+    .sb-chip.sb-seg-kind.hold:hover{
+      border-color: rgba(255,204,68,0.62);
+      background: rgba(255,204,68,0.20);
+      color: #fff;
+    }
+    .sb-chip.seg-exit,
+    .sb-chip.sb-seg-kind.exit{
+      border-color: rgba(255,96,96,0.42);
+      background: rgba(255,96,96,0.14);
+      color: rgba(255,190,190,0.96);
+    }
+    .sb-chip.seg-exit:hover,
+    .sb-chip.sb-seg-kind.exit:hover{
+      border-color: rgba(255,96,96,0.62);
+      background: rgba(255,96,96,0.22);
+      color: #fff;
+    }
+    .sb-chip.del,
+    .sb-chip.mem-unreg{
+      border-color: rgba(255,80,80,0.55);
+      background: rgba(255,80,80,0.18);
+      color: rgba(255,200,200,0.98);
+      font-weight:600;
+    }
+    .sb-chip.del:hover,
+    .sb-chip.mem-unreg:hover{
+      border-color: rgba(255,80,80,0.75);
+      background: rgba(255,80,80,0.28);
+      color: #fff;
+    }
+    .sb-stage-pick{
+      width:100%;
+      margin:4px 0 6px;
+      padding:8px 10px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border-radius:10px;
+      border:1px dashed rgba(255,255,255,0.18);
+      background:rgba(0,0,0,0.22);
+      color:rgba(255,255,255,0.72);
+      cursor:pointer;
+      text-align:left;
+      box-sizing:border-box;
+      transition:border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+    .sb-stage-pick:hover{
+      border-color:rgba(57,211,255,0.35);
+      background:rgba(57,211,255,0.06);
+      color:rgba(255,255,255,0.88);
+    }
+    .sb-stage-pick.picking{
+      border:2px solid rgba(57,211,255,0.75);
+      background:linear-gradient(135deg, rgba(57,211,255,0.18) 0%, rgba(57,211,255,0.08) 100%);
+      color:#fff;
+      box-shadow:0 0 0 1px rgba(57,211,255,0.15) inset, 0 0 20px rgba(57,211,255,0.2);
+      animation:sb-stage-pick-btn-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes sb-stage-pick-btn-pulse{
+      0%,100%{ box-shadow:0 0 0 1px rgba(57,211,255,0.15) inset, 0 0 16px rgba(57,211,255,0.15); }
+      50%{ box-shadow:0 0 0 1px rgba(57,211,255,0.3) inset, 0 0 28px rgba(57,211,255,0.35); }
+    }
+    .sb-stage-pick-icon{
+      flex-shrink:0;
+      width:28px;height:28px;
+      display:flex;align-items:center;justify-content:center;
+      border-radius:8px;
+      background:rgba(255,255,255,0.06);
+      font-size:16px;
+      color:rgba(57,211,255,0.85);
+    }
+    .sb-stage-pick.picking .sb-stage-pick-icon{
+      background:rgba(57,211,255,0.22);
+      color:#fff;
+    }
+    .sb-stage-pick-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .sb-stage-pick-title{ font-size:11px; font-weight:700; line-height:1.2; }
+    .sb-stage-pick-hint{ font-size:10px; opacity:0.75; line-height:1.2; }
+    .sb-stage-pick.picking .sb-stage-pick-hint{ opacity:1; color:rgba(180,240,255,0.95); font-weight:600; }
+    .sb-stage-pick-live{
+      flex-shrink:0;
+      font-size:9px;
+      font-weight:800;
+      letter-spacing:0.06em;
+      padding:3px 7px;
+      border-radius:6px;
+      background:rgba(57,211,255,0.9);
+      color:#0a1620;
+      animation:sb-stage-pick-live-blink 1s ease-in-out infinite;
+    }
+    @keyframes sb-stage-pick-live-blink{
+      0%,100%{ opacity:1; }
+      50%{ opacity:0.65; }
+    }
   `;
   document.head.appendChild(style);
 
@@ -757,39 +975,26 @@ export function createShowControlPanel(editor, options = {}) {
           <div class="sb-ens-grid" id="fbxSlots"><div style="color:rgba(255,255,255,0.45);font-size:11px;padding:8px">FBX 목록 불러오는 중…</div></div>
           <div class="sb-ens-actions">
             <button type="button" class="sb-chip acc" id="ensAddSlotsToGroup">선택 → 그룹에 등록</button>
-            <button type="button" class="sb-chip" id="ensClearSlotSel">선택 해제</button>
           </div>
-          <div class="sb-ens-subtitle">등록된 멤버 · ${FORMATION_LABELS[activeGroup?.formation] || "격자"}</div>
+          <div class="sb-ens-subtitle">등록된 멤버 · 클릭 선택 · ${FORMATION_LABELS[getGroupStartFormation(activeGroup).formation] || "격자"}</div>
           <div class="sb-ens-grid" id="ensGrid"></div>
-        </div>
-
-        <div class="sb-ens-step">
-          <div class="sb-ens-step-num">2 · Formation</div>
-          <div class="sb-ens-subtitle" id="ensFmtHint">선택 구간 포메이션 · 기본 간격</div>
-          <div class="sb-ens-actions" id="ensFmtBtns">
-            <button type="button" class="sb-chip" data-fmt="grid">격자</button>
-            <button type="button" class="sb-chip" data-fmt="line">횡대 (X)</button>
-            <button type="button" class="sb-chip" data-fmt="lineZ">종렬 (Z)</button>
-            <button type="button" class="sb-chip" data-fmt="circle">원형</button>
-            <button type="button" class="sb-chip" data-fmt="scatter">산개</button>
-          </div>
-          <div class="sb-form" style="gap:6px;margin-top:4px">
-            <label>간격 (기본)</label>
-            <input id="gmSpace" type="number" step="1" min="0.5" value="${Number(activeGroup?.formationSpacing || 30)}" />
+          <div class="sb-ens-actions">
+            <button type="button" class="sb-chip del mem-unreg" id="ensRemoveMembersFromGroup">선택 해제 (그룹 밖으로)</button>
           </div>
         </div>
 
         <div class="sb-ens-step">
-          <div class="sb-ens-step-num">3 · 그룹 애니메이션 (구간)</div>
+          <div class="sb-ens-step-num">2 · 그룹 애니메이션 (구간)</div>
           <div id="ensGroupMove"></div>
           <div class="sb-ens-actions">
-            <button type="button" class="sb-chip cy ${pathPick?.mode === "from" ? "on" : ""}" id="ensPlaceFrom">시작 위치 (무대 클릭)</button>
-            <button type="button" class="sb-chip acc" id="ensAddSegment">+ 구간 추가</button>
+            <button type="button" class="sb-chip seg-move" id="ensAddSegment">+ 이동</button>
+            <button type="button" class="sb-chip seg-hold" id="ensAddHold">+ 대기</button>
+            <button type="button" class="sb-chip seg-exit" id="ensAddExit">+ 퇴장</button>
           </div>
         </div>
 
         <div class="sb-ens-step">
-          <div class="sb-ens-step-num">4 · 배치</div>
+          <div class="sb-ens-step-num">3 · 배치</div>
           <div class="sb-ens-actions">
             <button type="button" class="sb-chip acc" id="ensDeployGroup">그룹 GO (스테이지 배치)</button>
           </div>
@@ -870,18 +1075,23 @@ export function createShowControlPanel(editor, options = {}) {
     const remountGroupsSection = () => {
       syncStandby();
       mountGroupSection(host);
+      syncStagePickOverlay(editor);
     };
 
+    bindStagePickEsc(editor);
+    editor._syncStagePickOverlay = () => syncStagePickOverlay(editor);
     editor._showControlPathPickDone = () => remountGroupsSection();
 
     renderGroupTabs();
 
     const grid = paneR.querySelector("#ensGrid");
     const members = activeGroup?.members || [];
+    const firstSeg = activeGroup?.segments?.[0];
+    const startFmt = getGroupStartFormation(activeGroup);
     const offsets = computeFormationOffsets(
       members.length,
-      activeGroup?.segments?.[0]?.formation || activeGroup?.formation || "grid",
-      activeGroup?.formationSpacing ?? 30,
+      startFmt.formation,
+      startFmt.spacing,
     );
 
     if (!members.length) {
@@ -900,20 +1110,33 @@ export function createShowControlPanel(editor, options = {}) {
           ? editor.scene?.getObjectByProperty?.("uuid", member.deployedUuid)
           : null;
         const off = offsets[i] || { x: 0, z: 0 };
+        const isMemberSel = editor.showControl.selectedGroupMemberIds?.has(member.id);
         const cell = document.createElement("div");
-        cell.className = "sb-ens-cell";
+        cell.className = "sb-ens-cell" + (isMemberSel ? " on" : "");
         cell.innerHTML = `
           <div class="sb-fbx-slot-num">${slotNum}</div>
           <div class="lbl">${title}</div>
           <small>${deployed ? "LIVE" : "PLANNED"}</small>
         `;
-        cell.title = `오프셋 X:${off.x.toFixed(1)} Z:${off.z.toFixed(1)}`;
+        cell.title = `클릭: 선택 · Ctrl+클릭: 다중 선택 · 오프셋 X:${off.x.toFixed(1)} Z:${off.z.toFixed(1)}`;
+        cell.onclick = (e) => {
+          e.stopPropagation();
+          if (e.ctrlKey || e.metaKey) {
+            editor.showControl.toggleGroupMemberSelection(member.id);
+          } else {
+            editor.showControl.clearGroupMemberSelection();
+            editor.showControl.toggleGroupMemberSelection(member.id);
+          }
+          sharedUI.refreshAll();
+        };
         cell.oncontextmenu = (e) => {
           e.preventDefault();
           editor.showControl.removeMemberFromGroup(activeGroup.id, member.id);
           sharedUI.refreshAll();
         };
-        if (deployed) cell.onclick = () => editor.select?.(deployed);
+        cell.ondblclick = () => {
+          if (deployed) editor.select?.(deployed);
+        };
         grid.appendChild(cell);
       });
     }
@@ -928,17 +1151,14 @@ export function createShowControlPanel(editor, options = {}) {
       moveHost.innerHTML = `
         <div class="sb-form" style="gap:6px">
           <label>Start (초)</label><input id="gmStart" type="number" step="0.1" value="${Number(activeGroup.startTime || 0)}" />
-          <label>총 Duration</label><input type="text" readonly value="${totalDur.toFixed(1)}초 (구간 합)" style="opacity:0.75" />
-          <label>From X</label><input id="gmFx" type="number" step="0.1" value="${Number(activeGroup.fromX || 0)}" />
-          <label>From Z</label><input id="gmFz" type="number" step="0.1" value="${Number(activeGroup.fromZ || 0)}" />
-          <label>From Rot Y (°)</label><input id="gmFry" type="number" step="1" value="${Number(activeGroup.fromRotY || 0)}" />
+          <label>공연 길이</label><input type="text" readonly title="각 구간 Duration을 더한 값 — 무대에 보이는 시간" value="${totalDur.toFixed(1)}초 (구간 합)" style="opacity:0.75" />
         </div>
         <div id="ensSegments"></div>
         ${hasDeployed ? `<div class="sb-ens-actions" style="margin-top:6px;flex-wrap:wrap">
           <button type="button" class="sb-chip acc" id="ensSyncGroupTimelineSel">선택 트랙 반영</button>
           <button type="button" class="sb-chip" id="ensSyncGroupTimelineAll">그룹 전체 반영</button>
         </div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.42);margin-top:4px">구간마다 포메이션·끝 위치·시간을 다르게 줄 수 있습니다. GO / 반영 시 구간 수만큼 키프레임이 생성됩니다.</div>` : ""}
+        <div style="font-size:10px;color:rgba(255,255,255,0.42);margin-top:4px">구간마다 시작·끝 포메이션·간격·위치를 다르게 줄 수 있습니다. GO / 반영 시 키프레임이 생성됩니다.</div>` : ""}
       `;
 
       const segHost = moveHost.querySelector("#ensSegments");
@@ -947,22 +1167,65 @@ export function createShowControlPanel(editor, options = {}) {
       segments.forEach((seg, idx) => {
         const isOn = seg.id === selSeg?.id;
         const pickOn = pathPick?.mode === "segmentAnchor" && pathPick?.segmentId === seg.id;
+        const kind = seg.kind || SEGMENT_KIND.move;
+        const isHold = kind === SEGMENT_KIND.hold;
+        const isExit = kind === SEGMENT_KIND.exit;
+        const anchorXLbl = isExit ? "퇴장 X" : "끝 X";
+        const anchorZLbl = isExit ? "퇴장 Z" : "끝 Z";
+        const pickLbl = isExit ? "퇴장 위치 (무대 클릭)" : "끝 위치 (무대 클릭)";
+        const pickFromOn = pathPick?.mode === "from";
+        const startFmt = getGroupStartFormation(activeGroup);
+        const startFmtSection = idx === 0 && !isHold ? `
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:6px;margin-bottom:4px">시작 포메이션</div>
+            <div class="sb-ens-seg-fmt" data-from-fmt></div>
+            <div class="sb-form" style="gap:4px;margin-top:4px">
+              <label>간격</label><input data-from-space type="number" step="1" min="0.5" value="${startFmt.spacing}" />
+            </div>
+        ` : "";
+        const startBlock = idx === 0 ? `
+          <div class="sb-ens-seg-start" style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)">
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">시작 위치 (첫 키)</div>
+            <div class="sb-form" style="gap:4px">
+              <label>From X</label><input id="gmFx" type="number" step="0.1" value="${Number(activeGroup.fromX || 0)}" />
+              <label>From Z</label><input id="gmFz" type="number" step="0.1" value="${Number(activeGroup.fromZ || 0)}" />
+            </div>
+            ${stagePickButtonHtml({ active: pickFromOn, title: "시작 위치", dataAttr: "seg-pick-from" })}
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">시작 Y 회전 (30°)</div>
+            <div class="sb-ens-seg-rot" data-from-rot style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px"></div>
+            ${startFmtSection}
+          </div>
+        ` : "";
+        const endFmtSection = !isHold ? `
+          <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:2px">끝 포메이션</div>
+          <div class="sb-ens-seg-fmt" data-seg-fmt-end="${seg.id}"></div>
+          <div class="sb-form" style="gap:4px;margin-top:4px">
+            <label>간격</label><input data-seg-space="${seg.id}" type="number" step="1" min="0.5" value="${getSegmentSpacing(activeGroup, seg)}" />
+          </div>` : "";
         const card = document.createElement("div");
         card.className = "sb-ens-seg" + (isOn ? " on" : "");
         card.innerHTML = `
           <div class="sb-ens-seg-hd">
             <strong>구간 ${idx + 1}</strong>
-            <span style="margin-left:auto;color:rgba(255,255,255,0.4)">${FORMATION_LABELS[seg.formation] || seg.formation}</span>
+            <span class="sb-chip sb-seg-kind ${kind}" style="margin-left:6px;padding:1px 6px;font-size:10px">${SEGMENT_KIND_LABELS[kind] || kind}</span>
+            <span style="margin-left:auto;color:rgba(255,255,255,0.4)">${isHold ? "자세 유지" : (idx === 0 && startFmt.formation !== seg.formation ? `${FORMATION_LABELS[startFmt.formation] || startFmt.formation} → ${FORMATION_LABELS[seg.formation] || seg.formation}` : (FORMATION_LABELS[seg.formation] || seg.formation))}</span>
             ${segments.length > 1 ? `<button type="button" class="sb-chip del" data-seg-del="${seg.id}" style="padding:2px 6px;font-size:10px">삭제</button>` : ""}
           </div>
+          ${startBlock}
           <div class="sb-form" style="gap:4px">
             <label>Duration</label><input data-seg-dur="${seg.id}" type="number" step="0.1" min="0.1" value="${Number(seg.duration || 3)}" />
-            <label>끝 X</label><input data-seg-ax="${seg.id}" type="number" step="0.1" value="${Number(seg.anchorX || 0)}" />
-            <label>끝 Z</label><input data-seg-az="${seg.id}" type="number" step="0.1" value="${Number(seg.anchorZ || 0)}" />
-            <label>끝 Rot Y°</label><input data-seg-ry="${seg.id}" type="number" step="1" value="${Number(seg.toRotY || 0)}" />
+            ${isHold ? "" : `
+            <label>${anchorXLbl}</label><input data-seg-ax="${seg.id}" type="number" step="0.1" value="${Number(seg.anchorX || 0)}" />
+            <label>${anchorZLbl}</label><input data-seg-az="${seg.id}" type="number" step="0.1" value="${Number(seg.anchorZ || 0)}" />
+            `}
           </div>
-          <div class="sb-ens-seg-fmt" data-seg-fmt="${seg.id}"></div>
-          <button type="button" class="sb-chip cy ${pickOn ? "on" : ""}" data-seg-pick="${seg.id}">끝 위치 (무대 클릭)</button>
+          ${isHold ? "" : `
+          ${stagePickButtonHtml({ active: pickOn, title: pickLbl.replace(/ \(무대 클릭\)$/, ""), dataAttr: "seg-pick", dataValue: seg.id })}
+          <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:4px">끝 Y 회전 (30°)</div>
+          <div class="sb-ens-seg-rot" data-seg-rot="${seg.id}" style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0"></div>
+          <div class="sb-ens-seg-ease" data-seg-ease="${seg.id}" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 4px">
+            <span style="font-size:10px;color:rgba(255,255,255,0.45);margin-right:2px">Easing</span>
+          </div>
+          ${endFmtSection}`}
         `;
         card.onclick = (e) => {
           if (e.target.closest("button,input")) return;
@@ -971,20 +1234,63 @@ export function createShowControlPanel(editor, options = {}) {
         };
         segHost.appendChild(card);
 
-        const fmtRow = card.querySelector(`[data-seg-fmt="${seg.id}"]`);
-        fmtTypes.forEach((fmt) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = "sb-chip" + (seg.formation === fmt ? " on cy" : "");
-          b.textContent = FORMATION_LABELS[fmt] || fmt;
-          b.onclick = (e) => {
-            e.stopPropagation();
+        const fromFmtRow = card.querySelector("[data-from-fmt]");
+        const fmtRow = card.querySelector(`[data-seg-fmt-end="${seg.id}"]`);
+        const easeRow = card.querySelector(`[data-seg-ease="${seg.id}"]`);
+        if (!isHold && easeRow) {
+          [SEGMENT_EASING.linear, SEGMENT_EASING.smooth].forEach((easeKey) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "sb-chip" + ((seg.easing || SEGMENT_EASING.smooth) === easeKey ? " on cy" : "");
+            b.textContent = SEGMENT_EASING_LABELS[easeKey] || easeKey;
+            b.onclick = (e) => {
+              e.stopPropagation();
+              editor.showControl.setSelectedSegmentId(seg.id);
+              editor.showControl.updateGroupSegment(activeGroup.id, seg.id, { easing: easeKey });
+              sharedUI.refreshAll();
+            };
+            easeRow.appendChild(b);
+          });
+        }
+        const rotRow = card.querySelector(`[data-seg-rot="${seg.id}"]`);
+        if (rotRow) {
+          mountRotYChips(rotRow, seg.toRotY || 0, async (deg) => {
+            editor.showControl.setSelectedSegmentId(seg.id);
+            editor.showControl.updateGroupSegment(activeGroup.id, seg.id, { toRotY: deg });
+            await editor.showControl.syncGroupTimeline(activeGroup.id, "all");
+            sharedUI.refreshAll();
+          });
+        }
+        const fromRotRow = card.querySelector("[data-from-rot]");
+        if (fromRotRow) {
+          mountRotYChips(fromRotRow, activeGroup.fromRotY || 0, async (deg) => {
+            editor.showControl.updateGroup(activeGroup.id, { fromRotY: deg });
+            await editor.showControl.syncGroupTimeline(activeGroup.id, "all");
+            remountGroupsSection();
+          });
+        }
+        if (fromFmtRow) {
+          mountFormationChips(fromFmtRow, startFmt.formation, fmtTypes, async (fmt) => {
+            editor.showControl.updateGroup(activeGroup.id, { fromFormation: fmt });
+            await editor.showControl.syncGroupTimeline(activeGroup.id, "all");
+            sharedUI.refreshAll();
+          });
+        }
+        card.querySelector("[data-from-space]")?.addEventListener("change", async (e) => {
+          editor.showControl.updateGroup(activeGroup.id, {
+            fromFormationSpacing: Number(e.target.value),
+          });
+          await editor.showControl.syncGroupTimeline(activeGroup.id, "all");
+          sharedUI.refreshAll();
+        });
+        if (!isHold && fmtRow) {
+          mountFormationChips(fmtRow, seg.formation, fmtTypes, async (fmt) => {
             editor.showControl.setSelectedSegmentId(seg.id);
             editor.showControl.setGroupFormation(activeGroup.id, fmt, seg.id);
+            await editor.showControl.syncGroupTimeline(activeGroup.id, "all");
             sharedUI.refreshAll();
-          };
-          fmtRow.appendChild(b);
-        });
+          });
+        }
 
         card.querySelector(`[data-seg-dur="${seg.id}"]`)?.addEventListener("change", (e) => {
           editor.showControl.updateGroupSegment(activeGroup.id, seg.id, { duration: Number(e.target.value) });
@@ -996,8 +1302,13 @@ export function createShowControlPanel(editor, options = {}) {
         card.querySelector(`[data-seg-az="${seg.id}"]`)?.addEventListener("change", (e) => {
           editor.showControl.updateGroupSegment(activeGroup.id, seg.id, { anchorZ: Number(e.target.value) });
         });
-        card.querySelector(`[data-seg-ry="${seg.id}"]`)?.addEventListener("change", (e) => {
-          editor.showControl.updateGroupSegment(activeGroup.id, seg.id, { toRotY: Number(e.target.value) });
+        card.querySelector(`[data-seg-space="${seg.id}"]`)?.addEventListener("change", async (e) => {
+          editor.showControl.setSelectedSegmentId(seg.id);
+          editor.showControl.updateGroupSegment(activeGroup.id, seg.id, {
+            formationSpacing: Number(e.target.value),
+          });
+          await editor.showControl.syncGroupTimeline(activeGroup.id, "all");
+          sharedUI.refreshAll();
         });
         const pickBtn = card.querySelector(`[data-seg-pick="${seg.id}"]`);
         if (pickBtn) {
@@ -1005,6 +1316,17 @@ export function createShowControlPanel(editor, options = {}) {
             e.stopPropagation();
             editor.showControl.setSelectedSegmentId(seg.id);
             editor.showControl.setGroupPathPickMode(activeGroup.id, "segmentAnchor", seg.id);
+            syncStagePickOverlay(editor);
+            remountGroupsSection();
+          };
+        }
+        const pickFromBtn = card.querySelector("[data-seg-pick-from]");
+        if (pickFromBtn) {
+          pickFromBtn.onclick = (e) => {
+            e.stopPropagation();
+            editor.showControl.setSelectedSegmentId(seg.id);
+            editor.showControl.setGroupPathPickMode(activeGroup.id, "from");
+            syncStagePickOverlay(editor);
             remountGroupsSection();
           };
         }
@@ -1027,7 +1349,6 @@ export function createShowControlPanel(editor, options = {}) {
       bindGroupField("#gmStart", "startTime");
       bindGroupField("#gmFx", "fromX");
       bindGroupField("#gmFz", "fromZ");
-      bindGroupField("#gmFry", "fromRotY");
 
       const runSync = async (scope) => {
         const result = await editor.showControl.syncGroupTimeline(activeGroup.id, scope);
@@ -1045,33 +1366,6 @@ export function createShowControlPanel(editor, options = {}) {
       moveHost.querySelector("#ensSyncGroupTimelineAll")?.addEventListener("click", () => runSync("all"));
     }
 
-    const fmtHint = paneR.querySelector("#ensFmtHint");
-    if (fmtHint && activeGroup) {
-      const sel = editor.showControl.getSelectedSegment(activeGroup);
-      fmtHint.textContent = sel
-        ? `구간 ${(activeGroup.segments?.indexOf(sel) ?? 0) + 1} 포메이션 · ${FORMATION_LABELS[sel.formation] || sel.formation}`
-        : "구간을 선택하면 포메이션 적용 대상이 바뀝니다";
-    }
-
-    const spaceInput = paneR.querySelector("#gmSpace");
-    spaceInput?.addEventListener("change", () => {
-      if (!activeGroup?.id) return;
-      editor.showControl.updateGroup(activeGroup.id, { formationSpacing: Number(spaceInput.value) });
-    });
-
-    paneR.querySelectorAll("#ensFmtBtns [data-fmt]").forEach((btn) => {
-      const fmt = btn.dataset.fmt;
-      const selSeg = editor.showControl.getSelectedSegment(activeGroup);
-      const curFmt = selSeg?.formation || activeGroup?.formation;
-      btn.classList.toggle("on", curFmt === fmt);
-      btn.classList.toggle("cy", curFmt === fmt);
-      btn.onclick = () => {
-        if (!activeGroup?.id) return;
-        editor.showControl.setGroupFormation(activeGroup.id, fmt, selSeg?.id);
-        sharedUI.refreshAll();
-      };
-    });
-
     paneR.querySelector("#ensAddSlotsToGroup").onclick = async () => {
       const g = editor.showControl.getSelectedGroup();
       if (!g) return;
@@ -1084,9 +1378,15 @@ export function createShowControlPanel(editor, options = {}) {
       if (!added) window.alert("그룹 등록에 실패했습니다.");
       sharedUI.refreshAll();
     };
-    paneR.querySelector("#ensClearSlotSel").onclick = () => {
-      editor.showControl.clearFbxSlotSelection();
-      sharedUI.refreshAll();
+    paneR.querySelector("#ensRemoveMembersFromGroup").onclick = () => {
+      const g = editor.showControl.getSelectedGroup();
+      if (!g) return;
+      if (!editor.showControl.selectedGroupMemberIds.size) {
+        window.alert("아래 등록된 멤버에서 해제할 객체를 먼저 선택하세요.");
+        return;
+      }
+      const removed = editor.showControl.removeSelectedMembersFromGroup(g.id);
+      if (removed) sharedUI.refreshAll();
     };
 
     paneR.querySelector("#ensNewGroup").onclick = () => {
@@ -1144,18 +1444,30 @@ export function createShowControlPanel(editor, options = {}) {
         btn.disabled = false;
       }
     };
-    paneR.querySelector("#ensPlaceFrom").onclick = () => {
-      const g = editor.showControl.getSelectedGroup();
-      if (!g) return;
-      editor.showControl.setGroupPathPickMode(g.id, "from");
-      remountGroupsSection();
-    };
     const addSegBtn = paneR.querySelector("#ensAddSegment");
     if (addSegBtn) {
       addSegBtn.onclick = () => {
         const g = editor.showControl.getSelectedGroup();
         if (!g) return;
-        editor.showControl.addGroupSegment(g.id);
+        editor.showControl.addGroupSegment(g.id, SEGMENT_KIND.move);
+        remountGroupsSection();
+      };
+    }
+    const addHoldBtn = paneR.querySelector("#ensAddHold");
+    if (addHoldBtn) {
+      addHoldBtn.onclick = () => {
+        const g = editor.showControl.getSelectedGroup();
+        if (!g) return;
+        editor.showControl.addGroupSegment(g.id, SEGMENT_KIND.hold);
+        remountGroupsSection();
+      };
+    }
+    const addExitBtn = paneR.querySelector("#ensAddExit");
+    if (addExitBtn) {
+      addExitBtn.onclick = () => {
+        const g = editor.showControl.getSelectedGroup();
+        if (!g) return;
+        editor.showControl.addGroupSegment(g.id, SEGMENT_KIND.exit);
         remountGroupsSection();
       };
     }
@@ -1248,7 +1560,7 @@ export function createShowControlPanel(editor, options = {}) {
           </div>
         </div>
         <div class="hint" style="margin-top:10px;color:rgba(255,255,255,0.55);font-size:11px">
-          Formation(격자/횡대/원형/산개)으로 대형 배치 · GROUP MOVE에서 시간·이동 설정 · GO 시 전원 동시 애니메이션
+          모션 객체를 등록한 뒤 그룹 애니메이션 구간에서 포메이션·이동을 설정하고 GO로 배치합니다.
         </div>
       `;
 

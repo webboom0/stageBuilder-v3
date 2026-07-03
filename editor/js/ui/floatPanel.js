@@ -4,25 +4,26 @@ function createPanel(title, contentDom) {
     panel.style.position = 'relative';
 
     const header = document.createElement('div');
-    header.className = 'panel-header';
-    header.textContent = title;
+    header.className = 'panel-header sb-dock-panel-head';
+
+    const titleEl = document.createElement('span');
+    titleEl.className = 'sb-dock-section-label sb-dock-panel-head-title';
+    titleEl.textContent = title;
+    header.dataset.panelTitle = title;
+    header.appendChild(titleEl);
     const bttuonGroup = document.createElement('div');
     bttuonGroup.className = 'button-group';
-    bttuonGroup.style.display = 'flex';
-    bttuonGroup.style.justifyContent = 'flex-end';
-    bttuonGroup.style.gap = '2px';
     header.appendChild(bttuonGroup);
 
     const undockBtn = document.createElement('button');
-    undockBtn.textContent = '⧉'; // undock 아이콘
-    undockBtn.style.float = 'right';
+    undockBtn.type = 'button';
+    undockBtn.textContent = '⧉';
     undockBtn.title = '분리/도킹';
     bttuonGroup.appendChild(undockBtn);
 
     const collapseBtn = document.createElement('button');
-    collapseBtn.textContent = '−'; // 접기
-    collapseBtn.style.float = 'right';
-    collapseBtn.style.marginRight = '4px';
+    collapseBtn.type = 'button';
+    collapseBtn.textContent = '−';
     collapseBtn.title = '패널 접기/펼치기';
     bttuonGroup.appendChild(collapseBtn);
 

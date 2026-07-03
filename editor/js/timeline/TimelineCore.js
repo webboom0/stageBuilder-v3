@@ -5,7 +5,8 @@ import * as THREE from "three";
 export const INTERPOLATION = {
   LINEAR: 0,
   BEZIER: 1,
-  STEP: 2
+  STEP: 2,
+  SMOOTHSTEP: 3,
 };
 
 // 키프레임 이벤트 타입
@@ -607,6 +608,10 @@ export class TrackData {
       switch (this.interpolations[prevIndex]) {
         case INTERPOLATION.LINEAR:
           return prevValue.lerp(nextValue, t);
+        case INTERPOLATION.SMOOTHSTEP: {
+          const s = t * t * (3 - 2 * t);
+          return prevValue.lerp(nextValue, s);
+        }
         case INTERPOLATION.STEP:
           return prevValue;
         case INTERPOLATION.BEZIER:
@@ -1368,10 +1373,27 @@ export class TimelineData {
             if (clipInfo) {
               // clipInfo.left는 전체 타임라인에 대한 퍼센트 위치
               // 실제 시간으로 변환하려면 전체 타임라인 시간이 필요
-              const totalTimelineSeconds = clipInfo.totalTimelineSeconds || this.maxTime || 20; // 기본값 20초
-              const clipStartTime = (clipInfo.left / 100) * totalTimelineSeconds;
-              const clipDuration = clipInfo.duration;
-              const clipEndTime = clipStartTime + clipDuration;
+              const totalTimelineSeconds = clipInfo.totalTimelineSeconds || this.maxTime || 20;
+              let clipStartTime;
+              let clipEndTime;
+              if (clipInfo.scGroupClip === 'full') {
+                clipStartTime = parseFloat(clipInfo.playStart) || 0;
+                const endsWithExit =
+                  clipInfo.endsWithExit ||
+                  clipInfo.hideAfterShow;
+                if (endsWithExit) {
+                  clipEndTime = parseFloat(clipInfo.playEnd);
+                  if (!Number.isFinite(clipEndTime)) {
+                    clipEndTime = clipStartTime + (parseFloat(clipInfo.playDuration) || 0);
+                  }
+                } else {
+                  clipEndTime = totalTimelineSeconds;
+                }
+              } else {
+                clipStartTime = (clipInfo.left / 100) * totalTimelineSeconds;
+                clipEndTime = clipStartTime + clipInfo.duration;
+              }
+              const clipDuration = clipEndTime - clipStartTime;
               
               console.log(`🎬 클립 정보로 visible 계산: ${objectUuid}`);
               console.log(`🎬 클립 시작: ${clipStartTime}s, 지속: ${clipDuration}s, 종료: ${clipEndTime}s`);

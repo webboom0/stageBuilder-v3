@@ -15,9 +15,56 @@ import { getMotionObjects } from '../utils/motionTimelineAutoTrack.js';
 
 const MOTION_KF_PROPERTIES = ['position', 'rotation', 'scale'];
 
+const KEYFRAME_EASING = {
+    linear: INTERPOLATION.LINEAR,
+    smooth: INTERPOLATION.SMOOTHSTEP,
+};
+
+const KEYFRAME_EASING_LABELS = {
+    linear: 'Linear',
+    smooth: 'Smooth',
+};
+
+const DEFAULT_MOTION_KF_INTERPOLATION = INTERPOLATION.SMOOTHSTEP;
+
 export class MotionTimeline extends BaseTimeline {
     // 클립 범위 체크용 오차 범위 (초 단위) - 클립 0 위치 근처 키프레임 선택 허용
     static CLIP_RANGE_TOLERANCE = 0.5;
+
+    // 클립 범위 확인 (그룹 트랙: playStart~playEnd, UI 클립은 전체 타임라인)
+    static resolveSpriteTimeRange(sprite, totalSeconds) {
+        if (!sprite) {
+            return { playStart: 0, playEnd: totalSeconds, editStart: 0, editEnd: totalSeconds };
+        }
+        if (sprite.dataset.scGroupClip === 'full') {
+            const playStart = parseFloat(sprite.dataset.playStart) || 0;
+            const endsWithExit =
+                sprite.dataset.endsWithExit === '1' ||
+                sprite.dataset.hideAfterShow === '1';
+            let playEnd;
+            if (endsWithExit) {
+                playEnd = parseFloat(sprite.dataset.playEnd);
+                if (!Number.isFinite(playEnd)) {
+                    const pd = parseFloat(sprite.dataset.playDuration) || 0;
+                    playEnd = playStart + (Number.isFinite(pd) ? pd : 0);
+                }
+            } else {
+                playEnd = totalSeconds;
+            }
+            return {
+                playStart,
+                playEnd,
+                editStart: 0,
+                editEnd: totalSeconds,
+                endsWithExit,
+            };
+        }
+        const clipLeft = parseFloat(sprite.style.left) || 0;
+        const clipDuration = parseFloat(sprite.dataset.duration) || 5;
+        const playStart = (clipLeft / 100) * totalSeconds;
+        const playEnd = playStart + clipDuration;
+        return { playStart, playEnd, editStart: playStart, editEnd: playEnd };
+    }
 
     constructor(editor, options) {
         super(editor, options);
@@ -838,7 +885,7 @@ export class MotionTimeline extends BaseTimeline {
                     // 새 키프레임 추가 (position만 이벤트 발생, 나머지는 내부 데이터만 저장)
                     if (type === 'position') {
                         // position은 정상적으로 addKeyframe 호출 (이벤트 발생)
-                        if (!track.addKeyframe(timeInSeconds, value)) {
+                        if (!track.addKeyframe(timeInSeconds, value, DEFAULT_MOTION_KF_INTERPOLATION)) {
                             console.warn(`${type} 키프레임 추가 실패:`, { timeInSeconds, value });
                             success = false;
                         } else {
@@ -851,7 +898,10 @@ export class MotionTimeline extends BaseTimeline {
                         track.values[index * 3] = value.x;
                         track.values[index * 3 + 1] = value.y;
                         track.values[index * 3 + 2] = value.z;
-                        track.interpolations[index] = track.interpolations[0] || 0;
+                        track.interpolations[index] =
+                            track.keyframeCount > 0
+                                ? track.interpolations[0]
+                                : DEFAULT_MOTION_KF_INTERPOLATION;
                         track.keyframeCount++;
                         track.dirty = true;
                         track.sortKeyframes();
@@ -882,8 +932,10 @@ export class MotionTimeline extends BaseTimeline {
 
         // TimelineData 업데이트 (UI는 이벤트로 자동 업데이트됨)
         this.timelineData.dirty = true;
-        this.timelineData.precomputeAnimationData(this.getClipInfoCallback(), this.totalSeconds, this.fps);
-        this.updateAnimation();
+        if (!this._inHistoryPlayback) {
+            this.timelineData.precomputeAnimationData(this.getClipInfoCallback(), this.totalSeconds, this.fps);
+            this.updateAnimation();
+        }
 
         return true;
     }
@@ -1015,15 +1067,8 @@ export class MotionTimeline extends BaseTimeline {
 
             if (sprites.length > 0) {
                 sprites.forEach(sprite => {
-                    const clipLeft = parseFloat(sprite.style.left) || 0;
-                    const clipStartTime = (clipLeft / 100) * this.options.totalSeconds;
-                    const clipDuration = parseFloat(sprite.dataset.duration) || 5;
-                    const clipEndTime = clipStartTime + clipDuration;
-
-
-
-                    // 현재 시간이 클립 범위에 있는지 확인
-                    if (currentTime >= clipStartTime && currentTime <= clipEndTime) {
+                    const range = MotionTimeline.resolveSpriteTimeRange(sprite, this.options.totalSeconds);
+                    if (currentTime >= range.playStart && currentTime <= range.playEnd) {
                         isInActiveClip = true;
                     }
                 });
@@ -1105,14 +1150,10 @@ export class MotionTimeline extends BaseTimeline {
             let clipRelativeTime = 0;
 
             sprites.forEach(sprite => {
-                const clipLeft = parseFloat(sprite.style.left) || 0;
-                const clipStartTime = (clipLeft / 100) * this.options.totalSeconds;
-                const clipDuration = parseFloat(sprite.dataset.duration) || 5;
-                const clipEndTime = clipStartTime + clipDuration;
-
-                if (currentTime >= clipStartTime && currentTime <= clipEndTime) {
+                const range = MotionTimeline.resolveSpriteTimeRange(sprite, this.options.totalSeconds);
+                if (currentTime >= range.playStart && currentTime <= range.playEnd) {
                     isInActiveClip = true;
-                    clipRelativeTime = currentTime - clipStartTime;
+                    clipRelativeTime = currentTime - range.playStart;
                 }
             });
 
@@ -1594,7 +1635,7 @@ export class MotionTimeline extends BaseTimeline {
         };
 
         // 보간 방식 가져오기
-        const interpolation = trackData.interpolations[keyframeIndex] || INTERPOLATION.LINEAR;
+        const interpolation = trackData.interpolations[keyframeIndex];
 
         // 선택된 키프레임 정보 저장
         this.selectedKeyframe = {
@@ -1738,9 +1779,110 @@ export class MotionTimeline extends BaseTimeline {
         }
     }
 
+    _easingKeyFromInterpolation(interp) {
+        return interp === INTERPOLATION.SMOOTHSTEP ? 'smooth' : 'linear';
+    }
+
+    _setKeyframeInspectorVisible(visible) {
+        const tab = this.editor?.tabRoot;
+        const host =
+            tab?.querySelector("#keyframe-property-panel") ||
+            document.getElementById("keyframe-property-panel");
+        if (!host) return;
+        host.hidden = !visible;
+        host.classList.toggle("kf-active", !!visible);
+    }
+
+    setSelectedKeyframeEasing(easeKey) {
+        if (!this.selectedKeyframe) return;
+        const interp =
+            easeKey === 'smooth' ? KEYFRAME_EASING.smooth : KEYFRAME_EASING.linear;
+        const { objectId, time, property } = this.selectedKeyframe;
+        const trackData = this.timelineData.tracks.get(objectId)?.get(property);
+        if (!trackData) return;
+
+        const index =
+            this.selectedKeyframe.index ??
+            trackData.findKeyframeIndex(time);
+        if (index === -1 || index === undefined) return;
+
+        MOTION_KF_PROPERTIES.forEach((prop) => {
+            const track = this.timelineData.tracks.get(objectId)?.get(prop);
+            if (!track) return;
+            const idx = track.findKeyframeIndex(time);
+            if (idx !== -1) track.interpolations[idx] = interp;
+        });
+
+        this.selectedKeyframe.interpolation = interp;
+        if (this.editor.scene?.userData?.timeline?.selectedKeyframe) {
+            this.editor.scene.userData.timeline.selectedKeyframe.interpolation = interp;
+        }
+
+        this.timelineData.dirty = true;
+        this.timelineData.precomputeAnimationData?.(
+            this.getClipInfoCallback?.(),
+            this.totalSeconds ?? this.options?.totalSeconds ?? 180,
+            this.fps,
+        );
+        this.updateAnimation?.(this.currentTime);
+        this._updateEaseChipState();
+        this.editor.signals?.timelineChanged?.dispatch?.();
+    }
+
+    _updateEaseChipState() {
+        const chips = this.propertyPanel?.easeChips;
+        const easeRow = this.propertyPanel?.easeRow;
+        if (!chips || !easeRow) return;
+
+        const hasSelection = !!this.selectedKeyframe?.value;
+        easeRow.classList.toggle('is-disabled', !hasSelection);
+
+        const easeKey = this._easingKeyFromInterpolation(
+            this.selectedKeyframe?.interpolation ?? DEFAULT_MOTION_KF_INTERPOLATION,
+        );
+        Object.entries(chips).forEach(([key, btn]) => {
+            const isOn = hasSelection && key === easeKey;
+            btn.classList.toggle('on', isOn);
+            btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+            btn.disabled = !hasSelection;
+        });
+    }
+
     createPropertyPanel() {
         const panel = new UIPanel();
         panel.setClass("property-panel");
+
+        const head = document.createElement('div');
+        head.className = 'sb-dock-section-head sb-kf-section-head';
+        head.innerHTML =
+            '<span class="sb-dock-section-label">KEYFRAME</span><span class="sb-dock-section-hint">easing · position</span>';
+        panel.dom.appendChild(head);
+
+        const easeRow = document.createElement('div');
+        easeRow.className = 'sb-kf-ease-row';
+        const easeLabel = document.createElement('span');
+        easeLabel.className = 'sb-kf-ease-label';
+        easeLabel.textContent = 'Easing';
+        const easeChips = document.createElement('div');
+        easeChips.className = 'sb-kf-ease-chips';
+        easeRow.append(easeLabel, easeChips);
+
+        const chips = {};
+        Object.entries(KEYFRAME_EASING_LABELS).forEach(([key, label]) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sb-chip sb-kf-ease-chip';
+            btn.dataset.ease = key;
+            btn.textContent = label;
+            btn.setAttribute('aria-pressed', 'false');
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.setSelectedKeyframeEasing(key);
+            });
+            easeChips.appendChild(btn);
+            chips[key] = btn;
+        });
+        panel.dom.appendChild(easeRow);
 
         const positionRow = new UIRow();
         positionRow.setClass("position-row");
@@ -1811,6 +1953,8 @@ export class MotionTimeline extends BaseTimeline {
         panel.posX = posX;
         panel.posY = posY;
         panel.posZ = posZ;
+        panel.easeRow = easeRow;
+        panel.easeChips = chips;
 
         return panel;
     }
@@ -1830,6 +1974,8 @@ export class MotionTimeline extends BaseTimeline {
             posX.setValue(0);
             posY.setValue(0);
             posZ.setValue(0);
+            this._setKeyframeInspectorVisible(false);
+            this._updateEaseChipState();
             return;
         }
 
@@ -1852,9 +1998,15 @@ export class MotionTimeline extends BaseTimeline {
                 : this.selectedKeyframe.value;
 
         this.selectedKeyframe.value = value;
+        this.selectedKeyframe.interpolation =
+            trackData && index !== undefined && index >= 0
+                ? trackData.interpolations[index]
+                : (this.selectedKeyframe.interpolation ?? DEFAULT_MOTION_KF_INTERPOLATION);
         posX.setValue(value.x);
         posY.setValue(value.y);
         posZ.setValue(value.z);
+        this._setKeyframeInspectorVisible(true);
+        this._updateEaseChipState();
     }
 
     addTrack(objectUuid, objectId, objectName, skipInitialKeyframe = false) {
@@ -2856,9 +3008,18 @@ export class MotionTimeline extends BaseTimeline {
         const keyframes = Array.from(keyframeLayer.querySelectorAll(".keyframe"));
         const spriteWidth = sprite.offsetWidth;
         const spriteLeft = parseFloat(sprite.style.left) || 0;
-        const clipStartTime = (spriteLeft / 100) * this.options.totalSeconds;
-        const clipDuration = parseFloat(sprite.dataset.duration) || 5;
-        const clipEndTime = clipStartTime + clipDuration;
+        let clipStartTime;
+        let clipDuration;
+        let clipEndTime;
+        if (sprite.dataset.scGroupClip === 'full') {
+            clipStartTime = 0;
+            clipDuration = this.options.totalSeconds;
+            clipEndTime = clipDuration;
+        } else {
+            clipStartTime = (spriteLeft / 100) * this.options.totalSeconds;
+            clipDuration = parseFloat(sprite.dataset.duration) || 5;
+            clipEndTime = clipStartTime + clipDuration;
+        }
 
         // 이전 클립 크기 정보 가져오기
         const previousClipDuration = parseFloat(sprite.dataset.previousDuration) || clipDuration;
@@ -4478,6 +4639,7 @@ export class MotionTimeline extends BaseTimeline {
                                 if (this.editor.scene.userData.timeline) {
                                     this.editor.scene.userData.timeline.selectedKeyframe = null;
                                 }
+                                this.updatePropertyPanel();
                             }
                             menu.remove();
                         } else {
@@ -5158,7 +5320,7 @@ export class MotionTimeline extends BaseTimeline {
     }
 
     // 키프레임 설정 (인덱스 기반)
-    setKeyframeByIndex(objectId, property, index, time, value, interpolation = INTERPOLATION.LINEAR) {
+    setKeyframeByIndex(objectId, property, index, time, value, interpolation = DEFAULT_MOTION_KF_INTERPOLATION) {
         const track = this.timelineData.getTrackById(objectId, property);
         if (track && track.setKeyframeByIndex(index, time, value, interpolation)) {
             this.timelineData.updateMaxTime(time);
@@ -5211,6 +5373,7 @@ export class MotionTimeline extends BaseTimeline {
             if (this.editor.scene?.userData?.timeline) {
                 this.editor.scene.userData.timeline.selectedKeyframe = null;
             }
+            this.updatePropertyPanel();
             return;
         }
 
@@ -5367,7 +5530,8 @@ export class MotionTimeline extends BaseTimeline {
     recreateUIFromSavedData(timelineData) {
         // console.log("=== UI 재생성 시작 ===");
 
-        // 기존 UI 트랙들 제거
+        // 기존 UI 트랙·그룹 폴더 제거
+        this.container.querySelectorAll(".timeline-track-group").forEach((folder) => folder.remove());
         const existingTracks = this.container.querySelectorAll('.timeline-track');
         existingTracks.forEach(track => track.remove());
 
@@ -5640,10 +5804,30 @@ export class MotionTimeline extends BaseTimeline {
     restoreClipData(trackElement, clipData) {
         const sprite = trackElement.querySelector('.animation-sprite');
         if (sprite && clipData) {
-            sprite.style.left = `${clipData.left}%`;
-            sprite.style.width = `${clipData.width}%`;
-            sprite.dataset.duration = clipData.duration.toString();
-            sprite.dataset.initialLeft = clipData.initialLeft.toString();
+            if (clipData.scGroupClip === 'full') {
+                sprite.style.left = '0%';
+                sprite.style.width = '100%';
+                sprite.dataset.scGroupClip = 'full';
+                sprite.dataset.playStart = String(clipData.playStart ?? 0);
+                sprite.dataset.playEnd = String(
+                    clipData.playEnd ??
+                    (Number(clipData.playStart) || 0) + (Number(clipData.playDuration) || 0),
+                );
+                sprite.dataset.playDuration = String(clipData.playDuration ?? 0);
+                sprite.dataset.endsWithExit = clipData.endsWithExit || clipData.hideAfterShow ? '1' : '0';
+                sprite.dataset.hideAfterShow = sprite.dataset.endsWithExit;
+                sprite.dataset.duration = String(clipData.duration ?? clipData.playDuration ?? 0);
+                sprite.dataset.initialLeft = '0';
+                trackElement.dataset.scGroupTrack = '1';
+            } else {
+                sprite.style.left = `${clipData.left}%`;
+                sprite.style.width = `${clipData.width}%`;
+                sprite.dataset.duration = clipData.duration.toString();
+                sprite.dataset.initialLeft = clipData.initialLeft.toString();
+                delete sprite.dataset.scGroupClip;
+                delete sprite.dataset.playStart;
+                delete sprite.dataset.playEnd;
+            }
         }
     }
 
@@ -5910,6 +6094,16 @@ export class MotionTimeline extends BaseTimeline {
                         initialLeft: parseFloat(sprite.dataset.initialLeft) || 0,
                         name: obj?.name || trackElement.dataset?.objectName || objectNames[objectUuid] || '',
                     };
+                    if (sprite.dataset.scGroupClip === 'full') {
+                        clipsData[objectUuid].scGroupClip = 'full';
+                        clipsData[objectUuid].playStart = parseFloat(sprite.dataset.playStart) || 0;
+                        clipsData[objectUuid].playEnd = parseFloat(sprite.dataset.playEnd) || 0;
+                        clipsData[objectUuid].playDuration = parseFloat(sprite.dataset.playDuration) || 0;
+                        clipsData[objectUuid].endsWithExit =
+                            sprite.dataset.endsWithExit === '1' ||
+                            sprite.dataset.hideAfterShow === '1';
+                        clipsData[objectUuid].hideAfterShow = clipsData[objectUuid].endsWithExit;
+                    }
                 };
 
                 this.timelineData.tracks.forEach((objectTracks, objectUuid) => {
@@ -5952,6 +6146,10 @@ export class MotionTimeline extends BaseTimeline {
                 // console.log("최종 timelineData:", timelineData);
                 this.editor.scene.userData.motionTimeline = timelineData;
                 console.log("scene.userData.motionTimeline 설정 완료");
+
+                import("../showcontrol/motionTimelineGroupFolder.js").then(({ persistGroupFoldersToUserData }) => {
+                    persistGroupFoldersToUserData(this.editor);
+                }).catch(() => {});
             } else {
                 console.warn("scene 또는 timelineData가 없습니다");
             }
@@ -5998,8 +6196,18 @@ export class MotionTimeline extends BaseTimeline {
                         width: parseFloat(sprite.style.width) || 100,
                         duration: parseFloat(sprite.dataset.duration) || 5,
                         initialLeft: parseFloat(sprite.dataset.initialLeft) || 0,
-                        totalTimelineSeconds: this.options.totalSeconds // 전체 타임라인 시간 추가
+                        totalTimelineSeconds: this.options.totalSeconds
                     };
+                    if (sprite.dataset.scGroupClip === 'full') {
+                        clipInfo.scGroupClip = 'full';
+                        clipInfo.playStart = parseFloat(sprite.dataset.playStart) || 0;
+                        clipInfo.playEnd = parseFloat(sprite.dataset.playEnd) || 0;
+                        clipInfo.playDuration = parseFloat(sprite.dataset.playDuration) || 0;
+                        clipInfo.endsWithExit =
+                            sprite.dataset.endsWithExit === '1' ||
+                            sprite.dataset.hideAfterShow === '1';
+                        clipInfo.hideAfterShow = clipInfo.endsWithExit;
+                    }
 
                     console.log(`🎬 스프라이트 클립 정보:`, clipInfo);
                     return clipInfo;
