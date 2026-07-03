@@ -164,6 +164,29 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     return list.length;
   }
 
+  function removeAllFixtureTracks() {
+    const ids = [];
+    lt.tracks.forEach((track, id) => {
+      if (isFixtureTrackId(id)) ids.push(id);
+    });
+
+    ids.forEach((id) => {
+      const track = lt.tracks.get(id);
+      track?.element?.remove();
+      lt.tracks.delete(id);
+      FIXTURE_TL_PROPS.forEach((prop) => {
+        lt.timelineData?.removeTrackById?.(id, prop);
+      });
+    });
+
+    if (ids.length) {
+      lt.timelineData.dirty = true;
+      lt.updateUI?.();
+    }
+
+    return ids.length;
+  }
+
   function readCapture(fid) {
     const engine = fe();
     return (
@@ -307,7 +330,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     f.prog = {};
   }
 
-  function applyAtTime(time) {
+  function applyAtTime(time, { syncSelected = false } = {}) {
     const engine = fe();
     if (!engine?.built) return;
 
@@ -315,6 +338,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     engine.isPlaying = playing;
 
     let anyTl = false;
+    let panelSync = false;
     engine.fixtures.forEach((f) => {
       f.tl = null;
     });
@@ -344,9 +368,13 @@ export function createFixtureLightBridge(lightTimeline, editor) {
       if (Object.keys(tl).length) {
         f.tl = tl;
         anyTl = true;
-        // 정지+스크럽: attr 동기화(선택 픽스처 프리뷰) / 재생: renderFixtures가 f.tl 직접 사용
         if (!playing) {
-          syncAttrFromTimeline(f, tl);
+          const preservePanel =
+            f.sel && f.prog && Object.keys(f.prog).length > 0;
+          if (!preservePanel || syncSelected) {
+            syncAttrFromTimeline(f, tl);
+            panelSync = true;
+          }
         } else {
           f.prog = {};
         }
@@ -355,7 +383,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
 
     engine.timelinePriority = anyTl;
     engine.update(time);
-    if (!playing) editor.refreshMaConsole?.();
+    if (!playing && panelSync) editor.refreshMaConsole?.();
     if (anyTl) editor.signals?.rendererUpdated?.dispatch?.();
   }
 
@@ -455,7 +483,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
       }
     }
 
-    applyAtTime(target);
+    applyAtTime(target, { syncSelected: true });
     return { success: true, time: target };
   }
 
@@ -481,6 +509,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
 
   return {
     ensureTracks,
+    removeAllFixtureTracks,
     applyAtTime,
     clearTimelineOverrides,
     addKeyframeAtPlayhead,

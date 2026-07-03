@@ -27,6 +27,10 @@ import {
   GRID_MODE_FIXED,
   computeStageGridSizes,
 } from "./utils/stageGridAdaptive.js";
+import {
+  isTimelinePlaying,
+  pauseTimelineIfPlaying,
+} from "./utils/timelinePlayback.js";
 
 function Viewport(editor) {
   const selector = editor.selector;
@@ -186,6 +190,37 @@ function Viewport(editor) {
   let objectRotationOnDown = null;
   let objectScaleOnDown = null;
 
+  function syncSelectionHelpersForPlayback() {
+    const playing = isTimelinePlaying(editor);
+    const hasSelection =
+      editor.selected !== null &&
+      editor.selected !== scene &&
+      editor.selected !== camera;
+
+    if (playing) {
+      selectionBox.visible = false;
+      transformControls.getHelper().visible = false;
+      if (objectDimensions.group.visible) {
+        objectDimensions.setObject(null);
+      }
+      return;
+    }
+
+    transformControls.getHelper().visible = true;
+    if (!hasSelection) {
+      selectionBox.visible = false;
+      objectDimensions.setObject(null);
+      return;
+    }
+
+    box.setFromObject(editor.selected, true);
+    selectionBox.visible = !box.isEmpty();
+    if (!transformControls.object) {
+      transformControls.attach(editor.selected);
+    }
+    objectDimensions.setObject(editor.selected);
+  }
+
   const transformControls = new TransformControls(camera, container.dom);
   editor.transformControls = transformControls;
   transformControls.addEventListener("axis-changed", function () {
@@ -238,6 +273,7 @@ function Viewport(editor) {
     signals.objectChanged.dispatch(object, { fromTransform: true });
   });
   transformControls.addEventListener("mouseDown", function () {
+    pauseTimelineIfPlaying(editor);
     const object = transformControls.object;
 
     objectPositionOnDown = object.position.clone();
@@ -735,18 +771,21 @@ function Viewport(editor) {
     transformControls.detach();
 
     if (object !== null && object !== scene && object !== camera) {
-      box.setFromObject(object, true);
-
-      if (box.isEmpty() === false) {
-        selectionBox.visible = true;
-      }
-
       transformControls.attach(object);
-      objectDimensions.setObject(object);
+      if (!isTimelinePlaying(editor)) {
+        box.setFromObject(object, true);
+        if (box.isEmpty() === false) {
+          selectionBox.visible = true;
+        }
+        objectDimensions.setObject(object);
+      } else {
+        objectDimensions.setObject(null);
+      }
     } else {
       objectDimensions.setObject(null);
     }
 
+    syncSelectionHelpersForPlayback();
     render();
   });
 
@@ -763,7 +802,7 @@ function Viewport(editor) {
   });
 
   signals.objectChanged.add(function (object) {
-    if (editor.selected === object) {
+    if (editor.selected === object && !isTimelinePlaying(editor)) {
       box.setFromObject(object, true);
       objectDimensions.update();
     }
@@ -1032,6 +1071,11 @@ function Viewport(editor) {
 
   signals.cameraResetted.add(updateAspectRatio);
 
+  signals.timelinePlayingChanged?.add?.(() => {
+    syncSelectionHelpersForPlayback();
+    render();
+  });
+
   // animations
 
   let prevActionsInUse = 0;
@@ -1054,7 +1098,7 @@ function Viewport(editor) {
       mixer.update(delta);
       needsUpdate = true;
 
-      if (editor.selected !== null) {
+      if (editor.selected !== null && !isTimelinePlaying(editor)) {
         editor.selected.updateWorldMatrix(false, true); // avoid frame late effect for certain skinned meshes (e.g. Michelle.glb)
         selectionBox.box.setFromObject(editor.selected, true); // selection box should reflect current animation state
       }
@@ -1148,7 +1192,13 @@ function Viewport(editor) {
         editor.viewportGridScale = null;
       }
       if (sceneHelpers.visible === true) renderer.render(sceneHelpers, camera);
-      objectDimensions.render(camera);
+      syncSelectionHelpersForPlayback();
+      if (!isTimelinePlaying(editor)) {
+        objectDimensions.render(camera);
+      } else {
+        objectDimensions.hideLabels();
+        objectDimensions.render(camera);
+      }
       if (renderer.xr.isPresenting !== true) viewHelper.render(renderer);
       renderer.autoClear = true;
     }

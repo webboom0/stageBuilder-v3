@@ -8,6 +8,9 @@ const DEFAULT_LIGHT_KF_INTERPOLATION = INTERPOLATION.SMOOTHSTEP;
 import { createFixtureLightBridge, parseFixtureFid, FIXTURE_TL_PROPS } from "../lighting/fixtureLightTimeline.js";
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { AddLightKeyframeAtPlayheadCommand } from '../commands/AddLightKeyframeAtPlayheadCommand.js';
+import { AddFixtureKeyframesAtPlayheadCommand } from '../commands/AddFixtureKeyframesAtPlayheadCommand.js';
+import { DeleteFixtureKeyframesAtPlayheadCommand } from '../commands/DeleteFixtureKeyframesAtPlayheadCommand.js';
+import { pauseTimelineIfPlaying } from '../utils/timelinePlayback.js';
 
 // 조명 타입별 속성 정의
 const LIGHT_PROPERTIES = {
@@ -2170,6 +2173,9 @@ export class LightTimeline extends BaseTimeline {
     if (this.editor?.fixtureEngine) {
       this.editor.fixtureEngine.isPlaying = false;
     }
+    // 일시정지 시 플레이헤드 조명 상태를 스테이지에 유지
+    const frame = this.currentTime * this.options.framesPerSecond;
+    this.updateFrame(frame);
   }
 
   // BaseTimeline의 stop 메서드 오버라이드
@@ -4101,6 +4107,16 @@ export class LightTimeline extends BaseTimeline {
   addKeyframeAtPlayhead(trackObjectId = null) {
     const selIds = this.editor.fixtureEngine?.getSelectionIds?.() || [];
     if (!trackObjectId && selIds.length > 0 && this.fixtureBridge?.addKeyframesForSelection) {
+      if (!this._inHistoryPlayback && this.editor?.history) {
+        const currentTime = this.getPlayheadTimeSeconds();
+        const cmd = new AddFixtureKeyframesAtPlayheadCommand(
+          this.editor,
+          selIds,
+          currentTime,
+        );
+        this.editor.history.execute(cmd, "조명 키프레임 추가");
+        return cmd.lastResult || { success: true, count: selIds.length, time: currentTime };
+      }
       return this.fixtureBridge.addKeyframesForSelection();
     }
 
@@ -4152,6 +4168,29 @@ export class LightTimeline extends BaseTimeline {
     return this._addKeyframeAtPlayheadInternal(trackObjectId);
   }
 
+  /** 선택 픽스처의 플레이헤드 키프레임 삭제 — Ctrl+Z 되돌리기 지원 */
+  deleteFixtureKeyframesAtPlayhead() {
+    const selIds = this.editor.fixtureEngine?.getSelectionIds?.() || [];
+    if (!selIds.length) {
+      return { success: false, message: "픽스처 선택 필요" };
+    }
+
+    const currentTime = this.getPlayheadTimeSeconds();
+    if (!this._inHistoryPlayback && this.editor?.history) {
+      const cmd = new DeleteFixtureKeyframesAtPlayheadCommand(
+        this.editor,
+        selIds,
+        currentTime,
+      );
+      this.editor.history.execute(cmd, "키프레임 삭제");
+      return cmd.lastResult || { success: false };
+    }
+
+    return this.fixtureBridge?.deleteSelectionKeyframesAtPlayhead?.() || {
+      success: false,
+    };
+  }
+
   _resolveTrackForPlayhead(trackObjectId = null) {
     let track = null;
 
@@ -4195,6 +4234,25 @@ export class LightTimeline extends BaseTimeline {
 
   _captureLightKeyframesAtTime(trackObjectId, time) {
     const snapshot = {};
+
+    if (String(trackObjectId || "").startsWith("fx_")) {
+      FIXTURE_TL_PROPS.forEach((property) => {
+        const trackData = this._resolveTrackData(trackObjectId, property);
+        if (!trackData) return;
+        let index = trackData.findKeyframeIndex(time);
+        if (index === -1) index = this._findKeyframeIndexAtTime(trackData, time);
+        if (index === -1) return;
+        const kf = trackData.getKeyframeByIndex(index);
+        if (!kf) return;
+        snapshot[`${trackObjectId}:${property}`] = {
+          time: kf.time,
+          value: this._cloneLightKeyframeValue(kf.value),
+          interpolation: kf.interpolation,
+        };
+      });
+      return snapshot;
+    }
+
     const ids = [trackObjectId, `${trackObjectId}_Target`];
 
     for (const id of ids) {
@@ -4217,6 +4275,13 @@ export class LightTimeline extends BaseTimeline {
   }
 
   _removeLightKeyframesAtTime(trackObjectId, time) {
+    const track = this.tracks.get(trackObjectId);
+    if (track && (track.isFixture || String(trackObjectId).startsWith("fx_"))) {
+      return this._deleteKeyframesAtTimeForTrack(track, time, {
+        clearSelection: false,
+      });
+    }
+
     const ids = [trackObjectId, `${trackObjectId}_Target`];
     let removed = false;
 
@@ -4224,7 +4289,10 @@ export class LightTimeline extends BaseTimeline {
       const objectTracks = this.timelineData.tracksById.get(id);
       if (!objectTracks) continue;
       for (const [, trackData] of objectTracks) {
-        if (trackData.removeKeyframe(time)) {
+        if (
+          trackData.removeKeyframe(time) ||
+          trackData.removeKeyframe(parseFloat(time.toFixed(2)))
+        ) {
           removed = true;
         }
       }
@@ -4232,6 +4300,7 @@ export class LightTimeline extends BaseTimeline {
 
     if (removed) {
       this.timelineData.dirty = true;
+      this.timelineData.precomputeAnimationData?.();
       this.updateUI?.();
       this.updateFrame?.(this.currentTime);
     }
@@ -4240,6 +4309,7 @@ export class LightTimeline extends BaseTimeline {
   }
 
   _restoreLightKeyframesAtTime(trackObjectId, time, snapshot) {
+    const isFixture = String(trackObjectId || "").startsWith("fx_");
     this._removeLightKeyframesAtTime(trackObjectId, time);
 
     for (const [key, kf] of Object.entries(snapshot || {})) {
@@ -4249,12 +4319,23 @@ export class LightTimeline extends BaseTimeline {
       const property = key.slice(sep + 1);
       if (!kf?.value) continue;
 
-      let trackData = this.timelineData.getTrackById(id, property);
+      let trackData = isFixture || String(id).startsWith("fx_")
+        ? this._resolveTrackData(id, property)
+        : this.timelineData.getTrackById(id, property);
       if (!trackData) {
-        const object = this.editor.scene.getObjectByName(id);
-        if (object) {
-          this.timelineData.addTrack(object.uuid, property, id);
-          trackData = this.timelineData.getTrackById(id, property);
+        if (String(id).startsWith("fx_")) {
+          const uiTrack = this.tracks.get(id);
+          const uuid = this._fixtureUuidFor(id, null, uiTrack);
+          if (uuid) {
+            this.timelineData.addTrack(uuid, property, id);
+            trackData = this._resolveTrackData(id, property);
+          }
+        } else {
+          const object = this.editor.scene.getObjectByName(id);
+          if (object) {
+            this.timelineData.addTrack(object.uuid, property, id);
+            trackData = this.timelineData.getTrackById(id, property);
+          }
         }
       }
       if (trackData) {
@@ -4267,6 +4348,10 @@ export class LightTimeline extends BaseTimeline {
     }
 
     this.timelineData.dirty = true;
+    this.timelineData.precomputeAnimationData?.();
+    if (isFixture) {
+      this.fixtureBridge?.restoreKeyframeUI?.();
+    }
     this.updateUI?.();
     this.updateFrame?.(this.currentTime);
   }
@@ -6401,7 +6486,7 @@ export class LightTimeline extends BaseTimeline {
         : `${track.objectId}_${prop}`;
 
       const trackData = track.isFixture
-        ? this.timelineData.getTrackById(track.objectId, prop)
+        ? this._resolveTrackData(track.objectId, prop)
         : this.timelineData.tracksById
             .get(timelineDataLightId)
             ?.get(prop);
@@ -6739,6 +6824,7 @@ export class LightTimeline extends BaseTimeline {
     keyframeElement.addEventListener("mousedown", (e) => {
       console.log("=== 키프레임 mousedown 시작 ===");
       e.stopPropagation();
+      pauseTimelineIfPlaying(this.editor);
       const trackRoot = keyframeElement.closest(".timeline-track.light-timeline");
       if (this._isTrackLocked(trackRoot)) return;
       isDragging = true;

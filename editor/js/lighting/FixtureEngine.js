@@ -269,6 +269,59 @@ export class FixtureEngine {
     return out;
   }
 
+  /** 되돌리기용 픽스처 Programmer 스냅샷 */
+  captureHistoryState() {
+    return {
+      built: this.built,
+      fixtureBus: this.fixtureBus,
+      blackout: this.blackout,
+      highlight: this.highlight,
+      selection: [...this.getSelectionIds()],
+      fixtures: this.fixtures.map((f) => ({
+        fid: f.fid,
+        enabled: f.enabled,
+        prog: JSON.parse(JSON.stringify(f.prog || {})),
+        attr: JSON.parse(JSON.stringify(f.attr || {})),
+      })),
+    };
+  }
+
+  applyHistoryState(state) {
+    if (!state) return;
+
+    if (state.built === false && this.built) {
+      this.disposeRig();
+    }
+
+    this.fixtureBus = state.fixtureBus ?? 1;
+    this.blackout = !!state.blackout;
+    this.highlight = !!state.highlight;
+
+    this.fixtures.forEach((f) => {
+      f.sel = false;
+    });
+
+    state.fixtures?.forEach((row) => {
+      const f = this.fmap[row.fid];
+      if (!f) return;
+      f.enabled = row.enabled !== false;
+      f.prog = Object.assign({}, row.prog || {});
+      f.attr = Object.assign(mkFixtureAttr(), row.attr || {});
+    });
+
+    const sel = (state.selection || [])
+      .map(Number)
+      .filter((id) => this.fmap[id]);
+    sel.forEach((id) => {
+      const f = this.fmap[id];
+      if (f) f.sel = true;
+    });
+
+    this.persistToSceneUserData();
+    this.update();
+    this.editor?.signals?.rendererUpdated?.dispatch?.();
+  }
+
   /** prog 임시값을 attr에 반영 (키프레임 추가 직후) */
   commitFixtureEditToAttr(fid) {
     const f = this.fmap[fid];
@@ -305,6 +358,7 @@ export class FixtureEngine {
 
   setBlackout(on) {
     this.blackout = !!on;
+    this.persistToSceneUserData();
     this.update();
   }
 
@@ -348,6 +402,18 @@ export class FixtureEngine {
     else if (attr === "focus") f.prog.focus = Math.max(0, Math.min(100, val));
     else if (attr === "r" || attr === "g" || attr === "b") f.prog[attr] = clamp01(val);
     else f.prog[attr] = val;
+
+    // 선택 픽스처 패널 편집: attr에도 반영 (키 추가 후 재편집)
+    if (f.sel) {
+      if (attr === "dim" && f.prog.dim != null) f.attr.dim = f.prog.dim;
+      else if (attr === "pan" && f.prog.pan != null) f.attr.pan = f.prog.pan;
+      else if (attr === "tilt" && f.prog.tilt != null) f.attr.tilt = f.prog.tilt;
+      else if (attr === "zoom" && f.prog.zoom != null) f.attr.zoom = f.prog.zoom;
+      else if (attr === "focus" && f.prog.focus != null) f.attr.focus = f.prog.focus;
+      else if (attr === "r" || attr === "g" || attr === "b") f.attr[attr] = f.prog[attr];
+      else if (f.prog[attr] != null) f.attr[attr] = f.prog[attr];
+    }
+
     this.persistToSceneUserData();
     this.update();
   }
@@ -392,7 +458,7 @@ export class FixtureEngine {
     this.getSelectionIds().forEach((id) => this.setProgAttr(id, attr, val));
   }
 
-  /** 선택 픽스처 attr.dim (개별 밝기, Clear 후에도 유지) */
+  /** 선택 픽스처 dim — attr 저장 + prog에 표시(키프레임 추가 후에도 편집 가능) */
   setSelectionDim(dim) {
     const d = Math.max(0, Math.min(100, Number(dim) || 0));
     const ids = this.getSelectionIds();
@@ -401,7 +467,8 @@ export class FixtureEngine {
       const f = this.fmap[id];
       if (!f) return;
       f.attr.dim = d;
-      if (f.prog?.dim != null) delete f.prog.dim;
+      if (!f.prog) f.prog = {};
+      f.prog.dim = d;
       f.enabled = true;
     });
     this.persistToSceneUserData();
@@ -459,12 +526,9 @@ export class FixtureEngine {
     this.fixtures.forEach((f) => {
       const out = Object.assign({}, f.home, f.attr);
 
-      // 재생 중 · 비선택 · (타임라인 우선이고 prog 편집 없음) → 타임라인 프리뷰
-      // prog가 있으면 선택 픽스처는 인코더 편집값 우선
-      const progActive = f.prog && Object.keys(f.prog).length > 0;
-      const useTimelineLayer =
-        f.tl &&
-        (playing || !f.sel || (this.timelinePriority && !progActive));
+      // 재생 중 또는 패널 편집 없음 → 타임라인 프리뷰 / prog 편집 중 → attr·prog 우선
+      const hasPanelEdit = f.prog && Object.keys(f.prog).length > 0;
+      const useTimelineLayer = f.tl && (playing || !hasPanelEdit);
       if (useTimelineLayer) {
         out.dim = f.tl.dim ?? out.dim;
         out.pan = f.tl.pan ?? out.pan;

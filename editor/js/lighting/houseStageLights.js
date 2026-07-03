@@ -94,14 +94,17 @@ export function applyStageGrand(editor, level01) {
   return v;
 }
 
+export const DEFAULT_STARTUP_GRAND = 0.1;
+
 export function readStageGrand(scene) {
   return scene?.userData?.stageGrand ?? 0;
 }
-/** 시작 시 완전 암전 — 환경·FOH·WORK·픽스처 출력 0 */
+
+/** 새 프로젝트 시작 조명 — GRAND 10%, FOH·픽스처 출력 0 */
 export function applyStartupBlackout(editor) {
   if (!editor?.scene) return;
-  applyStageGrand(editor, 0);
   applyHouseLightLevels(editor, defaultHouseLightLevels());
+  applyStageGrand(editor, DEFAULT_STARTUP_GRAND);
   const fe = editor.fixtureEngine;
   if (fe) {
     if (fe.built) {

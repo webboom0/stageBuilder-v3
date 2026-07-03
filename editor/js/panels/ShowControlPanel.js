@@ -9,6 +9,8 @@ import {
   readStageGrand,
 } from "../lighting/houseStageLights.js";
 import { mountMaConsole } from "../lighting/MaConsolePanel.js";
+import { runMaPanelEdit } from "../lighting/maPanelHistory.js";
+import { runShowControlEdit } from "../showcontrol/showControlHistory.js";
 import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, GROUP_ROT_Y_OPTIONS, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
 
 function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
@@ -722,6 +724,7 @@ export function createShowControlPanel(editor, options = {}) {
   let view = "ensemble"; // 'ensemble' | 'ma'
   let selectedCueIndex = editor.showControl.standbyIndex || 0;
   const sharedUI = getSharedUI(editor);
+  editor.refreshShowControl = () => sharedUI.refreshAll();
 
   if (section) {
     root.className = `sb-showcontrol-panel sb-showcontrol-section sb-sc-${section}`;
@@ -1261,8 +1264,9 @@ export function createShowControlPanel(editor, options = {}) {
         };
         cell.oncontextmenu = (e) => {
           e.preventDefault();
-          editor.showControl.removeMemberFromGroup(activeGroup.id, member.id);
-          sharedUI.refreshAll();
+          runShowControlEdit(editor, "그룹에서 해제", () => {
+            editor.showControl.removeMemberFromGroup(activeGroup.id, member.id);
+          });
         };
         cell.ondblclick = () => {
           if (deployed) editor.select?.(deployed);
@@ -1504,9 +1508,11 @@ export function createShowControlPanel(editor, options = {}) {
         window.alert("FBX 번호(1,2,3…)를 먼저 선택하세요. Ctrl+클릭으로 여러 개 선택 가능합니다.");
         return;
       }
-      const added = editor.showControl.addSelectedFbxSlotsToGroup(g.id, catalog);
+      let added = 0;
+      runShowControlEdit(editor, "그룹에 등록", () => {
+        added = editor.showControl.addSelectedFbxSlotsToGroup(g.id, catalog);
+      });
       if (!added) window.alert("그룹 등록에 실패했습니다.");
-      sharedUI.refreshAll();
     };
     paneR.querySelector("#ensRemoveMembersFromGroup").onclick = () => {
       const g = editor.showControl.getSelectedGroup();
@@ -1515,31 +1521,35 @@ export function createShowControlPanel(editor, options = {}) {
         window.alert("아래 등록된 멤버에서 해제할 객체를 먼저 선택하세요.");
         return;
       }
-      const removed = editor.showControl.removeSelectedMembersFromGroup(g.id);
-      if (removed) sharedUI.refreshAll();
+      runShowControlEdit(editor, "그룹에서 해제", () => {
+        editor.showControl.removeSelectedMembersFromGroup(g.id);
+      });
     };
 
     paneR.querySelector("#ensNewGroup").onclick = () => {
       const name = window.prompt("새 그룹 이름", "악단");
       if (name == null) return;
-      editor.showControl.createGroup(name.trim() || "새 그룹");
-      remountGroupsSection();
+      runShowControlEdit(editor, "그룹 추가", () => {
+        editor.showControl.createGroup(name.trim() || "새 그룹");
+      });
     };
     paneR.querySelector("#ensRenameGroup").onclick = () => {
       const g = editor.showControl.getSelectedGroup();
       if (!g) return;
       const name = window.prompt("그룹 이름 변경", g.name);
       if (name == null) return;
-      editor.showControl.renameGroup(g.id, name.trim() || g.name);
-      remountGroupsSection();
+      runShowControlEdit(editor, "그룹 이름 변경", () => {
+        editor.showControl.renameGroup(g.id, name.trim() || g.name);
+      });
     };
-    paneR.querySelector("#ensDelGroup").onclick = async () => {
+    paneR.querySelector("#ensDelGroup").onclick = () => {
       const g = editor.showControl.getSelectedGroup();
       if (!g) return;
       if (!window.confirm(`"${g.name}" 그룹과 타임라인 트랙을 모두 삭제할까요?`)) return;
-      editor.showControl.setGroupPathPickMode?.(null, null);
-      await editor.showControl.deleteGroup(g.id);
-      remountGroupsSection();
+      runShowControlEdit(editor, "그룹 삭제", () => {
+        editor.showControl.setGroupPathPickMode?.(null, null);
+        editor.showControl.deleteGroup(g.id);
+      });
     };
 
     paneR.querySelector("#ensDeployGroup").onclick = async () => {
@@ -1782,21 +1792,27 @@ export function createShowControlPanel(editor, options = {}) {
 
     grandSlider.addEventListener("input", () => {
       const v = clamp01(Number(grandSlider.value) / 100);
-      applyStageGrand(editor, v);
+      runMaPanelEdit(editor, "GRAND", () => {
+        applyStageGrand(editor, v);
+      });
       grandVal.textContent = `${Math.round(v * 100)}%`;
     });
     blackoutBtn.onclick = () => {
       editor.initFixtureEngine?.({ build: false });
       const fe = editor.fixtureEngine;
       if (!fe) return;
-      fe.setBlackout(!fe.blackout);
+      runMaPanelEdit(editor, "BLACKOUT", () => {
+        fe.setBlackout(!fe.blackout);
+      });
       blackoutBtn.classList.toggle("on", fe.blackout);
       blackoutBtn.classList.toggle("red", fe.blackout);
       editor.signals.rendererUpdated?.dispatch?.();
     };
     workBtn.onclick = () => {
       const on = (editor.scene?.userData?.workLightLevel ?? 0) <= 0.001;
-      editor.setWorkLightLevel?.(on ? 0.62 : 0);
+      runMaPanelEdit(editor, "WORK 조명", () => {
+        editor.setWorkLightLevel?.(on ? 0.62 : 0);
+      });
       syncGrand();
       sharedUI.refreshAll?.();
     };
@@ -1821,20 +1837,22 @@ export function createShowControlPanel(editor, options = {}) {
     `;
     host.appendChild(paneHouse);
 
-    const bindHouse = (id, valId, key) => {
+    const bindHouse = (id, valId, key, label) => {
       const el = paneHouse.querySelector(id);
       const vel = paneHouse.querySelector(valId);
       el.addEventListener("input", () => {
         const v = clamp01(Number(el.value) / 100);
-        setHouseLightLevel(editor, key, v);
+        runMaPanelEdit(editor, label, () => {
+          setHouseLightLevel(editor, key, v);
+        });
         vel.textContent = `${Math.round(v * 100)}%`;
         editor.signals.rendererUpdated?.dispatch?.();
       });
     };
-    bindHouse("#sbHouseFill", "#sbHouseFillVal", "fill");
-    bindHouse("#sbHouseL", "#sbHouseLVal", "fohL");
-    bindHouse("#sbHouseC", "#sbHouseCVal", "fohC");
-    bindHouse("#sbHouseR", "#sbHouseRVal", "fohR");
+    bindHouse("#sbHouseFill", "#sbHouseFillVal", "fill", "Stage Fill");
+    bindHouse("#sbHouseL", "#sbHouseLVal", "fohL", "FOH Left");
+    bindHouse("#sbHouseC", "#sbHouseCVal", "fohC", "FOH Center");
+    bindHouse("#sbHouseR", "#sbHouseRVal", "fohR", "FOH Right");
 
     const secFix = document.createElement("div");
     secFix.className = "sb-sc-sec";
@@ -1877,7 +1895,9 @@ export function createShowControlPanel(editor, options = {}) {
     };
     fixBus.addEventListener("input", () => {
       const v = clamp01(Number(fixBus.value) / 100);
-      editor.fixtureEngine?.setFixtureBus?.(v);
+      runMaPanelEdit(editor, "Fixture Bus", () => {
+        editor.fixtureEngine?.setFixtureBus?.(v);
+      });
       fixBusVal.textContent = `${Math.round(v * 100)}%`;
     });
     const syncFixCount = () => {
@@ -1914,9 +1934,11 @@ export function createShowControlPanel(editor, options = {}) {
     };
 
     btnFixBuild.onclick = () => {
-      editor.initFixtureEngine?.({ build: true });
+      runMaPanelEdit(editor, "리그 생성", () => {
+        editor.initFixtureEngine?.({ build: true });
+        editor.lightTimeline?.fixtureBridge?.ensureTracks?.();
+      });
       syncFixCount();
-      editor.lightTimeline?.fixtureBridge?.ensureTracks?.();
       maConsole.refresh();
       flashFixHint(`픽스처 ${editor.fixtureEngine?.getFixtures?.()?.length || 0}개 · Light 타임라인에 FX 트랙 추가됨`);
       editor.signals.rendererUpdated?.dispatch?.();

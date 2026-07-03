@@ -13,7 +13,7 @@ import {
   SEGMENT_KIND,
   syncLegacyFieldsFromSegments,
 } from "./groupSegments.js";
-import { persistGroupFoldersToUserData } from "./motionTimelineGroupFolder.js";
+import { persistGroupFoldersToUserData, purgeGroupFromTimeline } from "./motionTimelineGroupFolder.js";
 
 export class ShowControl {
   constructor(editor) {
@@ -163,9 +163,8 @@ export class ShowControl {
     const r = this.ensureRegistry();
     r.groups = r.groups.map((g) => this._normalizeGroup(g)).filter((g) => g.id);
     if (!r.groups.length) {
-      r.groups.push({ id: this._newGroupId(), name: "군무", members: [] });
-    }
-    if (!this.selectedGroupId || !r.groups.some((g) => g.id === this.selectedGroupId)) {
+      this.selectedGroupId = null;
+    } else if (!this.selectedGroupId || !r.groups.some((g) => g.id === this.selectedGroupId)) {
       this.selectedGroupId = r.groups[0].id;
     }
     return r.groups;
@@ -368,7 +367,9 @@ export class ShowControl {
   }
 
   getSelectedGroup() {
-    return this.getGroup(this.selectedGroupId) || this.ensureGroups()[0] || null;
+    const groups = this.ensureGroups();
+    if (!groups.length) return null;
+    return this.getGroup(this.selectedGroupId) || groups[0];
   }
 
   setSelectedGroupId(groupId) {
@@ -408,16 +409,12 @@ export class ShowControl {
     return result;
   }
 
-  async deleteGroup(groupId) {
-    const { purgeGroupFromTimeline } = await import("./motionTimelineGroupFolder.js");
+  deleteGroup(groupId) {
     purgeGroupFromTimeline(this.editor, groupId);
     const r = this.ensureRegistry();
     r.groups = r.groups.filter((g) => g.id !== groupId);
-    if (!r.groups.length) {
-      r.groups.push({ id: this._newGroupId(), name: "군무", members: [] });
-    }
     if (this.selectedGroupId === groupId) {
-      this.selectedGroupId = r.groups[0].id;
+      this.selectedGroupId = r.groups[0]?.id ?? null;
     }
     this.persistToSceneUserData();
   }

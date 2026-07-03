@@ -29,4 +29,8 @@ export { MoveKeyframeCommand } from './MoveKeyframeCommand.js';
 export { AddTrackCommand } from './AddTrackCommand.js';
 export { RemoveTrackCommand } from './RemoveTrackCommand.js';
 export { AddLightKeyframeAtPlayheadCommand } from './AddLightKeyframeAtPlayheadCommand.js';
+export { AddFixtureKeyframesAtPlayheadCommand } from './AddFixtureKeyframesAtPlayheadCommand.js';
+export { DeleteFixtureKeyframesAtPlayheadCommand } from './DeleteFixtureKeyframesAtPlayheadCommand.js';
+export { SetMaPanelLightingCommand } from './SetMaPanelLightingCommand.js';
+export { SetShowControlCommand } from './SetShowControlCommand.js';
 export { RemoveAudioTrackCommand } from './RemoveAudioTrackCommand.js';

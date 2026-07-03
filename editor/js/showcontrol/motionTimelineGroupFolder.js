@@ -1,4 +1,5 @@
 import { getGroupClipRange } from "./groupSegments.js";
+import { runShowControlEdit } from "./showControlHistory.js";
 import {
   applyGroupMemberTimeline,
   finalizeMotionTimeline,
@@ -225,6 +226,27 @@ export function findGroupFolder(motionTimeline, groupId) {
   return motionTimeline.container.querySelector(`.timeline-track-group[data-sc-group-id="${groupId}"]`);
 }
 
+/** ShowControl 레지스트리와 타임라인 그룹 폴더 동기화 (되돌리기 시 고아 폴더 제거) */
+export function syncGroupFoldersWithRegistry(editor) {
+  const motionTimeline = getMotionTimeline(editor);
+  if (!motionTimeline?.container) return;
+
+  const groups = editor?.showControl?.ensureGroups?.() || [];
+  const validIds = new Set(groups.map((g) => g.id));
+
+  [...motionTimeline.container.querySelectorAll(".timeline-track-group[data-sc-group-id]")].forEach(
+    (folder) => {
+      const groupId = folder.dataset.scGroupId;
+      if (groupId && !validIds.has(groupId)) {
+        purgeGroupFromTimeline(editor, groupId, { removeSceneObjects: true });
+      }
+    },
+  );
+
+  groups.forEach((g) => ensureGroupFolder(editor, g));
+  motionTimeline.updateUI?.();
+}
+
 export function ensureGroupFolder(editor, group) {
   injectGroupFolderStyles();
   const motionTimeline = getMotionTimeline(editor);
@@ -259,9 +281,9 @@ export function ensureGroupFolder(editor, group) {
 
   folder.querySelector(".track-group-delete").onclick = () => {
     if (!window.confirm(`"${group.name}" 그룹과 포함된 트랙을 모두 삭제할까요?`)) return;
-    editor.showControl?.deleteGroup?.(group.id);
-    editor.signals?.timelineChanged?.dispatch?.();
-    editor.signals?.sceneGraphChanged?.dispatch?.();
+    runShowControlEdit(editor, "그룹 삭제", () => {
+      editor.showControl?.deleteGroup?.(group.id);
+    });
   };
 
   motionTimeline.container.appendChild(folder);

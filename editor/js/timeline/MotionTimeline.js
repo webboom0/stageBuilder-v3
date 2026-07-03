@@ -12,6 +12,7 @@ import {
     RemoveTrackCommand,
 } from '../commands/Commands.js';
 import { getMotionObjects } from '../utils/motionTimelineAutoTrack.js';
+import { pauseTimelineIfPlaying } from '../utils/timelinePlayback.js';
 
 const MOTION_KF_PROPERTIES = ['position', 'rotation', 'scale'];
 
@@ -5041,6 +5042,7 @@ export class MotionTimeline extends BaseTimeline {
         keyframeElement.addEventListener("mousedown", (e) => {
             // console.log("=== 키프레임 mousedown 시작 ===");
             e.stopPropagation();
+            pauseTimelineIfPlaying(this.editor);
             if (this._isTrackLocked(track?.element)) return;
             isDragging = true;
             isOutsideClip = false;
@@ -7274,6 +7276,7 @@ export class MotionTimeline extends BaseTimeline {
 
         // playhead에서 마우스 다운
         playhead.addEventListener('mousedown', () => {
+            pauseTimelineIfPlaying(this.editor);
             isMouseDown = true;
             this.isPlayheadDragging = true;
             // console.log("Playhead 드래그 시작");

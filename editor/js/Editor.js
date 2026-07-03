@@ -26,6 +26,7 @@ function Editor() {
 
     startPlayer: new Signal(),
     stopPlayer: new Signal(),
+    timelinePlayingChanged: new Signal(),
 
     // xr
 

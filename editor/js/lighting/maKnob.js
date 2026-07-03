@@ -7,6 +7,9 @@ export function mountMaKnob(host, opts = {}) {
     value = 0,
     unit = "",
     disabled = false,
+    onInput,
+    onDragStart,
+    onDragEnd,
     onChange,
   } = opts;
 
@@ -29,9 +32,11 @@ export function mountMaKnob(host, opts = {}) {
   const valEl = wrap.querySelector(".sb-ma-knob-val");
 
   let cur = Number(value) || 0;
+  let isDisabled = !!disabled;
   let dragging = false;
   let startY = 0;
   let startVal = 0;
+  let wheelCommitTimer = null;
 
   function clamp(v) {
     return Math.max(min, Math.min(max, v));
@@ -42,20 +47,29 @@ export function mountMaKnob(host, opts = {}) {
     const deg = -135 + t * 270;
     needle.setAttribute("transform", `rotate(${deg} 32 32)`);
     const suffix = unit === "%" ? "%" : unit === "°" ? "°" : unit ? ` ${unit}` : "";
-    valEl.textContent = disabled ? "—" : `${Math.round(cur)}${suffix}`;
+    valEl.textContent = isDisabled ? "—" : `${Math.round(cur)}${suffix}`;
   }
 
   function setValue(v, fire = true) {
     cur = clamp(Number(v) || 0);
     paint();
-    if (fire) onChange?.(cur);
+    if (fire) {
+      onInput?.(cur);
+      onChange?.(cur);
+    }
+  }
+
+  function commitGesture() {
+    onDragEnd?.(cur);
+    onChange?.(cur);
   }
 
   function onPointerDown(ev) {
-    if (disabled) return;
+    if (isDisabled) return;
     dragging = true;
     startY = ev.clientY;
     startVal = cur;
+    onDragStart?.();
     dial.setPointerCapture(ev.pointerId);
     ev.preventDefault();
   }
@@ -64,7 +78,9 @@ export function mountMaKnob(host, opts = {}) {
     if (!dragging) return;
     const span = max - min || 1;
     const delta = (startY - ev.clientY) * (span / 120);
-    setValue(startVal + delta);
+    cur = clamp(startVal + delta);
+    paint();
+    onInput?.(cur);
   }
 
   function onPointerUp(ev) {
@@ -73,6 +89,7 @@ export function mountMaKnob(host, opts = {}) {
     try {
       dial.releasePointerCapture(ev.pointerId);
     } catch (_) { /* noop */ }
+    commitGesture();
   }
 
   dial.addEventListener("pointerdown", onPointerDown);
@@ -80,10 +97,18 @@ export function mountMaKnob(host, opts = {}) {
   dial.addEventListener("pointerup", onPointerUp);
   dial.addEventListener("pointercancel", onPointerUp);
   dial.addEventListener("wheel", (ev) => {
-    if (disabled) return;
+    if (isDisabled) return;
     ev.preventDefault();
+    if (!wheelCommitTimer) onDragStart?.();
     const step = (max - min) / 100 || 1;
-    setValue(cur + (ev.deltaY < 0 ? step : -step));
+    cur = clamp(cur + (ev.deltaY < 0 ? step : -step));
+    paint();
+    onInput?.(cur);
+    clearTimeout(wheelCommitTimer);
+    wheelCommitTimer = setTimeout(() => {
+      wheelCommitTimer = null;
+      commitGesture();
+    }, 400);
   }, { passive: false });
 
   paint();
@@ -93,8 +118,12 @@ export function mountMaKnob(host, opts = {}) {
       setValue(v, fire);
     },
     setDisabled(on) {
-      wrap.classList.toggle("off", !!on);
+      isDisabled = !!on;
+      wrap.classList.toggle("off", isDisabled);
       paint();
+    },
+    isDragging() {
+      return dragging;
     },
     getValue() {
       return cur;

@@ -2,6 +2,7 @@ import { buildDefaultMaGroups } from "./maGroups.js";
 import { mountMaKnob } from "./maKnob.js";
 import { liveToRgb255, MA_COLOR_SWATCHES } from "./maColorPalette.js";
 import { fixtureTrackId } from "./fixtureLightTimeline.js";
+import { runMaPanelEdit, beginMaPanelGesture, endMaPanelGesture, cancelMaPanelGesture } from "./maPanelHistory.js";
 
 const ATTR_TABS = ["Dimmer", "Position", "Color", "Beam"];
 
@@ -26,10 +27,11 @@ const KNOB_LAYOUT = {
   ],
 };
 
-function fmtLive(f, attr) {
-  const o = f?.live || f?.prog || f?.attr || f?.home || {};
+function fmtLive(fe, f, attr) {
+  const cap = fe?.getFixtureCaptureState?.(f?.fid);
+  const o = cap || f?.attr || f?.home || {};
   const v = o[attr];
-  if (v == null) return attr === "pan" || attr === "tilt" ? 0 : 0;
+  if (v == null) return 0;
   return Math.round(v);
 }
 
@@ -45,6 +47,15 @@ export function mountMaConsole(host, editor, hooks = {}) {
   let attrPage = "Dimmer";
   let lastFixtureCount = 0;
   const knobs = [];
+  let dimSliderDragging = false;
+
+  const KNOB_LABELS = {
+    dim: "선택 Dim",
+    pan: "Pan",
+    tilt: "Tilt",
+    zoom: "Zoom",
+    focus: "Focus",
+  };
 
   const sec = document.createElement("div");
   sec.className = "sb-sc-sec sb-sc-sec--ma";
@@ -126,14 +137,16 @@ export function mountMaConsole(host, editor, hooks = {}) {
     refreshGroupsMap();
   }
 
-  function applySelection(ids) {
+  function applySelection(ids, label = "픽스처 선택") {
     const fe = engine();
     if (!fe?.built) return false;
     const valid = (ids || []).map(Number).filter((id) => fe.getFixture(id));
     if (!valid.length) return false;
-    fe.setSelection(valid);
-    syncSelectionUI();
+    runMaPanelEdit(editor, label, () => {
+      fe.setSelection(valid);
+    });
     hooks.onSelectionChange?.();
+    syncPanelFromSelection();
     return true;
   }
 
@@ -141,47 +154,41 @@ export function mountMaConsole(host, editor, hooks = {}) {
     const sel = engine()?.getSelectionIds?.() || [];
     const lt = editor.lightTimeline;
     const bridge = editor.timeline?.selectionBridge;
-    if (!lt?.tracks?.size) return;
+    if (!lt) return;
 
-    bridge?.clearTrackHighlights?.();
-
-    if (!sel.length) {
-      lt.selectedTrackId = null;
-      return;
+    if (sel.length && engine()?.built) {
+      lt.fixtureBridge?.ensureTracks?.();
     }
 
     const trackIds = sel
       .map((fid) => fixtureTrackId(fid))
-      .filter((id) => lt.tracks.has(id));
-    if (!trackIds.length) return;
+      .filter((id) => lt.tracks?.has(id));
+
+    if (bridge?.selectFixtureTrackGroup) {
+      bridge.selectFixtureTrackGroup(trackIds);
+      return;
+    }
+
+    bridge?.clearTrackHighlights?.();
+    if (!trackIds.length) {
+      lt.selectedTrackId = null;
+      return;
+    }
 
     lt.selectedTrackId = trackIds[0];
     trackIds.forEach((trackId) => {
       const track = lt.tracks.get(trackId);
-      if (track?.element) {
-        track.element.classList.add("timeline-track--selected");
-      }
+      track?.element?.classList.add("timeline-track--selected");
     });
-
-    const firstEl = lt.tracks.get(trackIds[0])?.element;
-    firstEl?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    trackIds[0] &&
+      lt.tracks
+        .get(trackIds[0])
+        ?.element?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }
 
-  function addKeyframesForCurrentSelection() {
-    const lt = editor.lightTimeline;
-    const res =
-      lt?.fixtureBridge?.addKeyframesForSelection?.() ||
-      lt?.addKeyframeAtPlayhead?.();
-    if (res && !res.success && res.message) {
-      console.warn("[MA]", res.message);
-    }
-    return res;
-  }
-
-  function syncSelectionUI() {
+  function syncPanelFromSelection() {
     refreshSheet();
     refreshGroups();
-    buildKnobs();
     syncRgbSliders();
     syncSelDimRow();
     syncTimelineFromSelection();
@@ -191,14 +198,71 @@ export function mountMaConsole(host, editor, hooks = {}) {
       : "선택 없음";
   }
 
-  function applyKnobAttr(attr, val) {
+  function addKeyframesForCurrentSelection() {
+    const lt = editor.lightTimeline;
+    const res = lt?.addKeyframeAtPlayhead?.();
+    if (res && !res.success && res.message) {
+      console.warn("[MA]", res.message);
+    }
+    return res;
+  }
+
+  function isAnyKnobDragging() {
+    return knobs.some((k) => k?.isDragging?.());
+  }
+
+  function syncKnobValues() {
+    if (isAnyKnobDragging() || dimSliderDragging) return;
+
+    const fe = engine();
+    const sel = fe?.getSelectionIds?.() || [];
+    const f0 = sel.length ? fe.getFixture(sel[0]) : null;
+    const layout = KNOB_LAYOUT[attrPage] || KNOB_LAYOUT.Dimmer;
+    const hasSelection = sel.length > 0;
+
+    if (knobs.length !== layout.length) {
+      buildKnobs();
+      return;
+    }
+
+    layout.forEach((spec, i) => {
+      const knob = knobs[i];
+      if (!knob || !spec) return;
+      const [, attr] = spec;
+      const val = f0 ? fmtLive(fe, f0, attr) : 0;
+      knob.setDisabled(!hasSelection);
+      knob.setValue(val, false);
+    });
+  }
+
+  function syncSelectionUI({ rebuildKnobs = false } = {}) {
+    syncPanelFromSelection();
+    if (rebuildKnobs || knobs.length === 0) buildKnobs();
+    else syncKnobValues();
+  }
+
+  function applyKnobAttrLive(attr, val) {
     const fe = engine();
     if (!fe?.getSelectionIds?.()?.length) return;
     if (attr === "dim") fe.setSelectionDim(val);
     else fe.applyProgToSelection(attr, val);
-    refreshSheet();
-    if (attr === "dim") syncSelDimRow();
+
+    if (attr === "dim" && selDimSlider && !dimSliderDragging) {
+      selDimSlider.value = String(Math.round(val));
+      const n = fe.getSelectionIds().length;
+      if (selDimVal) {
+        selDimVal.textContent = n > 1 ? `${Math.round(val)}% (${n})` : `${Math.round(val)}%`;
+      }
+    }
     bumpRender(editor);
+  }
+
+  function commitKnobAttr(attr, val) {
+    const label = KNOB_LABELS[attr] || attr;
+    endMaPanelGesture(editor, label, () => {
+      applyKnobAttrLive(attr, val);
+    });
+    refreshSheet();
   }
 
   function buildKnobs() {
@@ -217,7 +281,7 @@ export function mountMaConsole(host, editor, hooks = {}) {
         return;
       }
       const [lab, attr, min, max, unit] = spec;
-      const val = f0 ? fmtLive(f0, attr) : 0;
+      const val = f0 ? fmtLive(fe, f0, attr) : 0;
       const knob = mountMaKnob(knobsEl, {
         label: lab,
         min,
@@ -225,7 +289,9 @@ export function mountMaConsole(host, editor, hooks = {}) {
         value: val,
         unit,
         disabled: !sel.length,
-        onChange: (v) => applyKnobAttr(attr, v),
+        onDragStart: () => beginMaPanelGesture(editor),
+        onInput: (v) => applyKnobAttrLive(attr, v),
+        onDragEnd: (v) => commitKnobAttr(attr, v),
       });
       knobs.push(knob);
     });
@@ -242,7 +308,10 @@ export function mountMaConsole(host, editor, hooks = {}) {
       b.style.background = `rgb(${Math.round(sw.r * 255)},${Math.round(sw.g * 255)},${Math.round(sw.b * 255)})`;
       b.onclick = () => {
         const fe = engine();
-        if (!fe?.setSelectionColor?.(sw.r, sw.g, sw.b)) return;
+        if (!fe?.getSelectionIds?.()?.length) return;
+        runMaPanelEdit(editor, "컬러 팔레트", () => {
+          fe.setSelectionColor(sw.r, sw.g, sw.b);
+        });
         syncRgbSliders();
         refreshSheet();
         bumpRender(editor);
@@ -272,7 +341,9 @@ export function mountMaConsole(host, editor, hooks = {}) {
     const r = Number(rgbR.value) / 255;
     const g = Number(rgbG.value) / 255;
     const b = Number(rgbB.value) / 255;
-    fe.setSelectionColor(r, g, b);
+    runMaPanelEdit(editor, "RGB", () => {
+      fe.setSelectionColor(r, g, b);
+    });
     pane.querySelector("#maRgbRVal").textContent = rgbR.value;
     pane.querySelector("#maRgbGVal").textContent = rgbG.value;
     pane.querySelector("#maRgbBVal").textContent = rgbB.value;
@@ -308,12 +379,14 @@ export function mountMaConsole(host, editor, hooks = {}) {
       `;
       el.onclick = (ev) => {
         if (ev.shiftKey && fe.getSelectionIds().length) {
-          fe.toggleSelection(f.fid);
-          syncSelectionUI();
+          runMaPanelEdit(editor, "픽스처 선택", () => {
+            fe.toggleSelection(f.fid);
+          });
           hooks.onSelectionChange?.();
         } else if (ev.ctrlKey || ev.metaKey) {
-          fe.toggleSelection(f.fid);
-          syncSelectionUI();
+          runMaPanelEdit(editor, "픽스처 선택", () => {
+            fe.toggleSelection(f.fid);
+          });
           hooks.onSelectionChange?.();
         } else {
           applySelection([f.fid]);
@@ -324,14 +397,18 @@ export function mountMaConsole(host, editor, hooks = {}) {
         if (!applySelection([f.fid])) return;
         const live = f.live || f.attr || {};
         const cur = Math.round(Number(live.dim) || 0);
-        fe.setSelectionDim(cur > 0 ? 0 : 50);
+        runMaPanelEdit(editor, "픽스처 Dim", () => {
+          fe.setSelectionDim(cur > 0 ? 0 : 50);
+        });
         refresh();
         hooks.onFixtureChange?.();
         bumpRender(editor);
       };
       el.oncontextmenu = (ev) => {
         ev.preventDefault();
-        fe.setFixtureEnabled(f.fid, !f.enabled);
+        runMaPanelEdit(editor, "픽스처 ON/OFF", () => {
+          fe.setFixtureEnabled(f.fid, !f.enabled);
+        });
         refresh();
       };
       grid.appendChild(el);
@@ -358,7 +435,7 @@ export function mountMaConsole(host, editor, hooks = {}) {
       b.innerHTML = `<span class="gn">G${n}</span><span class="gn-name">${g.name}</span><span class="cnt">${g.ids?.length || 0}</span>`;
       if (g.ids?.length) {
         b.onclick = () => {
-          applySelection(g.ids);
+          applySelection(g.ids, `그룹 G${n}`);
         };
       }
       groupsEl.appendChild(b);
@@ -396,49 +473,89 @@ export function mountMaConsole(host, editor, hooks = {}) {
       return;
     }
     selDimSlider.disabled = false;
+    if (dimSliderDragging) return;
     const f0 = fe.getFixture(sel[0]);
-    const src = f0?.attr || f0?.live || {};
-    const dim = Math.round(Number(src.dim) || 0);
+    const cap = fe.getFixtureCaptureState?.(sel[0]);
+    const dim = Math.round(Number(cap?.dim ?? f0?.attr?.dim) || 0);
     selDimSlider.value = String(dim);
     selDimVal.textContent = sel.length > 1 ? `${dim}% (${sel.length})` : `${dim}%`;
+    if (attrPage === "Dimmer" && knobs[0] && !isAnyKnobDragging()) {
+      knobs[0].setValue(dim, false);
+    }
   }
 
   function refresh({ light = false } = {}) {
     refreshGroupsMapIfNeeded();
-    syncSelectionUI();
+    syncSelectionUI({ rebuildKnobs: !light });
     if (!light) {
       refreshTabs();
     }
     hooks.onFixtureChange?.();
   }
 
+  selDimSlider?.addEventListener("pointerdown", () => {
+    dimSliderDragging = true;
+    beginMaPanelGesture(editor);
+  });
+  selDimSlider?.addEventListener("pointerup", () => {
+    if (!dimSliderDragging) return;
+    dimSliderDragging = false;
+    const fe = engine();
+    const v = Number(selDimSlider.value);
+    endMaPanelGesture(editor, "선택 Dim", () => {
+      fe?.setSelectionDim?.(v);
+    });
+    refreshSheet();
+  });
+  selDimSlider?.addEventListener("pointercancel", () => {
+    dimSliderDragging = false;
+    cancelMaPanelGesture();
+  });
+
   selDimSlider?.addEventListener("input", () => {
     const fe = engine();
     if (!fe?.getSelectionIds?.()?.length) return;
     const v = Number(selDimSlider.value);
-    fe.setSelectionDim(v);
+    applyKnobAttrLive("dim", v);
     if (selDimVal) {
       const n = fe.getSelectionIds().length;
       selDimVal.textContent = n > 1 ? `${v}% (${n})` : `${v}%`;
     }
+  });
+
+  selDimSlider?.addEventListener("change", () => {
+    if (dimSliderDragging) return;
+    const fe = engine();
+    if (!fe?.getSelectionIds?.()?.length) return;
+    const v = Number(selDimSlider.value);
+    runMaPanelEdit(editor, "선택 Dim", () => {
+      fe.setSelectionDim(v);
+    });
     refreshSheet();
-    buildKnobs();
-    bumpRender(editor);
   });
 
   pane.querySelector("#maSelOut").onclick = () => {
     const fe = engine();
-    if (!fe?.setSelectionDim?.(0)) return;
+    if (!fe?.getSelectionIds?.()?.length) return;
+    runMaPanelEdit(editor, "SEL OUT", () => {
+      fe.setSelectionDim(0);
+    });
     refresh();
     bumpRender(editor);
   };
   pane.querySelector("#maSelFull").onclick = () => {
-    if (!engine()?.setSelectionDim?.(100)) return;
+    const fe = engine();
+    if (!fe?.getSelectionIds?.()?.length) return;
+    runMaPanelEdit(editor, "SEL FULL", () => {
+      fe.setSelectionDim(100);
+    });
     refresh();
     bumpRender(editor);
   };
   pane.querySelector("#maClear").onclick = () => {
-    engine()?.clearProgrammer?.();
+    runMaPanelEdit(editor, "선택 초기화", () => {
+      engine()?.clearProgrammer?.();
+    });
     refresh();
     bumpRender(editor);
   };
@@ -450,13 +567,17 @@ export function mountMaConsole(host, editor, hooks = {}) {
     addKeyframesForCurrentSelection();
   });
   pane.querySelector("#maGrpKfPrev")?.addEventListener("click", () => {
-    editor.lightTimeline?.fixtureBridge?.navigateSelectionKeyframes?.("prev");
+    runMaPanelEdit(editor, "이전 키", () => {
+      editor.lightTimeline?.fixtureBridge?.navigateSelectionKeyframes?.("prev");
+    });
   });
   pane.querySelector("#maGrpKfNext")?.addEventListener("click", () => {
-    editor.lightTimeline?.fixtureBridge?.navigateSelectionKeyframes?.("next");
+    runMaPanelEdit(editor, "다음 키", () => {
+      editor.lightTimeline?.fixtureBridge?.navigateSelectionKeyframes?.("next");
+    });
   });
   pane.querySelector("#maGrpKfDel")?.addEventListener("click", () => {
-    editor.lightTimeline?.fixtureBridge?.deleteSelectionKeyframesAtPlayhead?.();
+    editor.lightTimeline?.deleteFixtureKeyframesAtPlayhead?.();
   });
 
   buildColorGrid();

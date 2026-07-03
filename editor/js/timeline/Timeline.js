@@ -8,6 +8,7 @@ import { KeyboardShortcuts } from "./KeyboardShortcuts.js";
 import { TimelineRenderer } from "./TimelineRenderer.js";
 import { VideoBackground } from './VideoBackground.js';
 import { TimelineSelectionBridge } from "./TimelineSelectionBridge.js";
+import { pauseTimelineIfPlaying } from "../utils/timelinePlayback.js";
 import * as TWEEN from "../../../examples/jsm/libs/tween.module.js";
 
 // 타임라인 설정 상수
@@ -945,6 +946,7 @@ class Timeline {
 
       playhead.addEventListener("mousedown", (e) => {
         e.preventDefault();
+        pauseTimelineIfPlaying(this.editor);
         dragging = true;
       });
 
@@ -1004,6 +1006,7 @@ class Timeline {
 
       ruler.addEventListener("click", (e) => {
         if (e.target === playhead) return;
+        pauseTimelineIfPlaying(this.editor);
         const rect = ruler.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(x, rect.width)) / rect.width;
@@ -1811,6 +1814,8 @@ class Timeline {
       playButton.innerHTML = '<i class="fa fa-pause"></i>';
       playButton.classList.add("is-playing");
     }
+
+    this.editor.signals.timelinePlayingChanged?.dispatch?.(true);
   }
 
   pause() {
@@ -1860,6 +1865,8 @@ class Timeline {
       playButton.innerHTML = '<i class="fa fa-play"></i>';
       playButton.classList.remove("is-playing");
     }
+
+    this.editor.signals.timelinePlayingChanged?.dispatch?.(false);
   }
 
   stop() {
@@ -1943,6 +1950,8 @@ class Timeline {
         console.log(`✅ 강제 업데이트: play 버튼 ${index + 1} 아이콘 변경됨`);
       });
     }
+
+    this.editor.signals.timelinePlayingChanged?.dispatch?.(false);
   }
 
   setCurrentFrame(frame, updateAnimation = true) {
@@ -2250,6 +2259,7 @@ class Timeline {
     let dragging = false;
     ph.addEventListener("mousedown", (e) => {
       e.preventDefault();
+      pauseTimelineIfPlaying(this.editor);
       dragging = true;
     });
 

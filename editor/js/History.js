@@ -1,4 +1,5 @@
 import * as Commands from "./commands/Commands.js";
+import { pauseTimelineIfPlaying } from "./utils/timelinePlayback.js";
 
 class History {
   constructor(editor) {
@@ -26,6 +27,7 @@ class History {
   }
 
   execute(cmd, optionalName) {
+    pauseTimelineIfPlaying(this.editor);
     // console.log("HISOTRY-execute");
     const lastCmd = this.undos[this.undos.length - 1];
     const timeDifference = Date.now() - this.lastCmdTime;
@@ -74,6 +76,7 @@ class History {
   }
 
   undo() {
+    pauseTimelineIfPlaying(this.editor);
     // console.log("HISOTRY-undo");
     if (this.historyDisabled) {
       alert(this.editor.strings.getKey("prompt/history/forbid"));
@@ -100,6 +103,7 @@ class History {
   }
 
   redo() {
+    pauseTimelineIfPlaying(this.editor);
     // console.log("HISOTRY-redo");
     if (this.historyDisabled) {
       alert(this.editor.strings.getKey("prompt/history/forbid"));

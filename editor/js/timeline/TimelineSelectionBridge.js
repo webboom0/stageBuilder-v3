@@ -4,6 +4,8 @@
 
  */
 
+import { runMaPanelEdit } from "../lighting/maPanelHistory.js";
+
 export class TimelineSelectionBridge {
 
   constructor(editor, timeline) {
@@ -83,13 +85,15 @@ export class TimelineSelectionBridge {
 
 
   clearTrackHighlights() {
+    const roots = new Set([this.getRoot()]);
+    const lightRoot = this.editor?.lightTimeline?.container;
+    if (lightRoot) roots.add(lightRoot);
 
-    this.getRoot()
-
-      .querySelectorAll(".timeline-track--selected")
-
-      .forEach((el) => el.classList.remove("timeline-track--selected"));
-
+    roots.forEach((root) => {
+      root
+        ?.querySelectorAll?.(".timeline-track--selected")
+        ?.forEach((el) => el.classList.remove("timeline-track--selected"));
+    });
   }
 
 
@@ -245,6 +249,36 @@ export class TimelineSelectionBridge {
 
 
 
+  /** MA 그룹/다중 픽스처 선택 → fx 트랙 행 일괄 하이라이트 */
+  selectFixtureTrackGroup(trackIds = []) {
+    const lt = this.editor.lightTimeline;
+    if (!lt) return;
+
+    this.clearTrackHighlights();
+
+    const ids = (trackIds || []).filter((id) => id && lt.tracks?.has(id));
+    if (!ids.length) {
+      lt.selectedTrackId = null;
+      return;
+    }
+
+    lt.selectedTrackId = ids[0];
+    ids.forEach((trackId, i) => {
+      const track = lt.tracks.get(trackId);
+      if (!track?.element) return;
+      if (i === 0) {
+        this.highlightTrack(track.element);
+      } else if (
+        !this.isLightTrackLocked(track.element) &&
+        !this.isMotionTrackLocked(track.element)
+      ) {
+        track.element.classList.add("timeline-track--selected");
+      }
+    });
+  }
+
+
+
   selectMotionTrack(uuid) {
 
     if (!uuid) return;
@@ -288,21 +322,13 @@ export class TimelineSelectionBridge {
     if (!baseId) return;
 
     if (baseId.startsWith("fx_")) {
-      this.clearTrackHighlights();
-      const lightTimeline = this.editor.lightTimeline;
-      if (lightTimeline) {
-        lightTimeline.selectedTrackId = baseId;
-        const track = lightTimeline.tracks.get(baseId);
-        if (track?.element) {
-          this.highlightTrack(track.element);
-          track.element.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-        }
-      }
+      this.selectFixtureTrackGroup([baseId]);
       const fid = Number(baseId.replace(/^fx_/, ""));
       const fe = this.editor.fixtureEngine;
       if (!Number.isNaN(fid) && fe?.setSelection) {
-        fe.setSelection([fid]);
-        this.editor.refreshMaConsole?.();
+        runMaPanelEdit(this.editor, "픽스처 선택", () => {
+          fe.setSelection([fid]);
+        });
       }
       return;
     }
