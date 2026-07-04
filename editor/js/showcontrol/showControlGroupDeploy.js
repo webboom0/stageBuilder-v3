@@ -174,6 +174,7 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
     object = await spawnCatalogEntryInScene(editor, entry, {
       forceNew,
       displayName,
+      group,
     });
   }
   if (!object) throw new Error(`FBX 배치 실패: ${displayName}`);
@@ -183,6 +184,7 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
     object = await spawnCatalogEntryInScene(editor, entry, {
       forceNew: true,
       displayName,
+      group,
     });
   }
   if (!object) throw new Error(`FBX 복제 배치 실패: ${displayName}`);
@@ -192,6 +194,16 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
   object.name = displayName;
   object.userData.scGroupId = group.id;
   object.userData.scMemberId = member.id;
+
+  // 그룹 색상 → WalkLite·일반 FBX 모두 적용
+  try {
+    const { colorForWalkLiteGroup, applyGroupMotionColor } = await import(
+      "../utils/walkLitePerformer.js"
+    );
+    applyGroupMotionColor(object, colorForWalkLiteGroup(editor, group));
+  } catch (_) {
+    /* noop */
+  }
 
   return placeOnTimeline(editor, object, displayName, group, memberIndex);
 }
@@ -213,6 +225,17 @@ async function deployActorMember(editor, member, group, memberIndex) {
 
   const object = entry.object;
   member.deployedUuid = object.uuid;
+  object.userData.scGroupId = group.id;
+  object.userData.scMemberId = member.id;
+
+  try {
+    const { colorForWalkLiteGroup, applyGroupMotionColor } = await import(
+      "../utils/walkLitePerformer.js"
+    );
+    applyGroupMotionColor(object, colorForWalkLiteGroup(editor, group));
+  } catch (_) {
+    /* noop */
+  }
 
   const wps = buildMemberWaypoints(group, memberIndex);
   const last = wps[wps.length - 1];

@@ -2192,57 +2192,14 @@ export class LightTimeline extends BaseTimeline {
   // MotionTimeline과 동일한 방식으로 updateAnimation 메서드 추가
   updateAnimation(time = null) {
     const currentTime = time !== null ? time : this.currentTime;
-
-    // console.log("🎬 === LightTimeline updateAnimation 호출 ===", {
-    //   time,
-    //   currentTime,
-    //   isPlaying: this.isPlaying,
-    //   timelineDataExists: !!this.timelineData,
-    //   tracksCount: this.tracks.size
-    // });
-
-    // 프레임으로 변환하여 updateFrame 호출
     const frame = Math.floor(currentTime * this.options.framesPerSecond);
-    // console.log(`🎬 updateFrame 호출: frame=${frame}, currentTime=${currentTime}`);
     this.updateFrame(frame);
-
-    // 애니메이션 업데이트 후 렌더링 강제 업데이트
-    this.forceRenderUpdate();
-
-    // 추가: Three.js 렌더러 직접 호출
-    if (this.editor.renderer && this.editor.scene && this.editor.camera) {
-      console.log("🔄 Three.js 렌더러 직접 호출");
-      this.editor.renderer.render(this.editor.scene, this.editor.camera);
-    }
+    // 재생/스크럽 렌더는 Timeline.setCurrentFrame → rendererUpdated 가 담당
   }
 
-  // 강제 렌더링 업데이트 메서드
+  // 강제 렌더링 업데이트 메서드 (스크럽·편집용 — 재생 핫패스에서는 호출하지 않음)
   forceRenderUpdate() {
-    console.log("🔄 강제 렌더링 업데이트 실행");
-
-    // 모든 가능한 렌더링 시그널 발생
-    if (this.editor.signals?.rendererUpdated) {
-      this.editor.signals.rendererUpdated.dispatch();
-    }
-
-    if (this.editor.signals?.sceneGraphChanged) {
-      this.editor.signals.sceneGraphChanged.dispatch();
-    }
-
-    if (this.editor.signals?.objectChanged) {
-      // 모든 조명 객체에 대해 objectChanged 시그널 발생 (fromAnimation 플래그로 무한 루프 방지)
-      this.tracks.forEach((track) => {
-        const object = this.editor.scene.getObjectByName(track.objectId);
-        if (object && track.lightType) {
-          this.editor.signals.objectChanged.dispatch(object, { fromAnimation: true });
-        }
-      });
-    }
-
-    // Three.js 렌더러 직접 업데이트 시도
-    if (this.editor.renderer && this.editor.renderer.render) {
-      this.editor.renderer.render(this.editor.scene, this.editor.camera);
-    }
+    this.editor.signals?.rendererUpdated?.dispatch?.();
   }
 
   // BaseTimeline의 추상 메서드 구현
@@ -2297,27 +2254,17 @@ export class LightTimeline extends BaseTimeline {
 
   updateFrame(frame) {
     this.currentTime = frame / this.options.framesPerSecond;
+    const playing = !!this.isPlaying;
 
     if (this.editor?.fixtureEngine) {
-      this.editor.fixtureEngine.isPlaying = !!this.isPlaying;
+      this.editor.fixtureEngine.isPlaying = playing;
     }
 
     if (this.fixtureBridge?.applyAtTime) {
       this.fixtureBridge.applyAtTime(this.currentTime);
     }
 
-    // 성능 최적화: 로그 출력 최소화 (재생 중이 아닐 때만)
-    if (!this.isPlaying) {
-      console.log("🎬 === LightTimeline updateFrame 시작 ===", {
-        frame,
-        currentTime: this.currentTime,
-        tracksCount: this.tracks.size,
-        timelineDataExists: !!this.timelineData
-      });
-    }
-
     let totalUpdates = 0;
-    let totalTracks = 0;
 
     // 타겟 트랙 데이터를 저장할 Map 초기화
     if (!this.timelineData.targetTracks) {
@@ -2325,14 +2272,7 @@ export class LightTimeline extends BaseTimeline {
     }
 
     this.tracks.forEach((track) => {
-      totalTracks++;
-
       if (track.isFixture) return;
-
-      // 성능 최적화: 로그 출력 최소화
-      if (!this.isPlaying) {
-        console.log(`🔍 트랙 처리 중: ${track.objectId} (${track.lightType || 'Target'})`);
-      }
 
       // 타겟 트랙인 경우 별도 처리
       if (track.isTarget) {
@@ -2348,18 +2288,9 @@ export class LightTimeline extends BaseTimeline {
 
       const object = this.editor.scene.getObjectByName(track.objectId);
       if (!object) {
-        if (!this.isPlaying) {
-          console.log(`❌ 조명 객체를 찾을 수 없음: ${track.objectId}`);
-        }
-        // 객체가 없어도 트랙은 유지 (UI 트랙이므로)
-        // this.tracks.delete(track.objectId); // 트랙 삭제 제거
-        console.log(`⚠️ 조명 객체 없음, 트랙은 유지: ${track.objectId}`);
-
-        // 조명 객체가 없을 때 재생성 시도 (로드 후 복원 과정에서)
-        if (track.lightType && !this.isPlaying) {
-          console.log(`🔄 누락된 조명 객체 재생성 시도: ${track.objectId} (${track.lightType})`);
-          // 트랙 인덱스 계산 (light_0, light_1, ...)
-          const lightIndex = parseInt(track.objectId.replace('light_', ''));
+        // 조명 객체가 없을 때 재생성 시도 (로드 후 복원 과정에서, 재생 중에는 스킵)
+        if (track.lightType && !playing) {
+          const lightIndex = parseInt(track.objectId.replace("light_", ""), 10);
           const row = Math.floor(lightIndex / 5);
           const col = lightIndex % 5;
           this.createAndPlaceLight(track.objectId, row, col, track.lightType);
@@ -2375,111 +2306,35 @@ export class LightTimeline extends BaseTimeline {
         return;
       }
 
-      if (!track.lightType) {
-        if (!this.isPlaying) {
-          console.log(`❌ 조명 타입이 설정되지 않음: ${track.objectId}`);
-        }
-        return;
-      }
+      if (!track.lightType) return;
 
       const properties = LIGHT_PROPERTIES[track.lightType];
       let hasChanges = false;
 
-      // 조명 속성 애니메이션
       Object.keys(properties).forEach((propertyType) => {
-        // 성능 최적화: 로그 출력 최소화
-        if (!this.isPlaying) {
-          console.log(`  💡 속성 체크: ${propertyType}`);
-        }
-
-        // UI 트랙 ID를 고유 식별자로 사용하여 트랙 찾기
-        if (propertyType === "position" && object.target) {
-          return;
-        }
+        if (propertyType === "position" && object.target) return;
 
         const trackData = this._resolveTrackData(track.objectId, propertyType);
-
-        if (!trackData) {
-          if (!this.isPlaying) {
-            console.log(`    ❌ 트랙 데이터 없음: ${track.objectId} ${propertyType}`);
-          }
-          return;
-        }
-
-        if (trackData.getKeyframeCount() === 0) {
-          if (!this.isPlaying) {
-            console.log(`    ⚠️ 키프레임 없음: ${track.objectId} ${propertyType}`);
-          }
-          return;
-        }
-
-        if (!this.isPlaying) {
-          console.log(`    ✅ 트랙 데이터 찾음: ${track.objectId} ${propertyType}`, {
-            keyframeCount: trackData.getKeyframeCount(),
-            times: Array.from(trackData.times.slice(0, trackData.keyframeCount))
-          });
-        }
+        if (!trackData || trackData.getKeyframeCount() === 0) return;
 
         const value = trackData.getValueAtTime(this.currentTime);
-
         if (value !== null) {
-          const beforeValue = this.getPropertyValue(object, propertyType);
           this.setPropertyValue(object, propertyType, value);
           hasChanges = true;
           totalUpdates++;
-
-          if (!this.isPlaying) {
-            console.log(`    ✅ 조명 속성 업데이트 성공: ${track.objectId} ${propertyType}`, {
-              before: beforeValue,
-              after: value,
-              time: this.currentTime
-            });
-          }
-        } else {
-          if (!this.isPlaying) {
-            console.log(`    ❌ 보간된 값이 null: ${track.objectId} ${propertyType}`);
-          }
         }
       });
 
-      // 타겟 애니메이션은 별도 트랙에서 처리하므로 여기서는 제거
-
-      if (hasChanges) {
-        if (!this.isPlaying) {
-          console.log(`    🔄 객체 변경 시그널 발생: ${track.objectId}`);
-        }
-
-        // 성능 최적화: 시그널 발생 최소화 (fromAnimation 플래그로 무한 루프 방지)
-        if (this.editor.signals?.objectChanged) {
-          this.editor.signals.objectChanged.dispatch(object, { fromAnimation: true });
-        }
-      } else {
-        if (!this.isPlaying) {
-          console.log(`    ⚠️ 변경사항 없음: ${track.objectId}`);
-        }
+      // 재생 중 objectChanged는 Viewport 루프와 중복·연쇄 비용이 큼 — 스크럽만
+      if (hasChanges && !playing && this.editor.signals?.objectChanged) {
+        this.editor.signals.objectChanged.dispatch(object, { fromAnimation: true });
       }
     });
 
-    console.log(`🎬 === LightTimeline updateFrame 완료 ===`, {
-      totalTracks,
-      totalUpdates,
-      currentTime: this.currentTime,
-      tracksKeys: Array.from(this.tracks.keys())
-    });
-
-    // UI 업데이트
-    this.updateUI();
-
-    // 성능 최적화: 변경사항이 있을 때만 렌더링 업데이트
-    if (totalUpdates > 0) {
-      // 재생 중일 때는 최소한의 렌더링 업데이트만
-      if (this.isPlaying) {
-        if (this.editor.signals?.rendererUpdated) {
-          this.editor.signals.rendererUpdated.dispatch();
-        }
-      } else {
-        this.forceRenderUpdate();
-      }
+    // 재생 중 playhead UI는 Timeline이 갱신
+    if (!playing) {
+      this.updateUI();
+      if (totalUpdates > 0) this.forceRenderUpdate();
     }
   }
 

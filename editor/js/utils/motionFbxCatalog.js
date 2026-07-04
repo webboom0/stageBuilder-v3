@@ -2,6 +2,14 @@ import { getFbxApiUrl, FBX_UPLOAD_CONFIG } from "../config/fbx-upload-config.js"
 
 /** 서버 없음·연결 실패·목록 비어 있음 → 패널에 항상 이 목록 표시 (files/fbx) */
 export const DEFAULT_LOCAL_FBX_LIST = [
+  // cosmos HTML 스타일 경량 워커 (실제 FBX 없음, 프로시저럴)
+  {
+    path: "procedural://walk-lite",
+    name: "WalkLite",
+    displayName: "WalkLite (경량)",
+    filename: "WalkLite.fbx",
+    procedural: "walk-lite",
+  },
   { path: "../files/fbx/Sitting.fbx", name: "Sitting", displayName: "Sitting", filename: "Sitting.fbx" },
   { path: "../files/fbx/Character1.fbx", name: "Character1", displayName: "Character1", filename: "Character1.fbx" },
   { path: "../files/fbx/Character2.fbx", name: "Character2", displayName: "Character2", filename: "Character2.fbx" },
@@ -77,6 +85,11 @@ export function findSceneObjectForCatalogEntry(editor, entry) {
     const fileName = String(o.userData?.fileName || "").toLowerCase();
     const filePath = String(o.userData?.filePath || "").toLowerCase();
     const objName = String(o.name || "").toLowerCase();
+    const procedural = String(o.userData?.procedural || "").toLowerCase();
+    if (entry.procedural && procedural === String(entry.procedural).toLowerCase()) {
+      found = o;
+      return;
+    }
     if (fileName === key || fileName === base) found = o;
     else if (filePath && entry.path && filePath.endsWith(catalogEntryKey(entry))) found = o;
     else if (objName === base || objName === key.replace(/\.fbx$/i, "")) found = o;
@@ -85,11 +98,59 @@ export function findSceneObjectForCatalogEntry(editor, entry) {
   return found;
 }
 
+async function spawnWalkLiteInScene(editor, entry, options = {}) {
+  const {
+    createWalkLitePerformer,
+    WALK_LITE_FILENAME,
+    colorForWalkLiteGroup,
+    WALK_LITE_GROUP_COLORS,
+  } = await import("./walkLitePerformer.js");
+  const { AddObjectCommand } = await import("../commands/AddObjectCommand.js");
+  const { captureMotionWorldReferenceHeight } = await import("./motionDisplayUnits.js");
+
+  const displayName =
+    options.displayName || entry.displayName || entry.name || "WalkLite (경량)";
+
+  let color = options.color;
+  if (color == null && options.group) {
+    color = colorForWalkLiteGroup(editor, options.group);
+  }
+  if (color == null && Number.isFinite(options.groupIndex)) {
+    color = WALK_LITE_GROUP_COLORS[options.groupIndex % WALK_LITE_GROUP_COLORS.length];
+  }
+
+  const object = createWalkLitePerformer({ displayName, color });
+  object.userData.source = "motion";
+  object.userData.fileName = entry.filename || WALK_LITE_FILENAME;
+  object.userData.filePath = entry.path || "procedural://walk-lite";
+  object.userData.displayName = displayName;
+  if (options.group?.id) object.userData.scGroupId = options.group.id;
+  object.name = displayName;
+
+  // FBX 로드와 동일: 표시 단위(1.7m) 기준 높이 캡처
+  captureMotionWorldReferenceHeight?.(object, editor);
+
+  if (editor.history && AddObjectCommand) {
+    editor.execute(new AddObjectCommand(editor, object));
+  } else {
+    editor.scene.add(object);
+    editor.signals?.objectAdded?.dispatch?.(object);
+    editor.signals?.sceneGraphChanged?.dispatch?.();
+  }
+
+  return object;
+}
+
 export async function spawnCatalogEntryInScene(editor, entry, options = {}) {
   const forceNew = !!options.forceNew;
   if (!forceNew) {
     const existing = findSceneObjectForCatalogEntry(editor, entry);
     if (existing) return existing;
+  }
+
+  const { isWalkLiteCatalogEntry } = await import("./walkLitePerformer.js");
+  if (isWalkLiteCatalogEntry(entry)) {
+    return spawnWalkLiteInScene(editor, entry, options);
   }
 
   const { waitForNewMotionObject, snapshotMotionUuids } = await import("./motionTimelineAutoTrack.js");

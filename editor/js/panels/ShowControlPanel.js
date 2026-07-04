@@ -12,6 +12,12 @@ import { mountMaConsole } from "../lighting/MaConsolePanel.js";
 import { runMaPanelEdit } from "../lighting/maPanelHistory.js";
 import { runShowControlEdit } from "../showcontrol/showControlHistory.js";
 import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, GROUP_ROT_Y_OPTIONS, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
+import {
+  isWalkLiteCatalogEntry,
+  normalizeColorHex,
+  colorForWalkLiteGroup,
+  recolorGroupMotionMembers,
+} from "../utils/walkLitePerformer.js";
 
 function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
   if (!host) return;
@@ -286,8 +292,23 @@ export function createShowControlPanel(editor, options = {}) {
       border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.3);
       color:rgba(255,255,255,0.65); cursor:pointer;
     }
+    .sb-ma-pill:hover{
+      border-color:rgba(255,255,255,0.28);
+      background:rgba(255,255,255,0.10);
+      color:rgba(255,255,255,0.92);
+    }
     .sb-ma-pill.on{ border-color:rgba(255,204,68,0.5); color:#ffcc44; background:rgba(255,204,68,0.12); }
+    .sb-ma-pill.on:hover{
+      border-color:rgba(255,204,68,0.72);
+      background:rgba(255,204,68,0.22);
+      color:#ffe08a;
+    }
     .sb-ma-pill.on.red{ border-color:rgba(224,88,78,0.5); color:#e0584e; background:rgba(224,88,78,0.12); }
+    .sb-ma-pill.on.red:hover{
+      border-color:rgba(224,88,78,0.72);
+      background:rgba(224,88,78,0.22);
+      color:#ffb0a8;
+    }
     .sb-sc-ec.ec-row{ margin:6px 0; }
     .sb-sc-ec.ec-row label{ width:88px; font-size:11px; color:rgba(255,255,255,0.55); }
     .sb-sc-ec.ec-row .val{ min-width:42px; font-family:"JetBrains Mono",monospace; font-size:11px; color:rgba(255,255,255,0.78); text-align:right; }
@@ -298,10 +319,17 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-ma-console{ padding-bottom:4px; }
     .sb-ma-sheet-head{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
     .sb-ma-chip{ font-size:10px; padding:3px 8px; border-radius:4px; border:1px solid rgba(255,204,68,0.35); background:rgba(0,0,0,0.3); color:rgba(255,204,68,0.9); cursor:pointer; }
+    .sb-ma-chip:hover{
+      border-color:rgba(255,204,68,0.55);
+      background:rgba(255,204,68,0.14);
+      color:#ffe08a;
+    }
     .sb-ma-chip.acc{ border-color:rgba(57,211,255,0.5); color:#6ec8ff; background:rgba(57,211,255,0.1); }
-    .sb-ma-chip.acc:hover{ border-color:rgba(57,211,255,0.75); background:rgba(57,211,255,0.16); }
-    .sb-ma-chip.off{ border-color:rgba(255,255,255,0.15); color:rgba(255,255,255,0.55); }
+    .sb-ma-chip.acc:hover{ border-color:rgba(57,211,255,0.75); background:rgba(57,211,255,0.18); color:#b8e6ff; }
+    .sb-ma-chip.off{ border-color:rgba(255,255,255,0.15); color:rgba(255,255,255,0.55); background:rgba(0,0,0,0.3); }
+    .sb-ma-chip.off:hover{ border-color:rgba(255,255,255,0.28); background:rgba(255,255,255,0.10); color:rgba(255,255,255,0.88); }
     .sb-ma-chip.on{ background:rgba(255,204,68,0.18); }
+    .sb-ma-chip.on:hover{ background:rgba(255,204,68,0.26); color:#ffe08a; }
     .sb-ma-selinfo{ margin-left:auto; font-size:10px; color:rgba(255,255,255,0.45); font-family:JetBrains Mono,monospace; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .sb-ma-sel-dim{ display:flex; align-items:center; gap:8px; margin-bottom:8px; padding:6px 8px; border:1px solid rgba(255,255,255,0.08); border-radius:5px; background:rgba(0,0,0,0.22); }
     .sb-ma-sel-dim label{ font-size:10px; color:rgba(255,204,68,0.85); min-width:52px; flex-shrink:0; }
@@ -309,8 +337,10 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-ma-sel-dim .val{ font-size:10px; font-family:JetBrains Mono,monospace; color:rgba(255,255,255,0.65); min-width:48px; text-align:right; flex-shrink:0; }
     .sb-ma-fixgrid{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); grid-template-rows:repeat(3,auto); gap:4px; margin-bottom:10px; }
     .sb-ma-empty{ grid-column:1/-1; font-size:11px; color:rgba(255,255,255,0.45); padding:12px 4px; }
-    .sb-ma-fx{ position:relative; display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px 3px; border:1px solid rgba(255,255,255,0.08); border-radius:5px; background:rgba(0,0,0,0.35); cursor:pointer; min-height:46px; }
+    .sb-ma-fx{ position:relative; display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px 3px; border:1px solid rgba(255,255,255,0.08); border-radius:5px; background:rgba(0,0,0,0.35); cursor:pointer; min-height:46px; color:rgba(255,255,255,0.75); }
+    .sb-ma-fx:hover{ border-color:rgba(255,255,255,0.22); background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.95); }
     .sb-ma-fx.sel{ border-color:rgba(255,204,68,0.95); box-shadow:0 0 0 2px rgba(255,204,68,0.45), 0 0 12px rgba(255,160,40,0.25); background:rgba(255,204,68,0.08); }
+    .sb-ma-fx.sel:hover{ background:rgba(255,204,68,0.14); }
     .sb-ma-fx.prog{ border-color:rgba(57,211,255,0.35); }
     .sb-ma-fx.off{ opacity:0.45; }
     .sb-ma-fx-id{ font-size:9px; font-family:JetBrains Mono,monospace; color:rgba(255,204,68,0.85); }
@@ -325,20 +355,25 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-ma-subsec{ font-size:9px; letter-spacing:1px; color:rgba(255,255,255,0.45); }
     .sb-ma-grp-tools{ display:flex; gap:4px; flex-wrap:wrap; }
     .sb-ma-grp{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; position:relative; min-height:38px; font-size:10px; padding:5px 6px 14px; text-align:left; border:1px solid rgba(255,255,255,0.1); border-radius:4px; background:rgba(0,0,0,0.25); color:rgba(255,255,255,0.65); cursor:pointer; }
+    .sb-ma-grp:hover{ border-color:rgba(255,255,255,0.28); background:rgba(255,255,255,0.10); color:rgba(255,255,255,0.92); }
     .sb-ma-grp .gn{ color:rgba(255,204,68,0.85); font-family:JetBrains Mono,monospace; margin-right:0; line-height:1.2; }
     .sb-ma-grp .gn-name{ font-size:9px; line-height:1.25; color:rgba(255,255,255,0.75); width:100%; word-break:keep-all; overflow-wrap:break-word; white-space:normal; }
     .sb-ma-grp .cnt{ position:absolute; right:5px; bottom:3px; font-size:8px; color:rgba(255,255,255,0.35); float:none; }
     .sb-ma-grp.empty{ opacity:0.35; pointer-events:none; }
     .sb-ma-grp.on{ border-color:rgba(255,204,68,0.85); background:rgba(255,204,68,0.16); color:rgba(255,255,255,0.95); box-shadow:0 0 0 1px rgba(255,204,68,0.35); }
+    .sb-ma-grp.on:hover{ border-color:rgba(255,204,68,0.95); background:rgba(255,204,68,0.24); color:#fff; }
     .sb-ma-kf-hint{ font-weight:400; font-size:9px; color:rgba(255,255,255,0.35); margin-left:6px; letter-spacing:0; }
     .sb-ma-attr-tabs{ display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
     .sb-ma-tab{ font-size:10px; padding:3px 8px; border-radius:3px; border:1px solid rgba(255,255,255,0.1); background:transparent; color:rgba(255,255,255,0.5); cursor:pointer; }
+    .sb-ma-tab:hover{ border-color:rgba(255,255,255,0.28); background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.88); }
     .sb-ma-tab.on{ border-color:rgba(57,211,255,0.5); color:#6ec8ff; background:rgba(57,211,255,0.08); box-shadow:inset 0 -2px 0 #39d3ff; }
+    .sb-ma-tab.on:hover{ background:rgba(57,211,255,0.14); color:#b8e6ff; }
     .sb-ma-exec-wrap{ margin:10px 0; padding:8px; border:1px solid rgba(255,255,255,0.08); border-radius:6px; background:rgba(0,0,0,0.28); }
     .sb-ma-exec-head{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
     .sb-ma-exec-title{ font-size:9px; letter-spacing:1px; color:rgba(255,255,255,0.45); flex:1; }
     .sb-ma-exec-act{ font-size:10px; padding:2px 8px; border:1px solid rgba(255,255,255,0.15); border-radius:3px; background:rgba(0,0,0,0.35); color:rgba(255,255,255,0.65); cursor:pointer; }
-    .sb-ma-exec-act:hover{ border-color:rgba(255,204,68,0.4); color:#ffcc44; }
+    .sb-ma-exec-act:hover{ border-color:rgba(255,204,68,0.45); background:rgba(255,204,68,0.12); color:#ffcc44; }
+    .sb-ma-exec-off:hover{ border-color:rgba(255,255,255,0.28); background:rgba(255,255,255,0.10); color:rgba(255,255,255,0.88); }
     .sb-ma-exec-bank{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
     .sb-ma-exec-col{ display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px 6px; border:1px solid transparent; border-radius:5px; cursor:pointer; }
     .sb-ma-exec-col.sel{ border-color:rgba(255,140,40,0.65); box-shadow:0 0 0 1px rgba(255,140,40,0.2) inset; }
@@ -373,7 +408,7 @@ export function createShowControlPanel(editor, options = {}) {
     .sb-ma-keys{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:3px; }
     .sb-ma-key{ font-size:10px; padding:5px 2px; border:1px solid rgba(255,255,255,0.12); border-radius:3px; background:rgba(0,0,0,0.35); color:rgba(255,255,255,0.65); cursor:pointer; }
     .sb-ma-key.wide{ grid-column:span 2; }
-    .sb-ma-key:hover{ border-color:rgba(255,204,68,0.35); color:#ffcc44; }
+    .sb-ma-key:hover{ border-color:rgba(255,204,68,0.45); background:rgba(255,204,68,0.12); color:#ffcc44; }
     .sb-form{
       display:grid;
       grid-template-columns: 72px minmax(0, 1fr);
@@ -514,21 +549,64 @@ export function createShowControlPanel(editor, options = {}) {
       letter-spacing:0.08em;
       font-weight:700;
     }
+    .sb-ens-group-tab-wrap{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      height:28px;
+      padding:0 4px 0 6px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:rgba(0,0,0,0.20);
+      flex-shrink:0;
+      max-width:100%;
+    }
+    .sb-ens-group-tab-wrap.on{
+      border-color:rgba(255,204,68,0.45);
+      box-shadow:0 0 0 1px rgba(255,204,68,0.10) inset;
+    }
+    .sb-ens-group-color{
+      width:18px;
+      height:18px;
+      padding:0;
+      border:1px solid rgba(255,255,255,0.25);
+      border-radius:4px;
+      background:transparent;
+      cursor:pointer;
+      flex-shrink:0;
+    }
+    .sb-ens-group-color::-webkit-color-swatch-wrapper{ padding:1px; }
+    .sb-ens-group-color::-webkit-color-swatch{ border:none; border-radius:3px; }
     .sb-ens-group-tab{
-      height: 28px;
-      padding: 0 10px;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.10);
-      background: rgba(0,0,0,0.20);
+      height: 26px;
+      padding: 0 8px 0 2px;
+      border-radius: 6px;
+      border: 0;
+      background: transparent;
       color: rgba(255,255,255,0.75);
       cursor: pointer;
       font-size: 11px;
+      white-space:nowrap;
     }
-    .sb-ens-group-tab.on{
-      border-color: rgba(255,204,68,0.45);
+    .sb-ens-group-tab-wrap.on .sb-ens-group-tab{
       color: rgba(255,204,68,0.95);
-      box-shadow: 0 0 0 1px rgba(255,204,68,0.10) inset;
     }
+    .sb-ens-tester-badge{
+      position:absolute;
+      top:4px;
+      left:4px;
+      z-index:2;
+      padding:1px 5px;
+      border-radius:4px;
+      background:rgba(255,170,40,0.95);
+      color:#1a1208;
+      font-size:8px;
+      font-weight:800;
+      letter-spacing:0.04em;
+      line-height:1.4;
+      pointer-events:none;
+    }
+    .sb-ens-cell.is-tester{ border-color:rgba(255,170,40,0.35); }
     .sb-ens-cell .lbl{
       font-size:10px;
       text-align:center;
@@ -599,11 +677,19 @@ export function createShowControlPanel(editor, options = {}) {
       cursor: pointer;
       font-size: 11px;
     }
-    .sb-chip:hover{ border-color: rgba(255,255,255,0.20); color: rgba(255,255,255,0.92); }
-    .sb-chip.acc{ border-color: rgba(118,185,0,0.35); color: rgba(118,185,0,0.90); }
-    .sb-chip.cy{ border-color: rgba(57,211,255,0.35); color: rgba(57,211,255,0.90); }
-    .sb-chip.lt{ border-color: rgba(255,204,68,0.30); color: rgba(255,204,68,0.95); }
-    .sb-chip.on{ border-color: rgba(57,211,255,0.55); color: rgba(57,211,255,0.95); box-shadow: 0 0 0 1px rgba(57,211,255,0.12) inset; }
+    .sb-chip:hover{
+      border-color: rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.10);
+      color: rgba(255,255,255,0.95);
+    }
+    .sb-chip.acc{ border-color: rgba(118,185,0,0.35); color: rgba(118,185,0,0.90); background: rgba(0,0,0,0.20); }
+    .sb-chip.acc:hover{ border-color: rgba(118,185,0,0.55); background: rgba(118,185,0,0.16); color: rgba(180,230,100,0.98); }
+    .sb-chip.cy{ border-color: rgba(57,211,255,0.35); color: rgba(57,211,255,0.90); background: rgba(0,0,0,0.20); }
+    .sb-chip.cy:hover{ border-color: rgba(57,211,255,0.55); background: rgba(57,211,255,0.14); color: #b8e6ff; }
+    .sb-chip.lt{ border-color: rgba(255,204,68,0.30); color: rgba(255,204,68,0.95); background: rgba(0,0,0,0.20); }
+    .sb-chip.lt:hover{ border-color: rgba(255,204,68,0.55); background: rgba(255,204,68,0.14); color: #ffe08a; }
+    .sb-chip.on{ border-color: rgba(57,211,255,0.55); color: rgba(57,211,255,0.95); background: rgba(57,211,255,0.10); box-shadow: 0 0 0 1px rgba(57,211,255,0.12) inset; }
+    .sb-chip.on:hover{ border-color: rgba(57,211,255,0.72); background: rgba(57,211,255,0.18); color: #d0f0ff; }
     .sb-chip.seg-move,
     .sb-chip.sb-seg-kind.move{
       border-color: rgba(57,211,255,0.42);
@@ -1165,9 +1251,15 @@ export function createShowControlPanel(editor, options = {}) {
         const label = (entry.displayName || entry.name || entry.filename || `#${num}`).replace(/</g, "&lt;");
         const status =
           inOtherGroup ? `${groupLabel} · 복제 가능` : groupLabel;
+        const isTester = isWalkLiteCatalogEntry(entry);
         const cell = document.createElement("div");
-        cell.className = "sb-ens-cell" + (selected.has(index) ? " on" : "") + (inOtherGroup ? " other-group" : "");
+        cell.className =
+          "sb-ens-cell" +
+          (selected.has(index) ? " on" : "") +
+          (inOtherGroup ? " other-group" : "") +
+          (isTester ? " is-tester" : "");
         cell.innerHTML = `
+          ${isTester ? `<span class="sb-ens-tester-badge">테스터</span>` : ""}
           <div class="sb-fbx-slot-num">${num}</div>
           <div class="lbl">${label}</div>
           <small>${status}${deployed ? " · LIVE" : ""}</small>
@@ -1197,10 +1289,49 @@ export function createShowControlPanel(editor, options = {}) {
         groupHost.innerHTML = `<span style="color:rgba(255,255,255,0.45);font-size:11px;padding:4px 2px">그룹이 없습니다. [+ 그룹 만들기]를 누르세요.</span>`;
         return;
       }
-      list.forEach((g) => {
+      list.forEach((g, gi) => {
+        const wrap = document.createElement("div");
+        wrap.className = "sb-ens-group-tab-wrap" + (g.id === current?.id ? " on" : "");
+
+        const colorInput = document.createElement("input");
+        colorInput.type = "color";
+        colorInput.className = "sb-ens-group-color";
+        colorInput.title = "그룹 모션 객체 색상 — 클릭해서 선택";
+        colorInput.value = normalizeColorHex(
+          g.color ?? colorForWalkLiteGroup(editor, g),
+          gi,
+        );
+        let colorBeforePick = colorInput.value;
+        colorInput.addEventListener("click", (e) => e.stopPropagation());
+        colorInput.addEventListener("mousedown", (e) => e.stopPropagation());
+        colorInput.addEventListener("focus", () => {
+          colorBeforePick = colorInput.value;
+        });
+        // 드래그 중 실시간 미리보기 (그룹 내 모든 모션)
+        colorInput.addEventListener("input", (e) => {
+          e.stopPropagation();
+          const group = editor.showControl.getGroup(g.id);
+          if (!group) return;
+          group.color = e.target.value;
+          recolorGroupMotionMembers(editor, group);
+        });
+        // 확정 시 히스토리 1회
+        colorInput.addEventListener("change", (e) => {
+          e.stopPropagation();
+          const hex = e.target.value;
+          const group = editor.showControl.getGroup(g.id);
+          if (group) group.color = colorBeforePick;
+          runShowControlEdit(editor, "그룹 색상", () => {
+            editor.showControl.updateGroup(g.id, { color: hex });
+          });
+          const updated = editor.showControl.getGroup(g.id);
+          if (updated) recolorGroupMotionMembers(editor, updated);
+          colorBeforePick = hex;
+        });
+
         const tab = document.createElement("button");
         tab.type = "button";
-        tab.className = "sb-ens-group-tab" + (g.id === current?.id ? " on" : "");
+        tab.className = "sb-ens-group-tab";
         tab.setAttribute("role", "tab");
         tab.setAttribute("aria-selected", String(g.id === current?.id));
         tab.textContent = `${g.name} (${g.members.length})`;
@@ -1208,7 +1339,10 @@ export function createShowControlPanel(editor, options = {}) {
           editor.showControl.setSelectedGroupId(g.id);
           remountGroupsSection();
         };
-        groupHost.appendChild(tab);
+
+        wrap.appendChild(colorInput);
+        wrap.appendChild(tab);
+        groupHost.appendChild(wrap);
       });
     };
 

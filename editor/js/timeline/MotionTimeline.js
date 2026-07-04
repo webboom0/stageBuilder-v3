@@ -1042,23 +1042,14 @@ export class MotionTimeline extends BaseTimeline {
             // trackKey는 "objectUuid_property" 형태이므로 objectUuid 추출
             const objectUuid = trackKey.split('_')[0];
             const object = this.editor.scene.getObjectByProperty('uuid', objectUuid);
-            if (!object) {
-                console.log("객체를 찾을 수 없습니다:", objectUuid);
-                return;
-            }
+            if (!object) return;
             // TimelineData 기반으로 트랙 확인
             const trackData = this.timelineData.getObjectTracks(objectUuid);
-            if (!trackData || trackData.size === 0) {
-                console.log("트랙 데이터를 찾을 수 없습니다:", objectUuid);
-                return;
-            }
+            if (!trackData || trackData.size === 0) return;
 
             // UI 트랙 요소 찾기 (헤더 상태는 바깥 .timeline-track에 있음)
             const trackElement = this._getTrackRootElement(objectUuid);
-            if (!trackElement) {
-                console.warn(`트랙 UI 요소가 없습니다: ${objectUuid}`);
-                return;
-            }
+            if (!trackElement) return;
 
             // 클립 범위 확인
             const sprites = trackElement.querySelectorAll('.animation-sprite');
@@ -1136,10 +1127,7 @@ export class MotionTimeline extends BaseTimeline {
 
             // 해당 객체의 클립 범위 확인
             const trackElement = this._getTrackRootElement(uuid);
-            if (!trackElement) {
-                console.warn(`트랙 UI 요소가 없습니다: ${uuid}`);
-                return;
-            }
+            if (!trackElement) return;
 
             if (this._isTrackUserHidden(trackElement)) {
                 object.visible = false;
@@ -1175,16 +1163,18 @@ export class MotionTimeline extends BaseTimeline {
         this.container.dataset.frameRate = this.timelineData.frameRate.toString();
         this.container.dataset.totalSeconds = this.options.totalSeconds.toString();
 
+        // 재생 중에는 클립별 DOM dataset 갱신 생략 (트랙 수 × 프레임마다 비용)
+        if (this.isPlaying || this.editor.scene?.userData?.timeline?.isPlaying) {
+            return;
+        }
+
         // 현재 재생 중인 클립들 찾아서 상태 업데이트
         this.timelineData.getAllTracksByUuid().forEach((trackInfo, key) => {
             const { uuid: objectUuid } = trackInfo;
 
             // UI 트랙 요소 찾기
             const trackElement = this.container.querySelector(`[data-uuid="${objectUuid}"]`);
-            if (!trackElement) {
-                console.warn(`트랙 UI 요소가 없습니다: ${objectUuid}`);
-                return;
-            }
+            if (!trackElement) return;
 
             const sprites = trackElement.querySelectorAll('.animation-sprite');
             sprites.forEach(sprite => {
@@ -2146,12 +2136,13 @@ export class MotionTimeline extends BaseTimeline {
                 const mixer = new THREE.AnimationMixer(object);
                 this.mixers.set(objectUuid, mixer);
 
-                // 초기 액션 설정
+                // 초기 액션 설정 (play 필수 — setTime만으로는 포즈가 안 먹을 수 있음)
                 object.animations.forEach(clip => {
                     const action = mixer.clipAction(clip);
                     action.setLoop(THREE.LoopRepeat);
                     action.clampWhenFinished = true;
                     action.enabled = true;
+                    action.play();
                 });
             }
         }

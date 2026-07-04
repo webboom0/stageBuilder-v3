@@ -183,6 +183,8 @@ export class ShowControl {
     const group = {
       id: g.id || this._newGroupId(),
       name: String(g.name || "그룹"),
+      // WalkLite 등 테스트 모션 그룹 색 (#rrggbb)
+      color: g.color != null && g.color !== "" ? String(g.color) : undefined,
       members: this._normalizeGroupMembers(g.members),
       formation: g.formation || "grid",
       formationSpacing: Math.max(0.5, Number(g.formationSpacing) || 30),
@@ -383,7 +385,23 @@ export class ShowControl {
 
   createGroup(name = "새 그룹") {
     const r = this.ensureRegistry();
-    const group = this._normalizeGroup({ id: this._newGroupId(), name: String(name || "새 그룹"), members: [] });
+    const palette = [
+      "#d9c08a",
+      "#8a9ad9",
+      "#7dcea0",
+      "#e8a0bf",
+      "#f0c27a",
+      "#85c1e9",
+      "#d7bde2",
+      "#f5b7b1",
+    ];
+    const color = palette[r.groups.length % palette.length];
+    const group = this._normalizeGroup({
+      id: this._newGroupId(),
+      name: String(name || "새 그룹"),
+      members: [],
+      color,
+    });
     r.groups.push(group);
     this.selectedGroupId = group.id;
     this.persistToSceneUserData();

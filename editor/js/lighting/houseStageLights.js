@@ -94,17 +94,22 @@ export function applyStageGrand(editor, level01) {
   return v;
 }
 
-export const DEFAULT_STARTUP_GRAND = 0.1;
+export const DEFAULT_STARTUP_GRAND = 0;
+/** WORK 버튼 ON 시와 동일한 작업등 레벨 */
+export const DEFAULT_STARTUP_WORK_LIGHT = 0.62;
 
 export function readStageGrand(scene) {
   return scene?.userData?.stageGrand ?? 0;
 }
 
-/** 새 프로젝트 시작 조명 — GRAND 10%, FOH·픽스처 출력 0 */
+/** 새 프로젝트 시작 조명 — GRAND 0%, WORK 작업등 ON, FOH·픽스처 출력 0 */
 export function applyStartupBlackout(editor) {
   if (!editor?.scene) return;
   applyHouseLightLevels(editor, defaultHouseLightLevels());
+  // GRAND 0% (작업등·Fill도 일단 0으로 맞춤)
   applyStageGrand(editor, DEFAULT_STARTUP_GRAND);
+  // WORK만 별도로 켜서 작업등이 켜진 상태로 시작
+  editor.setWorkLightLevel?.(DEFAULT_STARTUP_WORK_LIGHT);
   const fe = editor.fixtureEngine;
   if (fe) {
     if (fe.built) {
