@@ -48,33 +48,28 @@ function injectGroupFolderStyles() {
   document.head.appendChild(style);
 }
 
-function findTrackUuidForMember(editor, member, motionTimeline, usedUuids = new Set()) {
+function isTrackOwnedByOtherGroup(editor, uuid, groupId) {
+  if (!uuid || !groupId) return false;
+  const groups = editor?.showControl?.ensureGroups?.() || [];
+  return groups.some(
+    (g) =>
+      g.id !== groupId &&
+      (g.members || []).some((m) => m?.deployedUuid === uuid),
+  );
+}
+
+function findTrackUuidForMember(editor, member, motionTimeline, usedUuids = new Set(), groupId = null) {
   if (!motionTimeline?.container || !member) return null;
 
-  const label = String(member.displayName || "").trim();
-  if (label) {
-    for (const trackEl of motionTimeline.container.querySelectorAll(".timeline-track[data-uuid]")) {
-      const uuid = trackEl.dataset.uuid;
-      if (!uuid || usedUuids.has(uuid)) continue;
-      const trackName = (trackEl.querySelector(".track-name")?.textContent || trackEl.dataset.objectName || "").trim();
-      if (trackName === label) return uuid;
+  // 이름 매칭으로 다른 그룹 트랙을 가져오지 않음 — deployedUuid만 신뢰
+  if (member.deployedUuid && !usedUuids.has(member.deployedUuid)) {
+    if (groupId && isTrackOwnedByOtherGroup(editor, member.deployedUuid, groupId)) {
+      return null;
     }
-  }
-
-  const timelineData = editor.scene?.userData?.motionTimeline;
-  const objectNames = timelineData?.objectNames || {};
-  if (label) {
-    const byName = Object.entries(objectNames).find(([uuid, name]) => !usedUuids.has(uuid) && name === label);
-    if (byName) return byName[0];
-  }
-
-  const clips = timelineData?.clips || {};
-  if (label) {
-    const byClip = Object.entries(clips).find(([uuid, clip]) => {
-      if (usedUuids.has(uuid)) return false;
-      return clip?.name === label;
-    });
-    if (byClip) return byClip[0];
+    const el = motionTimeline.container.querySelector(
+      `.timeline-track[data-uuid="${member.deployedUuid}"]`,
+    );
+    if (el) return member.deployedUuid;
   }
 
   return null;
@@ -115,6 +110,14 @@ function applySavedGroupFoldersToMembers(editor) {
   if (!sc || !saved || typeof saved !== "object") return;
 
   const objectNames = editor.scene.userData.motionTimeline?.objectNames || {};
+  // 다른 그룹이 이미 소유한 deployedUuid는 덮어쓰지 않음
+  const ownedUuids = new Set();
+  (sc.ensureGroups?.() || []).forEach((g) => {
+    (g.members || []).forEach((m) => {
+      if (m?.deployedUuid) ownedUuids.add(m.deployedUuid);
+    });
+  });
+
   let changed = false;
 
   Object.entries(saved).forEach(([groupId, info]) => {
@@ -123,21 +126,42 @@ function applySavedGroupFoldersToMembers(editor) {
     const uuids = Array.isArray(info?.trackUuids) ? info.trackUuids : [];
     uuids.forEach((uuid, index) => {
       if (!uuid) return;
+      // 이미 다른 그룹 멤버에 연결된 트랙은 복원하지 않음
+      const ownerElsewhere = (sc.ensureGroups?.() || []).some(
+        (g) =>
+          g.id !== groupId &&
+          (g.members || []).some((m) => m?.deployedUuid === uuid),
+      );
+      if (ownerElsewhere) return;
+
       if (!group.members[index]) {
+        // 인덱스에 멤버가 없을 때만 복원 (기존 멤버 목록을 덮어쓰지 않음)
+        if (ownedUuids.has(uuid)) return;
         group.members[index] = {
           id: `mem_restore_${index}`,
           displayName: objectNames[uuid] || info?.name || `Member ${index + 1}`,
           deployedUuid: uuid,
         };
+        ownedUuids.add(uuid);
         changed = true;
         return;
       }
-      if (group.members[index].deployedUuid !== uuid) {
-        group.members[index].deployedUuid = uuid;
+      const member = group.members[index];
+      // 이미 deployedUuid가 있으면 폴더 저장본으로 덮어쓰지 않음
+      if (member.deployedUuid) {
+        if (!member.displayName && objectNames[member.deployedUuid]) {
+          member.displayName = objectNames[member.deployedUuid];
+          changed = true;
+        }
+        return;
+      }
+      if (!ownedUuids.has(uuid)) {
+        member.deployedUuid = uuid;
+        ownedUuids.add(uuid);
         changed = true;
       }
-      if (!group.members[index].displayName && objectNames[uuid]) {
-        group.members[index].displayName = objectNames[uuid];
+      if (!member.displayName && objectNames[uuid]) {
+        member.displayName = objectNames[uuid];
         changed = true;
       }
     });
@@ -292,16 +316,35 @@ export function ensureGroupFolder(editor, group) {
 
 export function attachTrackToGroupFolder(editor, group, trackElement) {
   if (!trackElement || !group?.id) return;
+
+  const uuid = trackElement.dataset?.uuid;
+  // 다른 그룹 멤버 소유 트랙은 이동·태그 변경 금지
+  if (uuid && isTrackOwnedByOtherGroup(editor, uuid, group.id)) return;
+
+  const currentGroupId = trackElement.dataset?.scGroupId;
+  if (currentGroupId && currentGroupId !== group.id) {
+    // 다른 그룹 폴더에 이미 속한 트랙은 가로채지 않음
+    if (isTrackOwnedByOtherGroup(editor, uuid, group.id)) return;
+    const otherGroup = editor?.showControl?.getGroup?.(currentGroupId);
+    if (otherGroup?.members?.some((m) => m?.deployedUuid === uuid)) return;
+  }
+
   const folder = ensureGroupFolder(editor, group);
   if (!folder) return;
   const body = folder.querySelector(".track-group-body");
   trackElement.dataset.scGroupId = group.id;
   body.appendChild(trackElement);
   updateGroupFolderMeta(folder);
+
+  const prevFolder = currentGroupId && currentGroupId !== group.id
+    ? findGroupFolder(getMotionTimeline(editor), currentGroupId)
+    : null;
+  if (prevFolder) updateGroupFolderMeta(prevFolder);
 }
 
 /**
- * 재-GO 후 멤버에 연결되지 않은 이전 그룹 트랙·씬 객체 정리
+ * 재-GO 후 멤버에 연결되지 않은 이전 그룹 트랙·씬 객체 정리.
+ * 다른 그룹이 쓰는 UUID는 절대 삭제하지 않음.
  */
 export function pruneStaleGroupDeployTracks(editor, group, activeUuids, previousUuids = []) {
   const motionTimeline = getMotionTimeline(editor);
@@ -328,6 +371,9 @@ export function pruneStaleGroupDeployTracks(editor, group, activeUuids, previous
   });
 
   stale.forEach((uuid) => {
+    // 다른 그룹 멤버가 소유한 트랙/객체는 삭제 금지
+    if (isTrackOwnedByOtherGroup(editor, uuid, group.id)) return;
+
     const obj = editor.scene?.getObjectByProperty?.("uuid", uuid);
     if (obj?.parent) obj.parent.remove(obj);
     motionTimeline._removeTrackCompletelyInternal?.(uuid);
@@ -434,26 +480,40 @@ export function organizeDeployedGroup(editor, group) {
 
   const attached = new Set();
   group.members.forEach((member) => {
-    let uuid = member?.deployedUuid;
-    if (!uuid) uuid = findTrackUuidForMember(editor, member, motionTimeline, attached);
+    // deployedUuid만 사용 — 이름 매칭으로 다른 그룹 트랙을 가져오지 않음
+    const uuid = findTrackUuidForMember(
+      editor,
+      member,
+      motionTimeline,
+      attached,
+      group.id,
+    );
     if (!uuid || attached.has(uuid)) return;
-    const trackEl = motionTimeline.container.querySelector(`.timeline-track[data-uuid="${uuid}"]`);
+    if (isTrackOwnedByOtherGroup(editor, uuid, group.id)) return;
+
+    const trackEl = motionTimeline.container.querySelector(
+      `.timeline-track[data-uuid="${uuid}"]`,
+    );
     if (trackEl) {
       attachTrackToGroupFolder(editor, group, trackEl);
       attached.add(uuid);
-      if (!member.deployedUuid) member.deployedUuid = uuid;
     }
   });
 
-  motionTimeline.container
-    .querySelectorAll(`.timeline-track[data-sc-group-id="${group.id}"]`)
-    .forEach((trackEl) => {
-      const uuid = trackEl.dataset.uuid;
-      if (uuid && !attached.has(uuid)) {
-        attachTrackToGroupFolder(editor, group, trackEl);
-        attached.add(uuid);
-      }
-    });
+  // 이 그룹 폴더에만 있는 트랙 정리(다른 그룹 소유면 태그 제거 후 폴더 밖으로)
+  folder.querySelectorAll(".timeline-track[data-uuid]").forEach((trackEl) => {
+    const uuid = trackEl.dataset.uuid;
+    if (!uuid) return;
+    if (attached.has(uuid)) return;
+    if (isTrackOwnedByOtherGroup(editor, uuid, group.id)) {
+      delete trackEl.dataset.scGroupId;
+      motionTimeline.container.appendChild(trackEl);
+      return;
+    }
+    // 이 그룹 active 멤버가 아니면 폴더에 두지 않음(삭제는 prune가 담당)
+  });
+
+  updateGroupFolderMeta(folder);
 }
 
 /** 프로젝트 로드 후 배치된 그룹 트랙을 폴더로 재구성 */

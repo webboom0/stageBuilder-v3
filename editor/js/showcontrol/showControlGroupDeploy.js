@@ -1,7 +1,14 @@
 import * as THREE from "three";
-import { spawnCatalogEntryInScene } from "../utils/motionFbxCatalog.js";
+import {
+  findSceneObjectForCatalogEntry,
+  spawnCatalogEntryInScene,
+} from "../utils/motionFbxCatalog.js";
 import { buildMemberWaypoints, getGroupClipRange } from "./groupSegments.js";
-import { organizeDeployedGroup, pruneStaleGroupDeployTracks } from "./motionTimelineGroupFolder.js";
+import {
+  attachTrackToGroupFolder,
+  organizeDeployedGroup,
+  pruneStaleGroupDeployTracks,
+} from "./motionTimelineGroupFolder.js";
 import {
   applyGroupMemberTimeline,
   getMotionTimeline,
@@ -17,18 +24,68 @@ function countSameCatalogMembers(group, member) {
   }).length;
 }
 
-/** 같은 FBX가 그룹에 2명 이상일 때만 새 인스턴스 필요 */
-function memberNeedsNewCatalogInstance(editor, group, member) {
+/** 이미 배치된 씬 객체를 다른 멤버가 쓰고 있으면 true */
+export function isUuidAssignedToAnyMember(editor, uuid, exceptMemberId = null) {
+  if (!uuid) return false;
+  const groups = editor?.showControl?.ensureGroups?.() || [];
+  return groups.some((g) =>
+    (g.members || []).some(
+      (m) => m?.deployedUuid === uuid && m.id !== exceptMemberId,
+    ),
+  );
+}
+
+/**
+ * 재-GO(본인 deployedUuid)만 기존 객체 재사용.
+ * 그 외에는 씬/다른 멤버에 같은 FBX가 있으면 무조건 복제.
+ */
+function shouldForceNewCatalogInstance(editor, group, member, catalogEntry) {
   if (member?.deployedUuid) {
     const existing = editor.scene?.getObjectByProperty?.("uuid", member.deployedUuid);
-    if (existing) return false;
+    if (existing && !isUuidAssignedToAnyMember(editor, existing.uuid, member.id)) {
+      return false;
+    }
     member.deployedUuid = null;
   }
-  return countSameCatalogMembers(group, member) > 1;
+
+  if (group && countSameCatalogMembers(group, member) > 1) return true;
+
+  const idx = Number(member?.catalogIndex);
+  const file = member?.filename || catalogEntry?.filename || catalogEntry?.name;
+  const groups = editor?.showControl?.ensureGroups?.() || [];
+  const usedByOtherMember = groups.some((g) =>
+    (g.members || []).some((m) => {
+      if (!m?.deployedUuid || m.id === member?.id) return false;
+      if (Number.isFinite(idx) && Number(m.catalogIndex) === idx) return true;
+      if (file && m.filename && m.filename === file) return true;
+      return false;
+    }),
+  );
+  if (usedByOtherMember) return true;
+
+  const existing = findSceneObjectForCatalogEntry(editor, catalogEntry);
+  if (existing) return true;
+
+  return false;
+}
+
+function uniqueMemberDisplayName(group, member, entry) {
+  const base =
+    member?.displayName ||
+    entry?.displayName ||
+    entry?.name ||
+    entry?.filename ||
+    "Motion";
+  const groupName = group?.name || "Group";
+  // 그룹마다 구분되는 이름 — 트랙 이름 매칭으로 가로채지 않도록
+  if (String(base).includes(`· ${groupName}`)) return base;
+  return `${base} · ${groupName}`;
 }
 
 function ensureTrackForObject(editor, motionTimeline, object, displayName) {
-  let trackEl = motionTimeline.container?.querySelector(`[data-uuid="${object.uuid}"]`);
+  let trackEl = motionTimeline.container?.querySelector(
+    `.timeline-track[data-uuid="${object.uuid}"]`,
+  );
   if (trackEl) return trackEl;
 
   const track =
@@ -70,7 +127,12 @@ async function placeOnTimeline(editor, object, displayName, group, memberIndex) 
   ensureTrackForObject(editor, motionTimeline, object, displayName);
   applyGroupMemberTimeline(motionTimeline, editor, group, memberIndex, object.uuid);
 
-  const trackEl = motionTimeline.container?.querySelector(`[data-uuid="${object.uuid}"]`);
+  const trackEl = motionTimeline.container?.querySelector(
+    `.timeline-track[data-uuid="${object.uuid}"]`,
+  );
+  if (trackEl && group) {
+    attachTrackToGroupFolder(editor, group, trackEl);
+  }
   motionTimeline.restoreKeyframesUIFromTimelineData?.(trackEl, object.uuid);
 
   motionTimeline.timelineData?.precomputeAnimationData?.(
@@ -94,25 +156,44 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
       displayName: member.displayName,
     };
 
+  const displayName = uniqueMemberDisplayName(group, member, entry);
+
   let object = null;
   if (member.deployedUuid) {
     object = editor.scene?.getObjectByProperty?.("uuid", member.deployedUuid) || null;
-    if (!object) member.deployedUuid = null;
+    // 다른 멤버가 이미 쓰는 객체면 재사용 금지
+    if (object && isUuidAssignedToAnyMember(editor, object.uuid, member.id)) {
+      object = null;
+      member.deployedUuid = null;
+    } else if (!object) {
+      member.deployedUuid = null;
+    }
   }
   if (!object) {
-    const forceNew = memberNeedsNewCatalogInstance(editor, group, member);
+    const forceNew = shouldForceNewCatalogInstance(editor, group, member, entry);
     object = await spawnCatalogEntryInScene(editor, entry, {
       forceNew,
-      displayName: member.displayName || entry.displayName || entry.name,
+      displayName,
     });
   }
-  if (!object) throw new Error(`FBX 배치 실패: ${member.displayName || entry.displayName}`);
+  if (!object) throw new Error(`FBX 배치 실패: ${displayName}`);
+
+  // 복제본이 다른 멤버 UUID를 가리키면 안 됨
+  if (isUuidAssignedToAnyMember(editor, object.uuid, member.id)) {
+    object = await spawnCatalogEntryInScene(editor, entry, {
+      forceNew: true,
+      displayName,
+    });
+  }
+  if (!object) throw new Error(`FBX 복제 배치 실패: ${displayName}`);
 
   member.deployedUuid = object.uuid;
-  member.displayName = member.displayName || object.name || entry.displayName;
-  if (member.displayName) object.name = member.displayName;
+  member.displayName = displayName;
+  object.name = displayName;
+  object.userData.scGroupId = group.id;
+  object.userData.scMemberId = member.id;
 
-  return placeOnTimeline(editor, object, member.displayName, group, memberIndex);
+  return placeOnTimeline(editor, object, displayName, group, memberIndex);
 }
 
 async function deployActorMember(editor, member, group, memberIndex) {

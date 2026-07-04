@@ -1104,7 +1104,7 @@ export function createShowControlPanel(editor, options = {}) {
 
         <div class="sb-ens-step">
           <div class="sb-ens-step-num">1 · 객체 등록</div>
-          <div class="sb-ens-subtitle">FBX 번호 선택 → [그룹에 등록] · ${activeGroup?.name || "그룹 선택"} · 다른 그룹 슬롯도 등록 시 이동</div>
+          <div class="sb-ens-subtitle">FBX 번호 선택 → [그룹에 등록] · ${activeGroup?.name || "그룹 선택"} · 같은 번호도 그룹마다 복제 등록</div>
           <div class="sb-ens-grid" id="fbxSlots"><div style="color:rgba(255,255,255,0.45);font-size:11px;padding:8px">FBX 목록 불러오는 중…</div></div>
           <div class="sb-ens-actions">
             <button type="button" class="sb-chip acc" id="ensAddSlotsToGroup">선택 → 그룹에 등록</button>
@@ -1136,11 +1136,18 @@ export function createShowControlPanel(editor, options = {}) {
     `;
 
     const getCatalogGroupLabel = (catalogIndex) => {
-      const owner = editor.showControl.findGroupWithCatalogIndex?.(catalogIndex);
-      if (!owner) return "OPEN";
+      const owners =
+        editor.showControl.findGroupsWithCatalogIndex?.(catalogIndex) ||
+        (editor.showControl.findGroupWithCatalogIndex?.(catalogIndex)
+          ? [editor.showControl.findGroupWithCatalogIndex(catalogIndex)]
+          : []);
+      if (!owners.length) return "OPEN";
       const current = editor.showControl.getSelectedGroup();
-      if (owner.id === current?.id) return "THIS GROUP";
-      return owner.name || "IN GROUP";
+      const inCurrent = owners.some((g) => g.id === current?.id);
+      if (inCurrent && owners.length === 1) return "THIS GROUP";
+      if (inCurrent) return `THIS +${owners.length - 1}`;
+      if (owners.length === 1) return owners[0].name || "IN GROUP";
+      return `${owners.length} GROUPS`;
     };
 
     const renderFbxSlotGrid = async () => {
@@ -1157,7 +1164,7 @@ export function createShowControlPanel(editor, options = {}) {
         const deployed = !!findSceneObjectForCatalogEntry(editor, entry);
         const label = (entry.displayName || entry.name || entry.filename || `#${num}`).replace(/</g, "&lt;");
         const status =
-          inOtherGroup ? `${groupLabel} · 등록 시 이동` : groupLabel;
+          inOtherGroup ? `${groupLabel} · 복제 가능` : groupLabel;
         const cell = document.createElement("div");
         cell.className = "sb-ens-cell" + (selected.has(index) ? " on" : "") + (inOtherGroup ? " other-group" : "");
         cell.innerHTML = `

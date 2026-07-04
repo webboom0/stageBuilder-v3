@@ -431,21 +431,16 @@ export class ShowControl {
     );
   }
 
+  /**
+   * FBX 슬롯을 그룹에 등록.
+   * 다른 그룹에 같은 번호가 있어도 이동하지 않고 복제(독립 멤버)로 추가한다.
+   */
   addCatalogSlotToGroup(groupId, catalogEntry, catalogIndex) {
     if (!catalogEntry) return false;
     const group = this.getGroup(groupId);
     if (!group) return false;
     const idx = Number(catalogIndex);
-
-    const r = this.ensureRegistry();
-    for (const g of r.groups) {
-      if (g.id === groupId) continue;
-      g.members = g.members.filter(
-        (m) =>
-          Number(m?.catalogIndex) !== idx &&
-          m?.filename !== catalogEntry.filename,
-      );
-    }
+    if (!Number.isFinite(idx)) return false;
 
     const dupCount = group.members.filter((m) => Number(m?.catalogIndex) === idx).length;
     const member = this.createGroupMemberFromCatalog(catalogEntry, idx);
@@ -455,6 +450,15 @@ export class ShowControl {
     group.members.push(member);
     this.persistToSceneUserData();
     return true;
+  }
+
+  /** 해당 FBX 번호를 쓰는 모든 그룹 (복제 등록 가능) */
+  findGroupsWithCatalogIndex(catalogIndex) {
+    const idx = Number(catalogIndex);
+    if (!Number.isFinite(idx)) return [];
+    return this.ensureGroups().filter((g) =>
+      g.members.some((m) => Number(m?.catalogIndex) === idx),
+    );
   }
 
   addActorSlotToGroup(groupId, actorId) {
@@ -547,7 +551,7 @@ export class ShowControl {
     return this._fbxCatalogPromise;
   }
 
-  async addSelectedFbxSlotsToGroup(groupId, catalog) {
+  addSelectedFbxSlotsToGroup(groupId, catalog) {
     if (!groupId || !Array.isArray(catalog) || !this.selectedFbxSlotIndices.size) return 0;
     let added = 0;
     for (const idx of [...this.selectedFbxSlotIndices].sort((a, b) => a - b)) {
