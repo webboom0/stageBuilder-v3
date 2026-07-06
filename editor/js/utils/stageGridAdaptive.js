@@ -42,6 +42,18 @@ function getCameraGroundDistance(camera, center) {
   return Math.max(camera.position.distanceTo(center), 0.5);
 }
 
+/** 무대 바닥(_Floor) 상단 월드 Y. 없으면 모션 발 기준 Y=0 */
+function getStageDeckWorldY(editor) {
+  const stage = editor?.scene?.children?.find((c) => c.name === "Stage");
+  const floor = stage?.children?.find((c) => c.name === "_Floor");
+  if (floor) {
+    floor.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(floor);
+    if (!box.isEmpty()) return box.max.y + 0.02;
+  }
+  return 0.02;
+}
+
 function getWorldUnitsPerPixel(camera, distance, viewportHeight) {
   const height = Math.max(viewportHeight, 1);
   const vFov = THREE.MathUtils.degToRad(camera.fov);
@@ -106,5 +118,6 @@ export {
   GRID_MODE_FIXED,
   computeStageGridSizes,
   formatGridScaleLabel,
+  getStageDeckWorldY,
   snapToNiceDisplayMeters,
 };

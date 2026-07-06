@@ -424,6 +424,21 @@ export function createMotionPanel(editor) {
         }
     }
 
+    async function syncGroupMotionCatalog() {
+        try {
+            if (!editor?.showControl?.refreshFbxCatalog) return null;
+            const result = await editor.showControl.refreshFbxCatalog();
+            editor.refreshShowControl?.();
+            if (result?.removed > 0) {
+                console.log(`🔄 그룹 FBX 동기화: 삭제된 파일 멤버 ${result.removed}개 제거`);
+            }
+            return result;
+        } catch (error) {
+            console.warn("⚠️ 그룹 FBX 카탈로그 동기화 실패:", error);
+            return null;
+        }
+    }
+
     // FBX 목록 표시 함수
     async function displayFBXList() {
         const fbxListContainer = motionPanel.querySelector('.fbx-list-container');
@@ -441,7 +456,8 @@ export function createMotionPanel(editor) {
 
         try {
             console.log("📡 FBX 파일 목록 로드 중...");
-            const fbxFiles = await loadMotionFbxCatalog();
+            const syncResult = await syncGroupMotionCatalog();
+            const fbxFiles = syncResult?.catalog || (await loadMotionFbxCatalog());
             console.log("📥 로드된 FBX 파일 수:", fbxFiles ? fbxFiles.length : 0);
 
             if (!fbxFiles || fbxFiles.length === 0) {

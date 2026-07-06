@@ -17,6 +17,7 @@ import {
   normalizeColorHex,
   colorForWalkLiteGroup,
   recolorGroupMotionMembers,
+  stripTesterBadgesFromScene,
 } from "../utils/walkLitePerformer.js";
 
 function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
@@ -191,6 +192,7 @@ export function createShowControlPanel(editor, options = {}) {
     editor.showControl.loadFromSceneUserData();
     editor.showControl.ensureDefaultShow();
   }
+  stripTesterBadgesFromScene(editor);
 
   // ============================================================
   // grandMA3 / QLab-like console layout (drawer-friendly)

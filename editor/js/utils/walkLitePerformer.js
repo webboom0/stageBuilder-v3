@@ -106,43 +106,24 @@ export function recolorWalkLiteMembersInGroup(editor, group) {
   recolorGroupMotionMembers(editor, group);
 }
 
-/** 3D 왼쪽 상단 "테스터" 뱃지 스프라이트 */
-function createTesterBadgeSprite() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 160;
-  canvas.height = 48;
-  const ctx = canvas.getContext("2d");
-  const r = 10;
-  ctx.fillStyle = "rgba(255, 170, 40, 0.95)";
-  ctx.beginPath();
-  ctx.moveTo(r, 4);
-  ctx.arcTo(156, 4, 156, 44, r);
-  ctx.arcTo(156, 44, 4, 44, r);
-  ctx.arcTo(4, 44, 4, 4, r);
-  ctx.arcTo(4, 4, 156, 4, r);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = "#1a1208";
-  ctx.font = "bold 26px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("테스터", 80, 26);
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({
-    map: tex,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
+/** 기존 씬에 남아 있는 3D 테스터 뱃지 제거 */
+export function stripTesterBadgesFromScene(editor) {
+  const scene = editor?.scene;
+  if (!scene) return;
+  const toRemove = [];
+  scene.traverse((o) => {
+    if (o.userData?.isTesterBadge || o.name === "testerBadge") {
+      toRemove.push(o);
+    }
   });
-  const sprite = new THREE.Sprite(mat);
-  sprite.name = "testerBadge";
-  sprite.userData.isTesterBadge = true;
-  // body 로컬: 머리 왼쪽 위
-  sprite.position.set(-1.35, 5.9, 0.2);
-  sprite.scale.set(2.4, 0.72, 1);
-  return sprite;
+  for (const sprite of toRemove) {
+    sprite.parent?.remove(sprite);
+    sprite.material?.map?.dispose?.();
+    sprite.material?.dispose?.();
+  }
+  scene.traverse((o) => {
+    if (o.userData?.testerBadge != null) delete o.userData.testerBadge;
+  });
 }
 
 /** @returns {boolean} */
@@ -271,15 +252,11 @@ export function createWalkLitePerformer(options = {}) {
   armR.position.set(0.78, 4.2, 0);
   body.add(armR);
 
-  const badge = createTesterBadgeSprite();
-  body.add(badge);
-
   root.userData.armL = armL;
   root.userData.armR = armR;
   root.userData.legL = legL;
   root.userData.legR = legR;
   root.userData.body = body;
-  root.userData.testerBadge = badge;
   root.userData.procedural = WALK_LITE_PROCEDURAL_ID;
   root.userData.source = "motion";
   root.userData.fileName = WALK_LITE_FILENAME;

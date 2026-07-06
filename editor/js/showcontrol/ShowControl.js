@@ -559,14 +559,30 @@ export class ShowControl {
   async ensureFbxCatalog() {
     if (this._fbxCatalog) return this._fbxCatalog;
     if (!this._fbxCatalogPromise) {
-      const { loadMotionFbxCatalog } = await import("../utils/motionFbxCatalog.js");
-      this._fbxCatalogPromise = loadMotionFbxCatalog().then((list) => {
-        this._fbxCatalog = list;
-        this._fbxCatalogPromise = null;
-        return list;
-      });
+      this._fbxCatalogPromise = this._loadFbxCatalogFresh();
     }
     return this._fbxCatalogPromise;
+  }
+
+  async _loadFbxCatalogFresh() {
+    const { loadMotionFbxCatalog } = await import("../utils/motionFbxCatalog.js");
+    try {
+      const list = await loadMotionFbxCatalog();
+      this._fbxCatalog = list;
+      return list;
+    } finally {
+      this._fbxCatalogPromise = null;
+    }
+  }
+
+  /** Assets > Motion 목록 변경 시 카탈로그 재로드 + 그룹 멤버 동기화 */
+  async refreshFbxCatalog() {
+    this._fbxCatalog = null;
+    this._fbxCatalogPromise = null;
+    const catalog = await this._loadFbxCatalogFresh();
+    const { syncGroupMembersWithCatalog } = await import("./showControlMotionCatalogSync.js");
+    const sync = syncGroupMembersWithCatalog(this, catalog);
+    return { catalog, ...sync };
   }
 
   addSelectedFbxSlotsToGroup(groupId, catalog) {

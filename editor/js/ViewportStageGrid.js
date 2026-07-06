@@ -40,7 +40,7 @@ const fragmentShader = /* glsl */ `
 `;
 
 /**
- * 뷰포트 전체에 보이는 바닥 그리드. 카메라 중심을 따라 이동.
+ * 뷰포트 바닥 그리드 — 월드 XZ 원점에 고정(카메라 팬·줌과 무관하게 무대 바닥에 붙어 보임).
  * cellSize / sectionSize는 월드 단위(표시 m와 맞추려면 motionDisplayUnits로 환산).
  */
 class ViewportStageGrid extends THREE.Mesh {
@@ -66,7 +66,7 @@ class ViewportStageGrid extends THREE.Mesh {
       fragmentShader,
       transparent: true,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       side: THREE.DoubleSide,
     });
 
@@ -89,16 +89,11 @@ class ViewportStageGrid extends THREE.Mesh {
 
   applyOverlaySettings() {
     const mat = this.material;
-    mat.depthTest = false;
+    mat.depthTest = true;
     mat.depthWrite = false;
     mat.polygonOffset = true;
-    mat.polygonOffsetFactor = -1;
-    mat.polygonOffsetUnits = -8;
-  }
-
-  /** 팬·줌 시에도 화면을 덮도록 카메라 타깃(controls.center)에 맞춤 */
-  followCenter(center, y) {
-    this.position.set(center.x, y, center.z);
+    mat.polygonOffsetFactor = -2;
+    mat.polygonOffsetUnits = -2;
   }
 }
 

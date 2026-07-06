@@ -98,7 +98,7 @@ function SidebarAssets(editor) {
   tabVideo.addEventListener('click', () => selectMediaTab('media-tab-video'));
   tabAudio.addEventListener('click', () => selectMediaTab('media-tab-audio'));
 
-  // CSS — 레이아웃만 (색상·타이포는 premiere-workspace.css .sb-right-dock)
+  // CSS — 레이아웃만 (색상·타이포는 premiere-workspace.css .sb-left-dock)
   const style = document.createElement('style');
   style.textContent = `
     .media-tabbed-panel .Tabs, .list-tabbed-panel .Tabs {

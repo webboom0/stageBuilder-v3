@@ -12,10 +12,10 @@ let AUDIO_FILES = [];
 async function loadAudioFilesFromFolder() {
   const defaultList = () => [
     {
-      path: "../files/music/SUJESHUN.mp3",
-      name: "SUJESHUN",
-      displayName: "수제순",
-      filename: "SUJESHUN.mp3",
+      path: "../files/music/ShJeCheon.mp3",
+      name: "ShJeCheon",
+      displayName: "수제천",
+      filename: "ShJeCheon.mp3",
     },
     {
       path: "../files/music/DRAMA.mp3",
@@ -873,9 +873,9 @@ export class AudioTimeline extends BaseTimeline {
       // 기본 파일 목록으로 초기화
       AUDIO_FILES = [
         {
-          path: "../files/music/SUJESHUN.mp3",
-          name: "SUJESHUN",
-          displayName: "수제순"
+          path: "../files/music/ShJeCheon.mp3",
+          name: "ShJeCheon",
+          displayName: "수제천"
         },
         {
           path: "../files/music/DRAMA.mp3",

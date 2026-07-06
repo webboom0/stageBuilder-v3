@@ -1813,7 +1813,9 @@ Editor.prototype = {
           this.showControl.loadFromSceneUserData();
         }
         const { resyncAllGroupsAfterProjectLoad } = await import("./showcontrol/motionTimelineGroupFolder.js");
+        const { stripTesterBadgesFromScene } = await import("./utils/walkLitePerformer.js");
         resyncAllGroupsAfterProjectLoad(this);
+        stripTesterBadgesFromScene(this);
       } catch (groupRestoreError) {
         console.warn("그룹 타임라인 복원 실패:", groupRestoreError);
       }

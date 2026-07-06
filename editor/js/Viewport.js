@@ -26,6 +26,7 @@ import {
   GRID_MODE_ADAPTIVE,
   GRID_MODE_FIXED,
   computeStageGridSizes,
+  getStageDeckWorldY,
 } from "./utils/stageGridAdaptive.js";
 import {
   isTimelinePlaying,
@@ -82,19 +83,16 @@ function Viewport(editor) {
   const GRID_COLORS_LIGHT = [0x999999, 0x777777];
   const GRID_COLORS_DARK = [0x555555, 0x888888];
 
-  // 그리드·가이드 공통 Y (바닥에 가깝게 두고, 아래 depth/render로 가시성 처리)
-  const STAGE_DECK_HELPER_Y = 1.5;
+  // 그리드·가이드 — 무대 바닥(_Floor) 상단에 맞춤 (렌더 시 getStageDeckWorldY로 갱신)
+  const STAGE_DECK_HELPER_Y = 0.02;
 
-  /**
-   * 무대 바닥과 겹칠 때: polygonOffset으로 z-fight 완화.
-   * depthTest 끄고 renderOrder를 높여 씬 이후에 그려 바닥에 묻히지 않게 함(캐릭터 위로 겹칠 수 있음).
-   */
-  function applyStageGridOverlay(mat) {
-    mat.depthTest = false;
+  /** 바닥 그리드: depthTest로 3D에 고정, polygonOffset으로 z-fight만 완화 */
+  function applyStageFloorGridMaterial(mat) {
+    mat.depthTest = true;
     mat.depthWrite = false;
     mat.polygonOffset = true;
-    mat.polygonOffsetFactor = -1;
-    mat.polygonOffsetUnits = -8;
+    mat.polygonOffsetFactor = -2;
+    mat.polygonOffsetUnits = -2;
   }
 
   const grid = new THREE.Group();
@@ -105,6 +103,7 @@ function Viewport(editor) {
     opacity: 0.9,
   });
   stageGrid.applyOverlaySettings();
+  stageGrid.position.set(0, 0, 0);
   grid.add(stageGrid);
 
   let gridMode =
@@ -129,7 +128,7 @@ function Viewport(editor) {
     opacity: 0.8,
     transparent: true
   });
-  applyStageGridOverlay(xAxisMaterial);
+  applyStageFloorGridMaterial(xAxisMaterial);
   const xAxisLine = new THREE.Line(xAxisGeometry, xAxisMaterial);
   xAxisLine.renderOrder = 1002;
   guides.add(xAxisLine);
@@ -145,7 +144,7 @@ function Viewport(editor) {
     opacity: 0.8,
     transparent: true
   });
-  applyStageGridOverlay(zAxisMaterial);
+  applyStageFloorGridMaterial(zAxisMaterial);
   const zAxisLine = new THREE.Line(zAxisGeometry, zAxisMaterial);
   zAxisLine.renderOrder = 1002;
   guides.add(zAxisLine);
@@ -158,10 +157,10 @@ function Viewport(editor) {
     opacity: 0.9,
     transparent: true
   });
-  applyStageGridOverlay(centerMaterial);
+  applyStageFloorGridMaterial(centerMaterial);
   const centerMarker = new THREE.Mesh(centerGeometry, centerMaterial);
   centerMarker.rotation.x = -Math.PI / 2; // 바닥에 평행하게
-  centerMarker.position.y = 2; // 그리드보다 살짝 더 위
+  centerMarker.position.y = 0.05;
   centerMarker.renderOrder = 1003;
   guides.add(centerMarker);
 
@@ -1177,6 +1176,9 @@ function Viewport(editor) {
     if (camera === editor.viewportCamera) {
       renderer.autoClear = false;
       if (grid.visible === true) {
+        const deckY = getStageDeckWorldY(editor);
+        grid.position.y = deckY;
+        guides.position.y = deckY;
         const gridSizes = computeStageGridSizes(
           editor,
           camera,
@@ -1185,7 +1187,6 @@ function Viewport(editor) {
           gridMode,
         );
         stageGrid.setCellSizes(gridSizes.minorWorld, gridSizes.majorWorld);
-        stageGrid.followCenter(controls.center, STAGE_DECK_HELPER_Y);
         editor.viewportGridScale = gridSizes;
         renderer.render(grid, camera);
       } else {

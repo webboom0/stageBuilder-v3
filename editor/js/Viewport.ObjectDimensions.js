@@ -58,17 +58,9 @@ class ViewportObjectDimensions {
   }
 
   setObject(object) {
-    const root = getDisplayRoot(object, this.editor);
-    if (object === null || root === null) {
-      this.target = null;
-      this.group.visible = false;
-      this.hideLabels();
-      return;
-    }
-
-    this.target = root;
-    this.group.visible = true;
-    this.update();
+    this.target = null;
+    this.group.visible = false;
+    this.hideLabels();
   }
 
   update() {

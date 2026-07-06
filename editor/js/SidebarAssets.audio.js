@@ -7,10 +7,10 @@ import { getApiUrl, AUDIO_UPLOAD_CONFIG } from "./config/audio-upload-config.js"
  */
 const DEFAULT_LOCAL_AUDIO_LIST = [
   {
-    path: "../files/music/SUJESHUN.mp3",
-    name: "SUJESHUN",
-    displayName: "수제순",
-    filename: "SUJESHUN.mp3",
+    path: "../files/music/ShJeCheon.mp3",
+    name: "ShJeCheon",
+    displayName: "수제천",
+    filename: "ShJeCheon.mp3",
   },
   {
     path: "../files/music/DRAMA.mp3",

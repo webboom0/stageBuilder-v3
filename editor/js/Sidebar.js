@@ -11,8 +11,7 @@ import { SidebarAssets } from "./SidebarAssets.js";
 import { createShowControlSection } from "./panels/ShowControlPanel.js";
 
 import { createPanel } from "./ui/floatPanel.js";
-import { createRightPanelRail } from "./ui/RightPanelRail.js";
-import { createLeftPanelRail } from "./ui/LeftPanelRail.js";
+import { createPanelRail } from "./ui/PanelRail.js";
 
 function Sidebar(editor) {
   const root = editor.tabRoot || document.querySelector(".editorTab.active");
@@ -34,8 +33,8 @@ function Sidebar(editor) {
   container.addTab("light", "Light", sidebarLight);
   container.select("scene");
 
-  const leftRail = createLeftPanelRail(root);
-  const rightRail = createRightPanelRail(root);
+  const leftRail = createPanelRail(root, { side: "left", distribution: "resizable" });
+  const rightRail = createPanelRail(root, { side: "right", distribution: "equal" });
 
   const scenePanel = createPanel("Scene", new SidebarPanelScene(editor).dom);
   scenePanel.classList.add("floating-panel-scene-fixed");
@@ -83,31 +82,9 @@ function Sidebar(editor) {
   const scGroupsPanel = createPanel("그룹 / Ensemble", createShowControlSection(editor, "groups"));
   const scMaPanel = createPanel("조명", createShowControlSection(editor, "ma"));
 
-  leftRail.registerPanel({
-    id: "properties",
-    icon: "fas fa-sliders-h",
-    label: "Properties (객체 속성)",
-    panelEl: propertiesPanel,
-    defaultOpen: true,
-  });
-
-  leftRail.registerPanel({
-    id: "sc-groups",
-    icon: "fas fa-users",
-    label: "그룹 / Ensemble",
-    panelEl: scGroupsPanel,
-  });
-
-  leftRail.registerPanel({
-    id: "sc-ma",
-    icon: "fas fa-lightbulb",
-    label: "조명",
-    panelEl: scMaPanel,
-  });
-
   const assetPanels = sidebarAssets.panels || {};
 
-  rightRail.registerPanel({
+  leftRail.registerPanel({
     id: "assets",
     icon: "fas fa-folder-open",
     label: "Assets (Motion / Video / Audio + 목록)",
@@ -115,35 +92,57 @@ function Sidebar(editor) {
     defaultOpen: true,
   });
 
-  rightRail.registerPanel({
+  leftRail.registerPanel({
     id: "mesh",
     icon: "fas fa-cube",
     label: "Mesh",
     panelEl: assetPanels.mesh,
   });
 
-  rightRail.registerPanel({
+  leftRail.registerPanel({
     id: "scene",
     icon: "fas fa-sitemap",
     label: "Scene",
     panelEl: scenePanel,
   });
 
-  rightRail.registerPanel({
+  leftRail.registerPanel({
     id: "stage",
     icon: "fas fa-theater-masks",
     label: "무대",
     panelEl: stagePanel,
   });
 
-  rightRail.registerPanel({
+  leftRail.registerPanel({
     id: "nanseol",
     icon: "fas fa-magic",
     label: "무대연출",
     panelEl: nanseolPanel,
   });
 
-  requestAnimationFrame(() => leftRail.rebalanceHeights?.());
+  rightRail.registerPanel({
+    id: "properties",
+    icon: "fas fa-sliders-h",
+    label: "Properties (객체 속성)",
+    panelEl: propertiesPanel,
+    defaultOpen: true,
+  });
+
+  rightRail.registerPanel({
+    id: "sc-groups",
+    icon: "fas fa-users",
+    label: "그룹 / Ensemble",
+    panelEl: scGroupsPanel,
+  });
+
+  rightRail.registerPanel({
+    id: "sc-ma",
+    icon: "fas fa-lightbulb",
+    label: "조명",
+    panelEl: scMaPanel,
+  });
+
+  requestAnimationFrame(() => rightRail.rebalanceHeights?.());
 
   return container;
 }
