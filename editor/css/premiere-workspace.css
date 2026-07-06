@@ -409,19 +409,19 @@ body {
 }
 
 #properties > .Tabs,
-#sidebar-properties-host #properties > .Tabs {
+.sb-right-dock [data-panel-id="properties"] #properties > .Tabs {
   min-height: 0 !important;
   padding: 0 !important;
   box-shadow: none !important;
 }
 
 #properties > .Panels,
-#sidebar-properties-host #properties > .Panels {
+.sb-right-dock [data-panel-id="properties"] #properties > .Panels {
   padding: 0 !important;
 }
 
 #properties .Tab,
-#sidebar-properties-host .Tab {
+.sb-right-dock [data-panel-id="properties"] .Tab {
   padding: 4px 10px !important;
   font-size: 10px !important;
   line-height: 1.2 !important;
@@ -455,8 +455,10 @@ body {
 .floating-panel .Row > .Label {
   font-size: 11px !important;
   color: var(--ink-2) !important;
-  width: 96px !important;
+  width: 72px !important;
+  min-width: 72px !important;
   flex-shrink: 0 !important;
+  text-align: left !important;
   white-space: nowrap !important;
 }
 
@@ -2299,7 +2301,20 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
 }
 
 /* 무대 위치 픽 — 패널 버튼 */
-.sb-right-dock .sb-stage-pick {
+.sb-object-position-pick-row .sb-object-position-pick-label {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sb-object-position-pick-host {
+  flex: 1;
+  min-width: 0;
+  grid-column: 2 / -1;
+}
+
+.sb-right-dock .sb-stage-pick,
+#properties .sb-stage-pick,
+.sb-object-position-pick-host .sb-stage-pick {
   width: 100%;
   margin: 4px 0 6px;
   padding: 8px 10px;
@@ -2318,6 +2333,11 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   white-space: normal;
   line-height: 1.25;
   justify-content: flex-start;
+}
+
+.sb-right-dock .sb-object-position-pick-host .sb-stage-pick,
+#properties .sb-object-position-pick-host .sb-stage-pick {
+  margin-top: 0;
 }
 
 .sb-right-dock .sb-stage-pick:hover {
@@ -2577,8 +2597,8 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-#sidebar-properties-host .Panel,
-#sidebar-properties-host .TabbedPanel {
+.sb-right-dock [data-panel-id="properties"] .Panel,
+.sb-right-dock [data-panel-id="properties"] .TabbedPanel {
   padding: 0 !important;
 }
 
@@ -2932,6 +2952,7 @@ body.sb-panel-resize-active * {
   width: 72px !important;
   min-width: 72px !important;
   flex-shrink: 0 !important;
+  text-align: left !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2994,14 +3015,14 @@ body.sb-panel-resize-active * {
 
 #properties .Row.ec-row-group,
 .floating-panel .Row.ec-row-group,
-#sidebar-properties-host .Row.ec-row-group {
+.sb-right-dock [data-panel-id="properties"] .Row.ec-row-group {
   display: flex !important;
   flex-direction: column !important;
 }
 
 #properties .Row.ec-row-group > .ec-row,
 .floating-panel .Row.ec-row-group > .ec-row,
-#sidebar-properties-host .Row.ec-row-group > .ec-row {
+.sb-right-dock [data-panel-id="properties"] .Row.ec-row-group > .ec-row {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
@@ -3018,37 +3039,51 @@ body.sb-panel-resize-active * {
   margin: 0 0 2px !important;
   font-size: 11px !important;
   color: var(--ink-2) !important;
-  width: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
   max-width: none !important;
+  text-align: left !important;
+  align-self: flex-start !important;
   white-space: nowrap !important;
   line-height: 1.3 !important;
   flex-shrink: 0 !important;
 }
 
+#properties .Row.ec-row-group > .Label,
+#properties .Row.ec-row-group > .Text,
+.sb-right-dock [data-panel-id="properties"] .Row.ec-row-group > .Label,
+.sb-right-dock [data-panel-id="properties"] .Row.ec-row-group > .Text {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  text-align: left !important;
+  align-self: flex-start !important;
+}
+
 .ec-row-group .ec-row label {
   width: 20px !important;
   min-width: 20px !important;
-  text-align: center !important;
+  text-align: left !important;
   font-size: 10px !important;
   color: var(--ink-dim) !important;
   flex-shrink: 0 !important;
 }
 
 #sidebar-left .Row.ec-row,
-#sidebar-properties-host .Row.ec-row,
+.sb-right-dock [data-panel-id="properties"] .Row.ec-row,
 .property-panel .Row.ec-row {
   margin: 3px 8px !important;
   min-height: 26px !important;
 }
 
-#sidebar-properties-host .Row {
+.sb-right-dock [data-panel-id="properties"] .Row {
   display: flex !important;
   align-items: center !important;
   margin-bottom: 4px !important;
   min-height: 26px !important;
 }
 
-#sidebar-properties-host .Row.ec-row-group {
+.sb-right-dock [data-panel-id="properties"] .Row.ec-row-group {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
@@ -3056,18 +3091,47 @@ body.sb-panel-resize-active * {
 }
 
 /* Non-slider rows: name, color, checkbox — same label column width */
-#sidebar-properties-host .Row:not(.ec-row):not(.ec-row-group) {
+.sb-right-dock [data-panel-id="properties"] .Row:not(.ec-row):not(.ec-row-group) {
   gap: 8px !important;
   /* padding: 0 8px !important; */
 }
 
-#sidebar-properties-host .Row:not(.ec-row):not(.ec-row-group) > .Label,
-#sidebar-properties-host .Row:not(.ec-row):not(.ec-row-group) > .Text {
+.sb-right-dock [data-panel-id="properties"] .Row:not(.ec-row):not(.ec-row-group) > .Label,
+.sb-right-dock [data-panel-id="properties"] .Row:not(.ec-row):not(.ec-row-group) > .Text {
   width: 72px !important;
   min-width: 72px !important;
   flex-shrink: 0 !important;
   font-size: 11px !important;
   color: var(--ink-2) !important;
+  text-align: left !important;
+}
+
+.sb-object-roty-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  padding: 0 4px 2px !important;
+  box-sizing: border-box !important;
+}
+
+.sb-right-dock [data-panel-id="properties"] .sb-object-roty-row,
+.sb-properties-panel .sb-object-roty-row {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  margin: 4px 12px 10px !important;
+  padding: 0 !important;
+  gap: 4px !important;
+}
+
+.sb-right-dock [data-panel-id="properties"] .sb-object-roty-row > .Label,
+.sb-properties-panel .sb-object-roty-row > .Label {
+  width: 100% !important;
+  min-width: 0 !important;
+  align-self: flex-start !important;
+  padding: 0 !important;
+  text-align: left !important;
 }
 
 /* FBX 애니메이션 재생 — 가로 버튼 열 */
@@ -3075,7 +3139,8 @@ body.sb-panel-resize-active * {
   margin-top: 4px !important;
 }
 
-#sidebar-properties-host .sb-anim-play-row.ec-row {
+.sb-right-dock [data-panel-id="properties"] .sb-anim-play-row.ec-row,
+.sb-properties-panel .sb-anim-play-row.ec-row {
   flex-wrap: nowrap !important;
   align-items: center !important;
 }
@@ -3090,7 +3155,8 @@ body.sb-panel-resize-active * {
   min-width: 0 !important;
 }
 
-#sidebar-properties-host .sb-anim-btn.Button {
+.sb-right-dock [data-panel-id="properties"] .sb-anim-btn.Button,
+.sb-properties-panel .sb-anim-btn.Button {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -3112,13 +3178,15 @@ body.sb-panel-resize-active * {
   text-overflow: ellipsis !important;
 }
 
-#sidebar-properties-host .sb-anim-btn.Button:hover {
+.sb-right-dock [data-panel-id="properties"] .sb-anim-btn.Button:hover,
+.sb-properties-panel .sb-anim-btn.Button:hover {
   background: var(--head-2) !important;
   color: #fff !important;
   border-color: var(--line) !important;
 }
 
-#sidebar-properties-host .sb-anim-btn.Button.is-playing {
+.sb-right-dock [data-panel-id="properties"] .sb-anim-btn.Button.is-playing,
+.sb-properties-panel .sb-anim-btn.Button.is-playing {
   color: var(--accent) !important;
   border-color: rgba(154, 134, 255, 0.5) !important;
   background: rgba(154, 134, 255, 0.12) !important;
@@ -3153,8 +3221,8 @@ body.sb-panel-resize-active * {
 }
 
 /* ── Properties panel padding ── */
-#sidebar-properties-host .floating-panel.sb-properties-panel .Panel,
-#sidebar-properties-host #properties > .Panel {
+.sb-right-dock [data-panel-id="properties"] .floating-panel.sb-properties-panel .Panel,
+.sb-right-dock [data-panel-id="properties"] #properties > .Panel {
   padding: 6px 8px !important;
 }
 

@@ -11,7 +11,7 @@ import {
 import { mountMaConsole } from "../lighting/MaConsolePanel.js";
 import { runMaPanelEdit } from "../lighting/maPanelHistory.js";
 import { runShowControlEdit } from "../showcontrol/showControlHistory.js";
-import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, GROUP_ROT_Y_OPTIONS, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
+import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
 import {
   isWalkLiteCatalogEntry,
   normalizeColorHex,
@@ -19,6 +19,12 @@ import {
   recolorGroupMotionMembers,
   stripTesterBadgesFromScene,
 } from "../utils/walkLitePerformer.js";
+import {
+  bindStagePickEsc,
+  stagePickButtonHtml,
+  syncStagePickOverlay,
+} from "../utils/stagePositionPick.js";
+import { mountRotYChips } from "../ui/rotYChips.js";
 
 function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
   if (!host) return;
@@ -33,93 +39,6 @@ function mountFormationChips(host, currentFmt, fmtTypes, onPick) {
     };
     host.appendChild(b);
   });
-}
-
-function mountRotYChips(host, currentDeg, onPick) {
-  if (!host) return;
-  const cur = normalizeRotYDeg(currentDeg);
-  GROUP_ROT_Y_OPTIONS.forEach((deg) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "sb-chip" + (cur === deg ? " on cy" : "");
-    b.textContent = `${deg}°`;
-    b.style.cssText = "min-width:38px;padding:3px 6px;font-size:10px;justify-content:center";
-    b.onclick = (e) => {
-      e.stopPropagation();
-      onPick(deg);
-    };
-    host.appendChild(b);
-  });
-}
-
-function stagePickButtonHtml({ active, title, dataAttr, dataValue }) {
-  const dataPart = dataAttr ? ` data-${dataAttr}="${dataValue ?? ""}"` : "";
-  return `
-    <button type="button" class="sb-stage-pick${active ? " picking" : ""}"${dataPart}>
-      <span class="sb-stage-pick-icon" aria-hidden="true">⌖</span>
-      <span class="sb-stage-pick-body">
-        <strong class="sb-stage-pick-title">${title}</strong>
-        <span class="sb-stage-pick-hint">${active ? "무대를 클릭하세요 →" : "버튼을 누른 뒤 무대 클릭"}</span>
-      </span>
-      ${active ? '<span class="sb-stage-pick-live">PICK</span>' : ""}
-    </button>
-  `;
-}
-
-let stagePickEscBound = false;
-
-function bindStagePickEsc(editor) {
-  if (stagePickEscBound) return;
-  stagePickEscBound = true;
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!editor.showControl?.getGroupPathPickMode?.()) return;
-    editor.showControl.setGroupPathPickMode(null, null);
-    editor._syncStagePickOverlay?.();
-    editor._showControlPathPickDone?.();
-  });
-}
-
-function syncStagePickOverlay(editor) {
-  const pick = editor?.showControl?.getGroupPathPickMode?.();
-  const viewer = document.querySelector(".viewer.sb-program") || document.querySelector(".viewer");
-  if (!viewer) return;
-
-  let overlay = viewer.querySelector("#sb-stage-pick-overlay");
-
-  if (!pick) {
-    viewer.classList.remove("sb-stage-pick-mode");
-    document.body.classList.remove("sb-stage-pick-active");
-    overlay?.remove();
-    return;
-  }
-
-  let label = "위치";
-  if (pick.mode === "from") label = "시작 위치";
-  else if (pick.mode === "segmentAnchor") {
-    const group = editor.showControl.getGroup(pick.groupId);
-    const seg = group?.segments?.find((s) => s.id === pick.segmentId);
-    label = seg?.kind === SEGMENT_KIND.exit ? "퇴장 위치" : "끝 위치";
-  }
-
-  viewer.classList.add("sb-stage-pick-mode");
-  document.body.classList.add("sb-stage-pick-active");
-
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = "sb-stage-pick-overlay";
-    overlay.innerHTML = `
-      <div class="sb-stage-pick-banner">
-        <span class="sb-stage-pick-banner-icon" aria-hidden="true">⌖</span>
-        <span class="sb-stage-pick-banner-text"></span>
-        <span class="sb-stage-pick-banner-esc">ESC 취소</span>
-      </div>
-    `;
-    viewer.appendChild(overlay);
-  }
-
-  const textEl = overlay.querySelector(".sb-stage-pick-banner-text");
-  if (textEl) textEl.textContent = `${label} 지정 — 무대를 클릭하세요`;
 }
 
 function clamp01(v) {

@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import {
   UIPanel,
+  UIDiv,
   UIRow,
   UIInput,
   UIButton,
@@ -34,6 +35,17 @@ import {
   worldSizeToMotionDisplay,
   motionDisplayToWorldSize,
 } from "./utils/motionDisplayUnits.js";
+import {
+  bindStagePickEsc,
+  getObjectPositionPickMode,
+  isMotionObjectForStagePick,
+  setObjectPositionPickMode,
+  clearObjectPositionPickMode,
+  stagePickButtonHtml,
+  syncStagePickOverlay,
+} from "./utils/stagePositionPick.js";
+import { mountRotYChips } from "./ui/rotYChips.js";
+import { normalizeRotYDeg } from "./showcontrol/groupSegments.js";
 
 function SidebarObject(editor) {
   const strings = editor.strings;
@@ -183,6 +195,52 @@ function SidebarObject(editor) {
 
   container.add(objectPositionRow);
 
+  const objectPositionPickRow = new UIRow();
+  objectPositionPickRow.setClass("sb-object-position-pick-row ec-row");
+  objectPositionPickRow.add(
+    new UIText(strings.getKey("sidebar/object/position")).setClass("Label sb-object-position-pick-label"),
+  );
+  const objectPositionPickWrap = new UIDiv();
+  objectPositionPickWrap.dom.className = "sb-object-position-pick-host";
+  objectPositionPickRow.add(objectPositionPickWrap);
+  objectPositionPickRow.setDisplay("none");
+  container.add(objectPositionPickRow);
+
+  function refreshObjectPositionPickButton(object) {
+    const host = objectPositionPickWrap.dom;
+    if (!host) return;
+    const show = isMotionObjectForStagePick(object);
+    objectPositionPickRow.setDisplay(show ? "" : "none");
+    if (!show) return;
+
+    const active =
+      getObjectPositionPickMode(editor)?.objectUuid === object?.uuid;
+    host.innerHTML = stagePickButtonHtml({
+      active,
+      title: "무대에서 위치 지정",
+      dataAttr: "object-position-pick",
+    });
+    const btn = host.querySelector(".sb-stage-pick");
+    if (btn) {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!editor.selected) return;
+        setObjectPositionPickMode(editor, editor.selected.uuid);
+        refreshObjectPositionPickButton(editor.selected);
+      };
+    }
+  }
+
+  editor._syncStagePickOverlay = syncStagePickOverlay;
+  editor._objectPositionPickDone = () => {
+    if (editor.selected) {
+      refreshObjectPositionPickButton(editor.selected);
+      updateUI(editor.selected);
+    }
+  };
+  bindStagePickEsc(editor);
+
   // rotation
 
   const objectRotationRow = new UIRow();
@@ -211,6 +269,32 @@ function SidebarObject(editor) {
   objectRotationRow.add(objectRotationX, objectRotationY, objectRotationZ);
 
   container.add(objectRotationRow);
+
+  const objectRotationYChipsRow = new UIRow();
+  objectRotationYChipsRow.setClass("sb-object-roty-row");
+  objectRotationYChipsRow.add(
+    new UIText("Y 회전 (30°)").setClass("Label"),
+  );
+  const objectRotationYChipsHost = new UIDiv();
+  objectRotationYChipsHost.dom.className = "sb-object-roty-chips";
+  objectRotationYChipsRow.add(objectRotationYChipsHost);
+  container.add(objectRotationYChipsRow);
+
+  function refreshObjectRotationYChips(object) {
+    const host = objectRotationYChipsHost.dom;
+    if (!host || !object || object.isLight) {
+      objectRotationYChipsRow.setDisplay("none");
+      return;
+    }
+    objectRotationYChipsRow.setDisplay("");
+    const currentDeg = object.rotation.y * THREE.MathUtils.RAD2DEG;
+    mountRotYChips(host, currentDeg, (deg) => {
+      if (!editor.selected || editor.selected !== object) return;
+      objectRotationY.setValue(deg);
+      update();
+      refreshObjectRotationYChips(object);
+    });
+  }
 
   // scale
 
@@ -1132,10 +1216,12 @@ function SidebarObject(editor) {
   function updateTransformRows(object) {
     if (object.isLight) {
       objectRotationRow.setDisplay("none");
+      objectRotationYChipsRow.setDisplay("none");
       objectScaleRow.setDisplay("none");
       objectSizeRow.setDisplay("none");
     } else {
       objectRotationRow.setDisplay("");
+      objectRotationYChipsRow.setDisplay("");
       objectScaleRow.setDisplay("");
       objectSizeRow.setDisplay("");
     }
@@ -1144,6 +1230,11 @@ function SidebarObject(editor) {
   // events
 
   signals.objectSelected.add(function (object) {
+    const pickUuid = getObjectPositionPickMode(editor)?.objectUuid;
+    if (pickUuid && object?.uuid !== pickUuid) {
+      clearObjectPositionPickMode(editor);
+    }
+
     if (object !== null) {
       container.setDisplay("block");
 
@@ -1151,6 +1242,7 @@ function SidebarObject(editor) {
       updateUI(object);
     } else {
       container.setDisplay("none");
+      objectPositionPickRow.setDisplay("none");
     }
   });
 
@@ -1175,10 +1267,12 @@ function SidebarObject(editor) {
     objectPositionX.setValue(object.position.x);
     objectPositionY.setValue(object.position.y);
     objectPositionZ.setValue(object.position.z);
+    refreshObjectPositionPickButton(object);
 
     objectRotationX.setValue(object.rotation.x * THREE.MathUtils.RAD2DEG);
-    objectRotationY.setValue(object.rotation.y * THREE.MathUtils.RAD2DEG);
+    objectRotationY.setValue(normalizeRotYDeg(object.rotation.y * THREE.MathUtils.RAD2DEG));
     objectRotationZ.setValue(object.rotation.z * THREE.MathUtils.RAD2DEG);
+    refreshObjectRotationYChips(object);
 
     objectScaleX.setValue(object.scale.x);
     objectScaleY.setValue(object.scale.y);

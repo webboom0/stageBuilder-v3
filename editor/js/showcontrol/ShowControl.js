@@ -49,6 +49,9 @@ export class ShowControl {
       this._pathPick = null;
     } else {
       this._pathPick = { groupId, mode: m, segmentId: segmentId || null };
+      if (this.editor?._objectPositionPick) {
+        this.editor._objectPositionPick = null;
+      }
     }
     this.editor?._syncStagePickOverlay?.();
     return !!this._pathPick;

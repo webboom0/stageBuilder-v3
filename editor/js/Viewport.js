@@ -32,6 +32,7 @@ import {
   isTimelinePlaying,
   pauseTimelineIfPlaying,
 } from "./utils/timelinePlayback.js";
+import { applyStagePickFromNormalized } from "./utils/stagePositionPick.js";
 
 function Viewport(editor) {
   const selector = editor.selector;
@@ -387,16 +388,14 @@ function Viewport(editor) {
 
   function handleClick() {
     if (onDownPosition.distanceTo(onUpPosition) === 0) {
-      const pick = editor.showControl?.getGroupPathPickMode?.();
-      if (pick) {
-        const picked = editor.showControl.applyGroupPathPickFromNormalized(
-          onUpPosition.x,
-          onUpPosition.y,
-        );
-        if (picked) {
-          render();
-          return;
-        }
+      const picked = applyStagePickFromNormalized(
+        editor,
+        onUpPosition.x,
+        onUpPosition.y,
+      );
+      if (picked) {
+        render();
+        return;
       }
 
       const intersects = selector.getPointerIntersects(onUpPosition, camera);
