@@ -1,6 +1,6 @@
 import { UIButton } from "./libs/ui.js";
 import { getFbxApiUrl, FBX_UPLOAD_CONFIG, validateFBXFile } from "./config/fbx-upload-config.js";
-import { loadMotionFileAndCreateTrack } from "./utils/motionTimelineAutoTrack.js";
+import { addMotionCatalogEntryToSceneAndTrack, loadMotionFileAndCreateTrack } from "./utils/motionTimelineAutoTrack.js";
 import { loadMotionFbxCatalog } from "./utils/motionFbxCatalog.js";
 
 export function createMotionPanel(editor) {
@@ -266,7 +266,8 @@ export function createMotionPanel(editor) {
                     return {
                         filename,
                         displayName,
-                        path
+                        path,
+                        procedural: item.dataset.procedural || undefined,
                     };
                 });
 
@@ -479,6 +480,8 @@ export function createMotionPanel(editor) {
                 const fbxItem = document.createElement("div");
                 fbxItem.className = "fbx-item";
                 fbxItem.dataset.filename = fbxFile.filename || fbxFile.name;
+                if (fbxFile.path) fbxItem.dataset.path = fbxFile.path;
+                if (fbxFile.procedural) fbxItem.dataset.procedural = fbxFile.procedural;
                 fbxItem.innerHTML = `
           <div class="fbx-info">
             <span class="fbx-name">${fbxFile.displayName}</span>
@@ -571,20 +574,7 @@ export function createMotionPanel(editor) {
                         addBtn.classList.add('adding');
 
                         try {
-                            const fileBlob = await fetch(fbxFile.path).then(r => r.blob());
-                            const file = new File([fileBlob], fbxFile.filename || fbxFile.name, {
-                                type: 'application/octet-stream'
-                            });
-
-                            const dataTransfer = new DataTransfer();
-                            dataTransfer.items.add(file);
-                            const fileList = dataTransfer.files;
-
-                            await loadMotionFileAndCreateTrack(editor, fileList, {
-                                fileName: fbxFile.filename || fbxFile.name,
-                                displayName: fbxFile.displayName || fbxFile.name,
-                                path: fbxFile.path,
-                            });
+                            await addMotionCatalogEntryToSceneAndTrack(editor, fbxFile);
 
                             console.log("✅ FBX 씬 + 모션 트랙 추가 성공:", fbxFile.displayName);
                             showAddSuccess(`${fbxFile.displayName} — 씬 및 모션 트랙에 추가됨`);
@@ -724,18 +714,10 @@ export function createMotionPanel(editor) {
                     // 진행 상태 업데이트
                     showAddProgress(`${fileInfo.displayName} 추가 중... (${i + 1}/${selectedFiles.length})`);
 
-                    // 파일을 Blob으로 가져와서 File 객체 생성
-                    const fileBlob = await fetch(fileInfo.path).then(r => r.blob());
-                    const file = new File([fileBlob], fileInfo.filename, {
-                        type: 'application/octet-stream'
-                    });
-
-                    const fileList = new DataTransfer();
-                    fileList.items.add(file);
-
-                    await loadMotionFileAndCreateTrack(editor, fileList.files, {
-                        fileName: fileInfo.filename,
-                        displayName: fileInfo.displayName || fileInfo.name,
+                    await addMotionCatalogEntryToSceneAndTrack(editor, {
+                        filename: fileInfo.filename,
+                        name: fileInfo.displayName,
+                        displayName: fileInfo.displayName,
                         path: fileInfo.path,
                     });
                     results.push({ file: fileInfo.displayName, success: true });
