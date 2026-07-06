@@ -66,7 +66,7 @@ class ViewportStageGrid extends THREE.Mesh {
       fragmentShader,
       transparent: true,
       depthWrite: false,
-      depthTest: true,
+      depthTest: false,
       side: THREE.DoubleSide,
     });
 
@@ -89,11 +89,11 @@ class ViewportStageGrid extends THREE.Mesh {
 
   applyOverlaySettings() {
     const mat = this.material;
-    mat.depthTest = true;
+    mat.depthTest = false;
     mat.depthWrite = false;
     mat.polygonOffset = true;
-    mat.polygonOffsetFactor = -2;
-    mat.polygonOffsetUnits = -2;
+    mat.polygonOffsetFactor = -1;
+    mat.polygonOffsetUnits = -4;
   }
 }
 

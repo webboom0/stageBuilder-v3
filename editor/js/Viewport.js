@@ -86,13 +86,13 @@ function Viewport(editor) {
   // 그리드·가이드 — 무대 바닥(_Floor) 상단에 맞춤 (렌더 시 getStageDeckWorldY로 갱신)
   const STAGE_DECK_HELPER_Y = 0.02;
 
-  /** 바닥 그리드: depthTest로 3D에 고정, polygonOffset으로 z-fight만 완화 */
+  /** 바닥 그리드: 월드 XZ 고정 + depthTest 끔(바닥 mesh와 z-fight·각도별 소실 방지) */
   function applyStageFloorGridMaterial(mat) {
-    mat.depthTest = true;
+    mat.depthTest = false;
     mat.depthWrite = false;
     mat.polygonOffset = true;
-    mat.polygonOffsetFactor = -2;
-    mat.polygonOffsetUnits = -2;
+    mat.polygonOffsetFactor = -1;
+    mat.polygonOffsetUnits = -4;
   }
 
   const grid = new THREE.Group();
