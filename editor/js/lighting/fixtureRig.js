@@ -18,7 +18,9 @@ function tagFixture(obj, part) {
 export function aimPanTilt(from, target) {
   const p = new THREE.Vector3(from[0], from[1], from[2]);
   const d = new THREE.Vector3(target[0], target[1], target[2]).sub(p);
-  const pan = THREE.MathUtils.radToDeg(Math.atan2(d.x, d.z));
+  // aim 그룹: beam = local -Y, Euler YXZ (pan→Y, tilt→X)
+  // 관객쪽(+Z) 리그에서 무대를 볼 때 pan = atan2(-dx, -dz)
+  const pan = THREE.MathUtils.radToDeg(Math.atan2(-d.x, -d.z));
   const horiz = Math.hypot(d.x, d.z);
   const tilt = THREE.MathUtils.radToDeg(Math.atan2(horiz, -d.y));
   return { pan, tilt };

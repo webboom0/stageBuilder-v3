@@ -6,6 +6,8 @@ import { TimelineData, TrackData, INTERPOLATION } from "./TimelineCore.js";
 /** 모션 타임라인과 동일 — ease-in-out smooth 보간 */
 const DEFAULT_LIGHT_KF_INTERPOLATION = INTERPOLATION.SMOOTHSTEP;
 import { createFixtureLightBridge, parseFixtureFid, FIXTURE_TL_PROPS } from "../lighting/fixtureLightTimeline.js";
+import { createHouseLightBridge, HOUSE_TL_PROPS, isHouseTrackId } from "../lighting/houseLightTimeline.js";
+import { getHouseChannelCapture } from "../lighting/houseStageLights.js";
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { AddLightKeyframeAtPlayheadCommand } from '../commands/AddLightKeyframeAtPlayheadCommand.js';
 import { AddFixtureKeyframesAtPlayheadCommand } from '../commands/AddFixtureKeyframesAtPlayheadCommand.js';
@@ -85,6 +87,11 @@ export class LightTimeline extends BaseTimeline {
     } else {
       this.createFixedLightTracks();
     }
+
+    // HOUSE / FOH 핀조명 타임라인 트랙 (리그 없이 항상 사용 가능)
+    this.houseBridge = createHouseLightBridge(this, editor);
+    this.houseBridge.ensureTracks();
+    console.log("House light timeline bridge ready");
     this.timelineEl = document.querySelector(".timeline");
 
     this._inHistoryPlayback = false;
@@ -1844,14 +1851,7 @@ export class LightTimeline extends BaseTimeline {
         console.log(`🔧 클릭 이벤트 재연결: ${lightId} ${property} at ${time}`);
         const clickHandler = (e) => {
           e.stopPropagation();
-
-          let timelineDataLightId;
-          if (lightId.includes('_Target')) {
-            timelineDataLightId = lightId;
-          } else {
-            timelineDataLightId = `${lightId}_${property}`;
-          }
-
+          const timelineDataLightId = this._resolveSelectTrackId(lightId, property);
           this.selectKeyframe(timelineDataLightId, time, keyframe, property);
         };
 
@@ -1872,7 +1872,7 @@ export class LightTimeline extends BaseTimeline {
     console.log("🔧 키프레임 이벤트 재연결 완료");
   }
 
-  addKeyframeForProperty(lightId, propertyName, time, value) {
+  addKeyframeForProperty(lightId, propertyName, time, value, options = {}) {
     const trackId = this._resolveLightPropertyTrackId(lightId, propertyName);
     const baseLightId = this._getBaseLightId(lightId);
     const result = this._upsertKeyframeAtTime(lightId, propertyName, time, value);
@@ -1884,23 +1884,40 @@ export class LightTimeline extends BaseTimeline {
 
     const track = this.tracks.get(this._resolveLightPropertyTrackId(lightId, propertyName)) ||
       this.tracks.get(lightId);
-    if (track?.isFixture) {
+    const isVirtual =
+      track?.isFixture ||
+      track?.isHouse ||
+      this._isFixtureTrackEntry(trackId) ||
+      this._isHouseTrackEntry(trackId);
+
+    if (track?.isFixture || track?.isHouse) {
       this.timelineData.dirty = true;
       this.timelineData.precomputeAnimationData?.();
     }
 
     if (result.isNew) {
-      const uiTrackId = trackId.includes("_Target") ? trackId : baseLightId;
-      this.addKeyframeUI(uiTrackId, propertyName, time);
+      const spriteTrackId = trackId.includes("_Target")
+        ? trackId
+        : isVirtual
+          ? this._normalizeVirtualTrackId(baseLightId)
+          : baseLightId;
+      this.addKeyframeUI(spriteTrackId, propertyName, time);
 
-      setTimeout(() => {
-        const keyframeElement = document.querySelector(
-          `[data-time="${time.toFixed(2)}"][data-property="${propertyName}"][data-light-id="${trackId}"]`,
-        );
-        if (keyframeElement) {
-          this.selectKeyframe(trackId, time, keyframeElement, propertyName);
-        }
-      }, 100);
+      // 픽스처/HOUSE 기본: 자동 선택 안 함 (그룹 키 추가 시 마지막 픽스처만 남는 문제 방지)
+      const autoSelect =
+        options.autoSelect !== undefined
+          ? !!options.autoSelect
+          : !isVirtual;
+      if (autoSelect) {
+        setTimeout(() => {
+          const keyframeElement = document.querySelector(
+            `[data-time="${time.toFixed(2)}"][data-property="${propertyName}"][data-light-id="${trackId}"]`,
+          );
+          if (keyframeElement) {
+            this.selectKeyframe(trackId, time, keyframeElement, propertyName);
+          }
+        }, 100);
+      }
     }
   }
 
@@ -1969,6 +1986,8 @@ export class LightTimeline extends BaseTimeline {
     // 타겟인 경우 타겟 스프라이트, 조명인 경우 조명 스프라이트 사용
     let targetSprite = null;
     const isFixtureTrack = this._isFixtureTrackEntry(lightId, null, track);
+    const isHouseTrack = this._isHouseTrackEntry(lightId, null, track);
+    const isVirtualTrack = isFixtureTrack || isHouseTrack;
 
     if (lightId.includes("_Target")) {
       const targetTrack = this.tracks.get(lightId);
@@ -2017,9 +2036,9 @@ export class LightTimeline extends BaseTimeline {
       : "keyframe";
     keyframe.dataset.time = time.toFixed(2);
     keyframe.dataset.property = propertyName;
-    // 일반: lightId_property, 픽스처/타겟: track id 그대로
+    // 일반: lightId_property, 픽스처/HOUSE/타겟: track id 그대로
     const datasetLightId =
-      lightId.includes("_Target") || isFixtureTrack
+      lightId.includes("_Target") || isVirtualTrack
         ? lightId
         : `${lightId}_${propertyName}`;
     keyframe.dataset.lightId = datasetLightId;
@@ -2031,8 +2050,8 @@ export class LightTimeline extends BaseTimeline {
     } else {
       // TimelineData에서 해당 트랙의 키프레임 개수를 가져와서 index 설정
       let trackData = null;
-      if (lightId.includes("_Target") || isFixtureTrack) {
-        trackData = this.timelineData.getTrackById(lightId, propertyName);
+      if (lightId.includes("_Target") || isVirtualTrack) {
+        trackData = this._resolveTrackData(lightId, propertyName);
       } else {
         const timelineDataLightId = `${lightId}_${propertyName}`;
         trackData = this.timelineData.getTrackById(timelineDataLightId, propertyName);
@@ -2078,30 +2097,13 @@ export class LightTimeline extends BaseTimeline {
       e.stopPropagation();
       console.log(`🔍 키프레임 클릭 이벤트 발생: ${lightId} ${propertyName} at ${time}`);
 
-      // 타겟 키프레임과 조명 키프레임 구분하여 lightId 생성
+      // 타겟 / 픽스처 / HOUSE는 track id 그대로, 레거시는 lightId_property
       let timelineDataLightId;
-      if (lightId.includes('_Target')) {
-        // 타겟 키프레임인 경우 이미 올바른 형태 (light_0_Target)
+      if (lightId.includes('_Target') || isVirtualTrack) {
         timelineDataLightId = lightId;
-        console.log(`🎯 타겟 키프레임 클릭: ${lightId} ${propertyName} at ${time}`, {
-          originalLightId: lightId,
-          timelineDataLightId: timelineDataLightId
-        });
       } else {
-        // 조명 키프레임인 경우 propertyName 추가 (light_0_intensity)
         timelineDataLightId = `${lightId}_${propertyName}`;
-        console.log(`💡 조명 키프레임 클릭: ${lightId} ${propertyName} at ${time}`, {
-          originalLightId: lightId,
-          timelineDataLightId: timelineDataLightId
-        });
       }
-
-      console.log(`🔍 selectKeyframe 호출:`, {
-        timelineDataLightId,
-        time,
-        propertyName,
-        keyframe: keyframe
-      });
 
       this.selectKeyframe(timelineDataLightId, time, keyframe, propertyName);
     };
@@ -2263,6 +2265,9 @@ export class LightTimeline extends BaseTimeline {
     if (this.fixtureBridge?.applyAtTime) {
       this.fixtureBridge.applyAtTime(this.currentTime);
     }
+    if (this.houseBridge?.applyAtTime) {
+      this.houseBridge.applyAtTime(this.currentTime);
+    }
 
     let totalUpdates = 0;
 
@@ -2272,7 +2277,7 @@ export class LightTimeline extends BaseTimeline {
     }
 
     this.tracks.forEach((track) => {
-      if (track.isFixture) return;
+      if (track.isFixture || track.isHouse) return;
 
       // 타겟 트랙인 경우 별도 처리
       if (track.isTarget) {
@@ -2976,10 +2981,46 @@ export class LightTimeline extends BaseTimeline {
     return match ? match[1] : id;
   }
 
+  /** fx_13 / house_fohC — 잘못 붙은 _dim 등 접미사 제거 */
+  _normalizeVirtualTrackId(objectId) {
+    const id = String(objectId || "");
+    const fx = id.match(/^(fx_\d+)/);
+    if (fx) return fx[1];
+    const houses = ["house_fill", "house_fohL", "house_fohC", "house_fohR"];
+    for (const h of houses) {
+      if (id === h || id.startsWith(`${h}_`)) return h;
+    }
+    if (id.startsWith("house_")) return id;
+    return id;
+  }
+
+  /**
+   * 키프레임 클릭/선택용 track id
+   * - 픽스처/HOUSE: fx_13, house_fohC
+   * - 레거시: light_0_intensity (또는 light_0 + property)
+   */
+  _resolveSelectTrackId(lightId, propertyName) {
+    const id = String(lightId || "");
+    if (!id) return id;
+    if (id.includes("_Target")) return id;
+    if (this._isFixtureTrackEntry(id) || this._isHouseTrackEntry(id)) {
+      return this._normalizeVirtualTrackId(id);
+    }
+    if (propertyName && id.endsWith(`_${propertyName}`)) return id;
+    if (this.tracks.has(id)) return id;
+    if (propertyName && /^light_\d+$/.test(id)) {
+      return `${id}_${propertyName}`;
+    }
+    if (propertyName) {
+      return this._resolveLightPropertyTrackId(id, propertyName);
+    }
+    return id;
+  }
+
   _resolveLightPropertyTrackId(objectId, propertyName) {
     const id = String(objectId);
-    if (id.startsWith("fx_")) {
-      return id;
+    if (id.startsWith("fx_") || id.startsWith("house_")) {
+      return this._normalizeVirtualTrackId(id);
     }
     if (id.includes("_Target")) {
       return id;
@@ -2996,6 +3037,85 @@ export class LightTimeline extends BaseTimeline {
       return id;
     }
     return `${baseId}_${propertyName}`;
+  }
+
+  _refreshSelectedKeyframeValue(trackId, propertyName, time) {
+    const trackData = this._resolveTrackData(trackId, propertyName);
+    if (!trackData || !this.selectedKeyframe) return;
+    const index = this._findKeyframeIndexAtTime(trackData, time);
+    if (index === -1) return;
+    const value = {
+      x: trackData.values[index * 3],
+      y: trackData.values[index * 3 + 1],
+      z: trackData.values[index * 3 + 2],
+    };
+    this.selectedKeyframe.index = index;
+    this.selectedKeyframe.value = value;
+    if (this.editor.scene?.userData?.lightTimeline?.selectedKeyframe) {
+      this.editor.scene.userData.lightTimeline.selectedKeyframe.index = index;
+      this.editor.scene.userData.lightTimeline.selectedKeyframe.value = {
+        x: value.x,
+        y: value.y,
+        z: value.z,
+      };
+    }
+  }
+
+  /**
+   * 타임라인에서 키를 선택한 뒤 MA/HOUSE 패널을 수정하면
+   * 해당 시각의 키프레임에 현재 라이브 값을 다시 저장 (모션 키 편집과 동일 UX)
+   */
+  syncSelectedVirtualKeyframesFromLive() {
+    const sk =
+      this.selectedKeyframe ||
+      this.editor.scene?.userData?.lightTimeline?.selectedKeyframe;
+    if (!sk || !Number.isFinite(sk.time)) return false;
+
+    const trackId = this._normalizeVirtualTrackId(sk.lightId);
+    const time = sk.time;
+
+    if (this._isFixtureTrackEntry(trackId)) {
+      const fid = parseFixtureFid(trackId);
+      if (fid == null || !this.fixtureBridge?.writeFixtureKeyframesAtTime) {
+        return false;
+      }
+      const engine = this.editor.fixtureEngine;
+      const cap =
+        engine?.getFixtureCaptureState?.(fid) ||
+        engine?.getFixture?.(fid)?.attr;
+      if (!cap) return false;
+
+      this.fixtureBridge.writeFixtureKeyframesAtTime(trackId, time, cap);
+      engine?.commitFixtureEditToAttr?.(fid);
+      this._refreshSelectedKeyframeValue(
+        trackId,
+        sk.property || "dim",
+        time,
+      );
+      this.timelineData?.precomputeAnimationData?.();
+      this.timelineData.dirty = true;
+      return true;
+    }
+
+    if (this._isHouseTrackEntry(trackId)) {
+      const track = this.tracks.get(trackId);
+      const channel = track?.houseChannel;
+      if (!channel || !this.houseBridge?.writeHouseKeyframesAtTime) {
+        return false;
+      }
+      const cap = getHouseChannelCapture(this.editor, channel);
+      this.houseBridge.writeHouseKeyframesAtTime(trackId, time, cap);
+      this._refreshSelectedKeyframeValue(
+        trackId,
+        sk.property || "dim",
+        time,
+      );
+      this.timelineData?.precomputeAnimationData?.();
+      this.timelineData.dirty = true;
+      return true;
+    }
+
+    return false;
   }
 
   _getSceneObjectForTrack(trackId) {
@@ -3105,12 +3225,26 @@ export class LightTimeline extends BaseTimeline {
     return false;
   }
 
+  _isHouseTrackEntry(lightId, trackData = null, track = null) {
+    if (track?.isHouse) return true;
+    if (String(lightId || "").startsWith("house_")) return true;
+    if (trackData?.isHouse || trackData?.lightType === "House") return true;
+    return false;
+  }
+
   _fixtureUuidFor(lightId, trackData = null, track = null) {
     if (trackData?.fixtureUuid) return trackData.fixtureUuid;
     if (trackData?.uuid && String(trackData.uuid).startsWith("fixture-rig-")) {
       return trackData.uuid;
     }
+    if (trackData?.uuid && String(trackData.uuid).startsWith("house-light-")) {
+      return trackData.uuid;
+    }
     if (track?.fixtureUuid) return track.fixtureUuid;
+    if (isHouseTrackId(lightId) || track?.isHouse) {
+      const id = String(lightId || "").replace(/^house_/, "") || track?.houseId;
+      return id ? `house-light-${id}` : null;
+    }
     const fid = trackData?.fid ?? parseFixtureFid(lightId) ?? track?.fid;
     return fid != null ? `fixture-rig-${fid}` : null;
   }
@@ -3121,6 +3255,8 @@ export class LightTimeline extends BaseTimeline {
       : null;
     const props = track?.isFixture
       ? FIXTURE_TL_PROPS
+      : track?.isHouse
+        ? HOUSE_TL_PROPS
       : objectTracks
         ? [...objectTracks.keys()]
         : FIXTURE_TL_PROPS;
@@ -3229,6 +3365,93 @@ export class LightTimeline extends BaseTimeline {
     });
   }
 
+  _syncHouseLightTracksToLightTracksData(lightTracksData) {
+    if (!this.timelineData?.tracks) return;
+
+    this.timelineData.tracks.forEach((objectTracks, objectUuid) => {
+      if (!String(objectUuid).startsWith("house-light-")) return;
+
+      const houseId = String(objectUuid).replace("house-light-", "");
+      const trackId = `house_${houseId}`;
+      const spriteTrack = this.tracks.get(trackId);
+      const sprite =
+        spriteTrack?.sprite ||
+        spriteTrack?.element?.querySelector(".light-sprite, .animation-sprite");
+
+      const entry = lightTracksData[trackId] || {
+        left: sprite ? parseFloat(sprite.style.left) || 0 : 0,
+        width: sprite ? parseFloat(sprite.style.width) || 100 : 100,
+        duration:
+          (sprite && parseFloat(sprite.dataset.duration)) ||
+          this.options?.totalSeconds ||
+          180,
+        lightType: "House",
+        isHouse: true,
+        houseId,
+        uuid: objectUuid,
+        fixtureUuid: objectUuid,
+        keyframes: {},
+      };
+
+      if (!entry.keyframes) entry.keyframes = {};
+
+      objectTracks.forEach((trackData, property) => {
+        if (!trackData || trackData.keyframeCount <= 0) return;
+        entry.keyframes[property] = {
+          times: Array.from(trackData.times.slice(0, trackData.keyframeCount)),
+          values: Array.from(trackData.values.slice(0, trackData.keyframeCount * 3)),
+        };
+      });
+
+      lightTracksData[trackId] = entry;
+    });
+  }
+
+  _syncHouseTracksFromTracksById(lightTracksData) {
+    if (!this.timelineData?.tracksById) return;
+
+    this.timelineData.tracksById.forEach((propMap, trackId) => {
+      if (!String(trackId).startsWith("house_")) return;
+      const houseId = String(trackId).slice("house_".length);
+      if (!houseId) return;
+
+      const keyframes = {};
+      HOUSE_TL_PROPS.forEach((prop) => {
+        const td = propMap.get(prop);
+        if (!td || td.keyframeCount <= 0) return;
+        keyframes[prop] = {
+          times: Array.from(td.times.slice(0, td.keyframeCount)),
+          values: Array.from(td.values.slice(0, td.keyframeCount * 3)),
+        };
+      });
+      if (Object.keys(keyframes).length === 0) return;
+
+      const uuid = `house-light-${houseId}`;
+      const prev = lightTracksData[trackId] || {};
+      const spriteTrack = this.tracks.get(trackId);
+      const sprite =
+        spriteTrack?.sprite ||
+        spriteTrack?.element?.querySelector(".light-sprite, .animation-sprite");
+
+      lightTracksData[trackId] = {
+        ...prev,
+        left: prev.left ?? (sprite ? parseFloat(sprite.style.left) || 0 : 0),
+        width: prev.width ?? (sprite ? parseFloat(sprite.style.width) || 100 : 100),
+        duration:
+          prev.duration ||
+          (sprite && parseFloat(sprite.dataset.duration)) ||
+          this.options?.totalSeconds ||
+          180,
+        lightType: "House",
+        isHouse: true,
+        houseId,
+        uuid,
+        fixtureUuid: uuid,
+        keyframes: { ...(prev.keyframes || {}), ...keyframes },
+      };
+    });
+  }
+
   _prepareTimelineDataForLoad() {
     if (!this.timelineData) return;
     this.timelineData.tracks.clear();
@@ -3313,6 +3536,11 @@ export class LightTimeline extends BaseTimeline {
             this.fixtureBridge?.ensureTracks?.();
           }
         }
+        if (this._isHouseTrackEntry(lightId, data)) {
+          if (!this.tracks.has(lightId)) {
+            this.houseBridge?.ensureTracks?.();
+          }
+        }
 
         const track = this.tracks.get(lightId);
         if (track?.element) {
@@ -3322,6 +3550,8 @@ export class LightTimeline extends BaseTimeline {
     }
 
     this.fixtureBridge?.restoreKeyframeUI?.();
+    this.houseBridge?.restoreKeyframeUI?.();
+    this.houseBridge?.ensureTracks?.();
 
     this.tracks.forEach((track) => {
       if (!track.sprite) return;
@@ -3334,6 +3564,7 @@ export class LightTimeline extends BaseTimeline {
     });
 
     this.fixtureBridge?.applyAtTime?.(this.currentTime || 0);
+    this.houseBridge?.applyAtTime?.(this.currentTime || 0);
   }
 
   _upgradeLightKeyframeInterpolations() {
@@ -3355,7 +3586,7 @@ export class LightTimeline extends BaseTimeline {
     const sceneObj = this._getSceneObjectForTrack(trackId);
     const uiTrack = this.tracks.get(trackId);
 
-    if (!trackData && String(trackId).startsWith("fx_")) {
+    if (!trackData && (String(trackId).startsWith("fx_") || String(trackId).startsWith("house_"))) {
       const uuid = this._fixtureUuidFor(trackId, null, uiTrack);
       if (uuid) {
         trackData = this.timelineData.getTrackByUuid(uuid, propertyName);
@@ -3374,7 +3605,7 @@ export class LightTimeline extends BaseTimeline {
       trackData = this.timelineData.addTrack(sceneObj.uuid, propertyName, trackId);
     }
 
-    if (!trackData && String(trackId).startsWith("fx_")) {
+    if (!trackData && (String(trackId).startsWith("fx_") || String(trackId).startsWith("house_"))) {
       const uuid = this._fixtureUuidFor(trackId, null, uiTrack);
       if (uuid) {
         trackData = this.timelineData.addTrack(uuid, propertyName, trackId);
@@ -3657,6 +3888,7 @@ export class LightTimeline extends BaseTimeline {
 
   _toggleTrackVisibility(track) {
     const el = this._resolveTrackRootElement(track) || track?.element;
+    if (!el) return;
     const hidden = el.dataset.trackHidden === "true";
     const nextHidden = !hidden;
     el.dataset.trackHidden = nextHidden ? "true" : "false";
@@ -3668,11 +3900,28 @@ export class LightTimeline extends BaseTimeline {
     el.classList.toggle("timeline-track--hidden", nextHidden);
 
     const lightId = track?.objectId || el.dataset?.objectId;
+
+    // 픽스처 FX 트랙 — 장면 오브젝트 이름이 없음
+    if (track?.isFixture || String(lightId || "").startsWith("fx_")) {
+      const fid = track?.fid ?? parseFixtureFid(lightId);
+      if (fid != null) {
+        this.editor.fixtureEngine?.setFixtureEnabled?.(fid, !nextHidden);
+      }
+      this.updateAnimation(this.currentTime);
+      return;
+    }
+
+    // HOUSE FOH/Fill 트랙
+    if (track?.isHouse || String(lightId || "").startsWith("house_")) {
+      this.updateAnimation(this.currentTime);
+      return;
+    }
+
     const light = lightId
       ? this.editor.scene.getObjectByName(lightId)
       : null;
     if (light) {
-      if (nextHidden) light.visible = false;
+      light.visible = !nextHidden;
       this.editor.signals?.objectChanged?.dispatch(light, {
         fromTimeline: true,
       });
@@ -3681,7 +3930,7 @@ export class LightTimeline extends BaseTimeline {
       ? this.editor.scene.getObjectByName(`${lightId}_Target`)
       : null;
     if (target) {
-      if (nextHidden) target.visible = false;
+      target.visible = !nextHidden;
       this.editor.signals?.objectChanged?.dispatch(target, {
         fromTimeline: true,
       });
@@ -3984,7 +4233,7 @@ export class LightTimeline extends BaseTimeline {
       };
     }
 
-    if (!resolved.lightType && !resolved.isFixture) {
+    if (!resolved.lightType && !resolved.isFixture && !resolved.isHouse) {
       return {
         success: false,
         message: "조명 트랙에서 SpotLight / PointLight를 먼저 선택하세요.",
@@ -4221,7 +4470,7 @@ export class LightTimeline extends BaseTimeline {
       };
     }
 
-    if (!track.lightType && !track.isFixture) {
+    if (!track.lightType && !track.isFixture && !track.isHouse) {
       return {
         success: false,
         message: "조명 트랙에서 SpotLight / PointLight를 먼저 선택하세요.",
@@ -4230,6 +4479,10 @@ export class LightTimeline extends BaseTimeline {
 
     if (track.isFixture) {
       return this.fixtureBridge.addKeyframeAtPlayhead(track.objectId);
+    }
+
+    if (track.isHouse) {
+      return this.houseBridge.addKeyframeAtPlayhead(track.objectId);
     }
 
     const light = this.editor.scene.getObjectByName(track.objectId);
@@ -4636,6 +4889,36 @@ export class LightTimeline extends BaseTimeline {
             return;
           }
 
+          if (track.isHouse || this._isHouseTrackEntry(lightId, null, track)) {
+            const lightUuid = this._fixtureUuidFor(lightId, null, track);
+            const keyframeData = {};
+            this._collectKeyframeDataFromUuid(lightUuid, track, keyframeData);
+
+            const sprite =
+              track.sprite ||
+              track.element.querySelector(".light-sprite, .animation-sprite");
+
+            lightTracksData[lightId] = {
+              left: sprite ? parseFloat(sprite.style.left) || 0 : 0,
+              width: sprite ? parseFloat(sprite.style.width) || 100 : 100,
+              duration:
+                (sprite && parseFloat(sprite.dataset.duration)) ||
+                this.options?.totalSeconds ||
+                180,
+              lightType: "House",
+              isHouse: true,
+              houseId: track.houseId || String(lightId).replace(/^house_/, ""),
+              uuid: lightUuid,
+              fixtureUuid: lightUuid,
+              keyframes: keyframeData,
+            };
+            console.log(`✅ HOUSE 트랙 저장: ${lightId}`, {
+              uuid: lightUuid,
+              keyframesCount: Object.keys(keyframeData).length,
+            });
+            return;
+          }
+
           const sprite =
             track.sprite ||
             track.element.querySelector(".light-sprite, .animation-sprite");
@@ -4767,6 +5050,8 @@ export class LightTimeline extends BaseTimeline {
         // timelineData에 조명 트랙 정보 추가
         this._syncFixtureRigTracksToLightTracksData(lightTracksData);
         this._syncFixtureTracksFromTracksById(lightTracksData);
+        this._syncHouseLightTracksToLightTracksData(lightTracksData);
+        this._syncHouseTracksFromTracksById(lightTracksData);
         timelineData.lightTracks = lightTracksData;
         timelineData.targetTracks = targetTracksData;
 
@@ -4867,13 +5152,21 @@ export class LightTimeline extends BaseTimeline {
       const hasFixture = Object.entries(timelineData.lightTracks).some(([id, d]) =>
         this._isFixtureTrackEntry(id, d),
       );
+      const hasHouse = Object.entries(timelineData.lightTracks).some(([id, d]) =>
+        this._isHouseTrackEntry(id, d),
+      );
       const hasLegacy = Object.entries(timelineData.lightTracks).some(
-        ([id, d]) => !this._isFixtureTrackEntry(id, d),
+        ([id, d]) =>
+          !this._isFixtureTrackEntry(id, d) && !this._isHouseTrackEntry(id, d),
       );
 
       if (hasFixture) {
         this.editor.initFixtureEngine?.({ restore: true });
         this.fixtureBridge?.ensureTracks?.();
+      }
+
+      if (hasHouse) {
+        this.houseBridge?.ensureTracks?.();
       }
 
       if (hasLegacy) {
@@ -4914,9 +5207,10 @@ export class LightTimeline extends BaseTimeline {
         if (times.length === 0) return;
 
         const isFixture = this._isFixtureTrackEntry(objectId, trackMeta);
+        const isHouse = this._isHouseTrackEntry(objectId, trackMeta);
         let track = this.timelineData.getTrackById(objectId, property);
 
-        if (!track && isFixture) {
+        if (!track && (isFixture || isHouse)) {
           const uuid = this._fixtureUuidFor(objectId, trackMeta);
           if (uuid) {
             track = this.timelineData.getTrackByUuid(uuid, property);
@@ -4929,7 +5223,7 @@ export class LightTimeline extends BaseTimeline {
           }
         }
 
-        if (!track && !isFixture) {
+        if (!track && !isFixture && !isHouse) {
           const obj = this.editor.scene.getObjectByName(objectId);
           if (obj) {
             track = this.timelineData.getTrackByUuid(obj.uuid, property);
@@ -4947,7 +5241,7 @@ export class LightTimeline extends BaseTimeline {
 
         let targetTrack = track;
         if (!targetTrack) {
-          const uuid = isFixture
+          const uuid = isFixture || isHouse
             ? this._fixtureUuidFor(objectId, trackMeta)
             : this.editor.scene.getObjectByName(objectId)?.uuid;
           if (!uuid) return;
@@ -5109,6 +5403,18 @@ export class LightTimeline extends BaseTimeline {
           return;
         }
 
+        if (this._isHouseTrackEntry(lightId, trackData)) {
+          this.houseBridge?.ensureTracks?.();
+          const targetTrack = this.tracks.get(lightId);
+          if (targetTrack?.element) {
+            console.log(`HOUSE 트랙 UI 복원: ${lightId}`);
+            this.restoreKeyframesUI(targetTrack.element, lightId, timelineData);
+          } else {
+            console.warn(`HOUSE 트랙 UI 없음: ${lightId}`);
+          }
+          return;
+        }
+
         const lightType = trackData.lightType;
         if (!lightId || !lightType) {
           console.warn(`trackKey ${trackKey}에 uuid 또는 lightType이 없습니다.`);
@@ -5254,6 +5560,7 @@ export class LightTimeline extends BaseTimeline {
     }
 
     const isFixture = !isTargetKeyframe && this._isFixtureTrackEntry(lightId, savedTrackData);
+    const isHouse = !isTargetKeyframe && this._isHouseTrackEntry(lightId, savedTrackData);
     let objectUuid = null;
     let objectInScene = null;
 
@@ -5263,6 +5570,13 @@ export class LightTimeline extends BaseTimeline {
       this.fixtureBridge?.ensureTracks?.();
       if (!objectUuid) {
         console.warn(`❌ 픽스처 UUID 없음: ${lightId}`);
+        return;
+      }
+    } else if (isHouse) {
+      objectUuid = this._fixtureUuidFor(lightId, savedTrackData);
+      this.houseBridge?.ensureTracks?.();
+      if (!objectUuid) {
+        console.warn(`❌ HOUSE UUID 없음: ${lightId}`);
         return;
       }
     } else if (isTargetKeyframe) {
@@ -5298,7 +5612,7 @@ export class LightTimeline extends BaseTimeline {
         timelineTrackData ? "찾음" : "없음",
       );
 
-      const objectIdForIdMap = isFixture
+      const objectIdForIdMap = isFixture || isHouse
         ? lightId
         : isTargetKeyframe
           ? lightId
@@ -5502,15 +5816,10 @@ export class LightTimeline extends BaseTimeline {
             console.log(`클릭 이벤트 재연결: ${targetLightId} ${property} at ${time}`);
             keyframeElement.addEventListener("click", (e) => {
               e.stopPropagation();
-
-              // 타겟 키프레임과 조명 키프레임 구분하여 lightId 생성
-              let timelineDataLightId;
-              if (targetLightId.includes('_Target')) {
-                timelineDataLightId = targetLightId;
-              } else {
-                timelineDataLightId = `${targetLightId}_${property}`;
-              }
-
+              const timelineDataLightId = this._resolveSelectTrackId(
+                targetLightId,
+                property,
+              );
               this.selectKeyframe(timelineDataLightId, time, keyframeElement, property);
             });
           }
@@ -5539,6 +5848,11 @@ export class LightTimeline extends BaseTimeline {
       keyframeElementClasses: keyframeElement ? keyframeElement.className : 'N/A'
     });
 
+    const resolvedId = this._resolveSelectTrackId(lightId, propertyName);
+    const isVirtual =
+      this._isFixtureTrackEntry(resolvedId) ||
+      this._isHouseTrackEntry(resolvedId);
+
     // 클립 범위 체크 - 클립 밖의 키프레임은 선택하지 않음 (허용 범위 추가)
     if (keyframeElement) {
       const sprite = keyframeElement.closest('.light-sprite');
@@ -5563,7 +5877,10 @@ export class LightTimeline extends BaseTimeline {
     }
 
     // TimelineData에서 키프레임 데이터 가져오기
-    let trackData = this.timelineData.getTrackById(lightId, propertyName);
+    let trackData = this._resolveTrackData(resolvedId, propertyName);
+    if (!trackData) {
+      trackData = this.timelineData.getTrackById(lightId, propertyName);
+    }
     if (!trackData) {
       const object = this.editor.scene.getObjectByName(lightId);
       if (object) {
@@ -5572,7 +5889,7 @@ export class LightTimeline extends BaseTimeline {
     }
 
     if (!trackData) {
-      console.warn("트랙 데이터를 찾을 수 없습니다:", { lightId, propertyName });
+      console.warn("트랙 데이터를 찾을 수 없습니다:", { lightId, resolvedId, propertyName });
       return;
     }
 
@@ -5598,9 +5915,12 @@ export class LightTimeline extends BaseTimeline {
       z: trackData.values[keyframeIndex * 3 + 2]
     };
 
+    // 픽스처/HOUSE는 track id 저장, 레거시는 light_0_intensity 형태 유지
+    const storeId = isVirtual ? resolvedId : resolvedId;
+
     // 선택된 키프레임 정보 저장 (메모리)
     this.selectedKeyframe = {
-      lightId,
+      lightId: storeId,
       index: keyframeIndex,
       time,
       property: propertyName,
@@ -5614,7 +5934,7 @@ export class LightTimeline extends BaseTimeline {
     }
     this.editor.scene.userData.lightTimeline = this.editor.scene.userData.lightTimeline || {};
     this.editor.scene.userData.lightTimeline.selectedKeyframe = {
-      lightId,
+      lightId: storeId,
       index: keyframeIndex,
       time,
       property: propertyName,
@@ -5632,10 +5952,10 @@ export class LightTimeline extends BaseTimeline {
     if (keyframeElement) {
       // 키프레임이 속한 클립(스프라이트) 찾기 - 타겟과 조명 구분
       let sprite = null;
-      if (lightId.includes('_Target')) {
+      if (storeId.includes('_Target')) {
         // 타겟 키프레임인 경우 타겟 스프라이트 찾기
         // lightId가 'light_0_Target' 형태이므로 직접 타겟 스프라이트 찾기
-        const targetSprite = document.querySelector(`[data-object-id="${lightId}"] .target-sprite`);
+        const targetSprite = document.querySelector(`[data-object-id="${storeId}"] .target-sprite`);
         if (targetSprite) {
           sprite = targetSprite;
           console.log("키프레임 선택 - 타겟 스프라이트 찾음:", sprite);
@@ -5658,6 +5978,11 @@ export class LightTimeline extends BaseTimeline {
             parent = parent.parentElement;
           }
         }
+      } else if (isVirtual) {
+        sprite =
+          keyframeElement.closest(".light-sprite") ||
+          this.tracks.get(resolvedId)?.sprite ||
+          document.querySelector(`[data-object-id="${resolvedId}"] .light-sprite`);
       } else {
         // 조명 키프레임인 경우 조명 스프라이트 찾기
         // lightId가 'light_0_intensity' 형태이므로 base light ID 추출
@@ -5710,6 +6035,30 @@ export class LightTimeline extends BaseTimeline {
 
     // playhead를 키프레임 시간 위치로 이동
     this.movePlayheadToTime(time);
+    this.currentTime = time;
+    this.selectedTrackId = isVirtual
+      ? resolvedId
+      : this._getBaseLightId(storeId);
+
+    // 픽스처 / HOUSE: 키 값 → 라이브 + 패널 동기화
+    if (this._isFixtureTrackEntry(resolvedId)) {
+      const fid = parseFixtureFid(resolvedId);
+      if (fid != null) {
+        this.editor.fixtureEngine?.setSelection?.([fid]);
+      }
+      this.selectLightTrack?.(resolvedId);
+      this.fixtureBridge?.applyAtTime?.(time, { syncSelected: true });
+      this.editor.refreshMaConsole?.();
+      return;
+    }
+
+    if (this._isHouseTrackEntry(resolvedId)) {
+      this.selectLightTrack?.(resolvedId);
+      this.houseBridge?.applyAtTime?.(time);
+      this.houseBridge?.syncPanelFromSelection?.();
+      this.editor.refreshMaConsole?.();
+      return;
+    }
 
     // 키프레임 값으로 객체 속성 업데이트
     // selectClip에서 선택된 객체를 사용
@@ -5944,14 +6293,24 @@ export class LightTimeline extends BaseTimeline {
       });
 
       return true;
-    } else {
-      console.warn("selectClip: 객체 선택 실패:", {
-        objectToSelect: objectToSelect,
-        hasEditorSelect: !!this.editor.select,
-        trackObjectId: trackObjectId
-      });
-      return false;
     }
+
+    // 픽스처 / HOUSE — 씬 Object3D가 없어도 트랙 선택은 유지
+    const track = this.tracks.get(trackObjectId);
+    if (track?.isFixture || track?.isHouse) {
+      this.selectedObject = null;
+      this.selectedLightType = track.lightType;
+      this.selectedTrackId = trackObjectId;
+      track.element?.classList.add("timeline-track--selected");
+      return true;
+    }
+
+    console.warn("selectClip: 객체 선택 실패:", {
+      objectToSelect: objectToSelect,
+      hasEditorSelect: !!this.editor.select,
+      trackObjectId: trackObjectId
+    });
+    return false;
   }
 
   // playhead를 특정 시간으로 이동하는 메서드
@@ -6292,6 +6651,9 @@ export class LightTimeline extends BaseTimeline {
 
   _resolveTrackObjectIdFromLightId(lightId) {
     if (!lightId) return null;
+    if (this._isFixtureTrackEntry(lightId) || this._isHouseTrackEntry(lightId)) {
+      return this._normalizeVirtualTrackId(lightId);
+    }
     if (lightId.includes("_Target")) {
       const match = lightId.match(/^(.+_Target)/);
       return match ? match[1] : lightId;
@@ -6304,6 +6666,10 @@ export class LightTimeline extends BaseTimeline {
       "angle",
       "penumbra",
       "decay",
+      "dim",
+      "pan",
+      "tilt",
+      "size",
     ];
     for (const suffix of suffixes) {
       if (lightId.endsWith(`_${suffix}`)) {
@@ -6315,7 +6681,12 @@ export class LightTimeline extends BaseTimeline {
 
   _getLightKeyframePropertiesForTrack(track) {
     if (!track?.objectId) return [];
-    if (track.isFixture) return [...FIXTURE_TL_PROPS];
+    if (track.isFixture || this._isFixtureTrackEntry(track.objectId, null, track)) {
+      return [...FIXTURE_TL_PROPS];
+    }
+    if (track.isHouse || this._isHouseTrackEntry(track.objectId, null, track)) {
+      return [...HOUSE_TL_PROPS];
+    }
     if (track.objectId.includes("_Target")) return ["position"];
     return Object.keys(
       LIGHT_PROPERTIES[track.lightType] || LIGHT_PROPERTIES.SpotLight,
@@ -6332,24 +6703,39 @@ export class LightTimeline extends BaseTimeline {
     const trackRoot = this._getTrackRootElement(track.objectId);
     if (this._isTrackLocked(trackRoot)) return false;
 
+    const isVirtual =
+      track.isFixture ||
+      track.isHouse ||
+      this._isFixtureTrackEntry(track.objectId, null, track) ||
+      this._isHouseTrackEntry(track.objectId, null, track);
+
     const properties = this._getLightKeyframePropertiesForTrack(track);
     let removed = false;
+    const t = Number(time);
 
     properties.forEach((prop) => {
-      const timelineDataLightId = track.objectId.includes("_Target")
-        ? track.objectId
-        : `${track.objectId}_${prop}`;
-
-      const trackData = track.isFixture
+      const trackData = isVirtual
         ? this._resolveTrackData(track.objectId, prop)
         : this.timelineData.tracksById
-            .get(timelineDataLightId)
-            ?.get(prop);
+            .get(
+              track.objectId.includes("_Target")
+                ? track.objectId
+                : `${track.objectId}_${prop}`,
+            )
+            ?.get(prop) || this._resolveTrackData(track.objectId, prop);
+
       if (!trackData) return;
 
-      if (
-        trackData.removeKeyframe(time) ||
-        trackData.removeKeyframe(parseFloat(time.toFixed(2)))
+      let index = this._findKeyframeIndexAtTime(trackData, t);
+      if (index === -1) {
+        index = trackData.findKeyframeIndex?.(t) ?? -1;
+      }
+      if (index === -1) return;
+
+      if (trackData.removeKeyframeByIndex?.(index) || trackData.removeKeyframe(t)) {
+        removed = true;
+      } else if (
+        trackData.removeKeyframe(parseFloat(t.toFixed(2)))
       ) {
         removed = true;
       }
@@ -6358,39 +6744,52 @@ export class LightTimeline extends BaseTimeline {
     const lightIdBase = track.objectId.includes("_Target")
       ? track.objectId.replace(/_Target$/, "")
       : track.objectId;
-    this.syncDeletePartnerKeyframes(lightIdBase, time, track);
+    if (!isVirtual) {
+      this.syncDeletePartnerKeyframes(lightIdBase, t, track);
+    }
 
-    const tol = 0.02;
+    const tol = 0.05;
     const removeUiAtTime = (sprite) => {
       if (!sprite) return;
       sprite.querySelectorAll(".keyframe").forEach((el) => {
-        const t = parseFloat(el.dataset.time);
-        if (!Number.isNaN(t) && Math.abs(t - time) < tol) {
+        const kt = parseFloat(el.dataset.time);
+        if (!Number.isNaN(kt) && Math.abs(kt - t) < tol) {
           el.remove();
         }
       });
     };
 
+    // dim/pan/tilt/color 등 같은 시각에 여러 UI 키가 있을 수 있음 → 전부 제거
+    removeUiAtTime(track.sprite);
     if (keyframeElement?.parentNode) {
       keyframeElement.remove();
-    } else {
-      removeUiAtTime(track.sprite);
     }
 
-    const partnerEls = this.findPartnerKeyframeElements(
-      track,
-      time,
-      track.objectId.includes("_Target"),
-    );
-    partnerEls.forEach((el) => el.remove());
+    if (!isVirtual) {
+      const partnerEls = this.findPartnerKeyframeElements(
+        track,
+        t,
+        track.objectId.includes("_Target"),
+      );
+      partnerEls.forEach((el) => el.remove());
+    }
 
     if (removed) {
       this.timelineData.dirty = true;
       this.timelineData.precomputeAnimationData();
       this.updateAnimation?.();
+      if (isVirtual) {
+        if (track.isFixture || this._isFixtureTrackEntry(track.objectId, null, track)) {
+          this.fixtureBridge?.applyAtTime?.(this.currentTime ?? t);
+        }
+        if (track.isHouse || this._isHouseTrackEntry(track.objectId, null, track)) {
+          this.houseBridge?.applyAtTime?.(this.currentTime ?? t);
+        }
+      }
       if (this.editor.signals?.sceneGraphChanged) {
         this.editor.signals.sceneGraphChanged.dispatch();
       }
+      this.editor.signals?.rendererUpdated?.dispatch?.();
     }
 
     if (clearSelection) {
@@ -6432,15 +6831,14 @@ export class LightTimeline extends BaseTimeline {
       const trackRoot = keyframeElement.closest(".timeline-track.light-timeline");
       if (this._isTrackLocked(trackRoot)) return;
 
-      let timelineDataLightId;
-      if (track.objectId.includes("_Target")) {
-        timelineDataLightId = track.objectId;
-      } else {
-        timelineDataLightId = `${track.objectId}_${property}`;
-      }
+      const keyTime =
+        parseFloat(keyframeElement.dataset.time) ||
+        parseFloat(keyframeElement.dataset.originalTime) ||
+        time;
+      const selectId = this._resolveSelectTrackId(track.objectId, property);
       this.selectKeyframe(
-        timelineDataLightId,
-        parseFloat(keyframeElement.dataset.time) || time,
+        selectId,
+        keyTime,
         keyframeElement,
         property,
       );
@@ -6463,15 +6861,23 @@ export class LightTimeline extends BaseTimeline {
       deleteBtn.innerHTML =
         '<i class="fa fa-trash" style="color: #ff6b6b;"></i> 키프레임 삭제';
 
-      deleteBtn.addEventListener("click", () => {
+      deleteBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
         const keyTime =
           parseFloat(keyframeElement.dataset.time) ||
           parseFloat(keyframeElement.dataset.originalTime) ||
           time;
-        this._deleteKeyframesAtTimeForTrack(track, keyTime, {
+        const ok = this._deleteKeyframesAtTimeForTrack(track, keyTime, {
           keyframeElement,
           clearSelection: true,
         });
+        if (!ok) {
+          console.warn("조명 키프레임 삭제 실패:", {
+            trackId: track.objectId,
+            time: keyTime,
+          });
+        }
         menu.remove();
       });
 

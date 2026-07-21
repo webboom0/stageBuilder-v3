@@ -17,6 +17,7 @@ function resolveFbxPath(fileName, userData = {}) {
   if (userData.filePath) return userData.filePath;
   if (userData.assetPath) return userData.assetPath;
   if (userData.sourceFile) return userData.sourceFile;
+  if (userData.procedural) return `procedural://${userData.procedural}`;
   if (fileName) return `../files/fbx/${fileName}`;
   return "";
 }
@@ -31,6 +32,13 @@ function pickMotionUserData(userData = {}) {
     "displayName",
     "tintable",
     "tintColor",
+    "walkLiteColor",
+    "scCustomTint",
+    "scGroupId",
+    "scMemberId",
+    "procedural",
+    "isTesterMotion",
+    "dreamCheonrok",
     "motionWorldReferenceHeight",
     "hideInScenePanel",
   ];
@@ -42,11 +50,43 @@ function pickMotionUserData(userData = {}) {
   return out;
 }
 
+/** procedural:// 또는 WalkLite/천록/꾀꼬리 파일명 → 경량 퍼포머 복원 */
+function detectProceduralId(userData = {}, filePath = "", fileName = "") {
+  const procedural = String(userData.procedural || "").toLowerCase();
+  if (
+    procedural === "walk-lite" ||
+    procedural === "cheonrok-lite" ||
+    procedural === "kkekkori-lite"
+  ) {
+    return procedural;
+  }
+
+  const path = String(filePath || userData.filePath || "").toLowerCase();
+  if (path.includes("procedural://walk-lite") || path.includes("walk-lite")) {
+    return "walk-lite";
+  }
+  if (path.includes("procedural://cheonrok-lite") || path.includes("cheonrok-lite")) {
+    return "cheonrok-lite";
+  }
+  if (path.includes("procedural://kkekkori-lite") || path.includes("kkekkori-lite")) {
+    return "kkekkori-lite";
+  }
+
+  const name = String(fileName || userData.fileName || "").toLowerCase();
+  if (name.includes("walklite") || name === "walklite.fbx") return "walk-lite";
+  if (name.includes("cheonrok")) return "cheonrok-lite";
+  if (name.includes("kkekkori")) return "kkekkori-lite";
+  return null;
+}
+
 function classifyChild(object) {
   if (!object) return "skip";
 
   const name = String(object.name || "");
 
+  if (name === "_WorkLights" || object.userData?.type === "workLights") {
+    return "skip";
+  }
   if (name === "Stage" || object.userData?.excludeFromTimeline === true) {
     return "stageRef";
   }
@@ -99,6 +139,8 @@ export class SceneObjectSerializer {
       const fileName =
         object.userData?.fileName ||
         (object.name && /\.fbx$/i.test(object.name) ? object.name : `${object.name}.fbx`);
+      const filePath = resolveFbxPath(fileName, object.userData);
+      const procedural = object.userData?.procedural || detectProceduralId(object.userData, filePath, fileName);
 
       return {
         saveType: "motionRef",
@@ -108,11 +150,12 @@ export class SceneObjectSerializer {
         position: object.position.toArray(),
         rotation: object.rotation.toArray(),
         scale: object.scale.toArray(),
-        visible: object.visible,
+        visible: true, // 타임라인이 가시성 제어 — 클립 밖 false로 저장되면 로드 후 영구 숨김
         userData: {
           ...pickMotionUserData(object.userData),
           fileName,
-          filePath: resolveFbxPath(fileName, object.userData),
+          filePath: procedural ? `procedural://${procedural}` : filePath,
+          ...(procedural ? { procedural } : {}),
         },
       };
     }
@@ -222,14 +265,67 @@ export class SceneObjectSerializer {
   }
 
   static async restoreMotionRef(data, editor) {
-    const filePath = resolveFbxPath(data.userData?.fileName, data.userData);
+    const fileName = data.userData?.fileName;
+    const filePath = resolveFbxPath(fileName, data.userData);
     if (!filePath) {
       console.warn("motionRef 복원 실패: filePath 없음", data.name);
       return null;
     }
 
-    let object;
-    if (editor.loader?.loadMotionFromUrl) {
+    const proceduralId = detectProceduralId(data.userData, filePath, fileName);
+    let object = null;
+
+    // WalkLite / 천록 — FBX 없음, 프로시저럴 재생성
+    if (proceduralId) {
+      try {
+        const {
+          createWalkLitePerformer,
+          createCheonrokLite,
+          createKkekkoriLite,
+          applyGroupMotionColor,
+          WALK_LITE_PROCEDURAL_ID,
+          CHEONROK_PROCEDURAL_ID,
+          KKEKKORI_PROCEDURAL_ID,
+        } = await import("./walkLitePerformer.js");
+        const displayName =
+          data.userData?.displayName ||
+          data.name ||
+          (proceduralId === "kkekkori-lite"
+            ? "꾀꼬리"
+            : proceduralId === "cheonrok-lite"
+              ? "천록"
+              : "WalkLite");
+        const color =
+          data.userData?.tintColor ??
+          data.userData?.walkLiteColor ??
+          (proceduralId === "kkekkori-lite"
+            ? 0xffcc33
+            : proceduralId === "cheonrok-lite"
+              ? 0xc4a574
+              : 0xd9c08a);
+
+        if (proceduralId === WALK_LITE_PROCEDURAL_ID || proceduralId === "walk-lite") {
+          object = createWalkLitePerformer({ displayName, color });
+        } else if (proceduralId === KKEKKORI_PROCEDURAL_ID || proceduralId === "kkekkori-lite") {
+          object = createKkekkoriLite({ displayName, color });
+        } else {
+          object = createCheonrokLite({ displayName, color });
+        }
+
+        if (data.userData?.tintColor != null || data.userData?.walkLiteColor != null) {
+          applyGroupMotionColor(object, color);
+        }
+        // processMotionObject 금지 — 이미 autoScale·색 적용됨 (다시 돌리면 이중스케일/빨강)
+        captureMotionWorldReferenceHeight(object, editor);
+        console.log(`경량 모션 복원: ${displayName} (${proceduralId})`);
+      } catch (err) {
+        console.warn("경량 모션 복원 실패:", data.name, err);
+        return null;
+      }
+    } else if (String(filePath).startsWith("procedural://")) {
+      console.warn("알 수 없는 procedural motionRef:", filePath, data.name);
+      return null;
+    } else if (editor.loader?.loadMotionFromUrl) {
       object = await editor.loader.loadMotionFromUrl(filePath, {
         fileName: data.userData?.fileName,
         displayName: data.userData?.displayName,
@@ -252,7 +348,15 @@ export class SceneObjectSerializer {
     object.uuid = data.uuid;
     object.name = data.name || object.name;
     this.applyTransform(object, data);
-    object.userData = { ...object.userData, ...pickMotionUserData(data.userData), filePath };
+    // 타임라인이 가시성 제어 — 저장본 visible:false 로 영구 숨김되지 않게
+    object.visible = true;
+    const restoredPath = proceduralId ? `procedural://${proceduralId}` : filePath;
+    object.userData = {
+      ...object.userData,
+      ...pickMotionUserData(data.userData),
+      filePath: restoredPath,
+      ...(proceduralId ? { procedural: proceduralId, isTesterMotion: true } : {}),
+    };
     return object;
   }
 

@@ -22,15 +22,32 @@ export const SEGMENT_KIND_LABELS = {
   exit: "퇴장",
 };
 
-/** 그룹 Y축 회전 — 30° 단위 */
+/** 그룹 Y축 회전 — 30° 단위 (−180 ~ 180, 부호로 시계/반시계 구분) */
 export const GROUP_ROT_Y_STEP = 30;
-export const GROUP_ROT_Y_OPTIONS = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+export const GROUP_ROT_Y_OPTIONS = [
+  0, 30, 60, 90, 120, 150, 180, -150, -120, -90, -60, -30,
+];
 
+/** 30° 스냅 후 (−180, 180] 로 정규화 — 음수=시계, 양수=반시계(위에서 볼 때) */
 export function normalizeRotYDeg(deg) {
   const n = Number(deg);
   if (!Number.isFinite(n)) return 0;
   const snapped = Math.round(n / GROUP_ROT_Y_STEP) * GROUP_ROT_Y_STEP;
-  return ((snapped % 360) + 360) % 360;
+  let w = ((snapped % 360) + 360) % 360;
+  if (w > 180) w -= 360;
+  return w;
+}
+
+/**
+ * 연속 키프레임용 — 이전 각 기준으로 가까운 쪽으로 풀어 보간이 반대 방향으로 돌지 않게 함
+ * (예: 0 → 저장값 330/−30 이면 −30으로 보간)
+ */
+export function unwrapRotYDeg(prevDeg, nextDeg) {
+  const prev = Number(prevDeg) || 0;
+  let next = normalizeRotYDeg(nextDeg);
+  while (next - prev > 180) next -= 360;
+  while (next - prev < -180) next += 360;
+  return next;
 }
 
 export function normalizeSegmentEasing(easing) {
@@ -335,7 +352,20 @@ export function buildMemberWaypoints(group, memberIndex) {
     t = tEnd;
   }
 
-  return dedupeWaypoints(waypoints);
+  return unwrapWaypointRotations(dedupeWaypoints(waypoints));
+}
+
+/** 웨이포인트 rotY를 연속 보간 가능하게 풀기 (0→330 이 0→−30 으로) */
+function unwrapWaypointRotations(waypoints) {
+  if (!waypoints?.length) return waypoints;
+  let prev = normalizeRotYDeg(waypoints[0].rotY);
+  waypoints[0] = { ...waypoints[0], rotY: prev };
+  for (let i = 1; i < waypoints.length; i++) {
+    const unwrapped = unwrapRotYDeg(prev, waypoints[i].rotY);
+    waypoints[i] = { ...waypoints[i], rotY: unwrapped };
+    prev = unwrapped;
+  }
+  return waypoints;
 }
 
 function dedupeWaypoints(waypoints) {

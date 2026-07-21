@@ -38,7 +38,7 @@ function sampleAngleTrack(trackData, time) {
 }
 
 export const FIXTURE_TRACK_PREFIX = "fx_";
-export const FIXTURE_TL_PROPS = ["dim", "pan", "tilt", "color"];
+export const FIXTURE_TL_PROPS = ["dim", "pan", "tilt", "color", "zoom", "focus"];
 
 export function fixtureTrackId(fid) {
   return `${FIXTURE_TRACK_PREFIX}${fid}`;
@@ -206,6 +206,22 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     lt.addKeyframeForProperty(trackObjectId, "pan", time, pan);
     lt.addKeyframeForProperty(trackObjectId, "tilt", time, tilt);
     lt.addKeyframeForProperty(trackObjectId, "color", time, color);
+    if (cap.zoom != null) {
+      lt.addKeyframeForProperty(
+        trackObjectId,
+        "zoom",
+        time,
+        Math.round(Number(cap.zoom) || 0)
+      );
+    }
+    if (cap.focus != null) {
+      lt.addKeyframeForProperty(
+        trackObjectId,
+        "focus",
+        time,
+        Math.round(Number(cap.focus) || 0)
+      );
+    }
   }
 
   function addKeyframeAtPlayhead(trackObjectId) {
@@ -234,6 +250,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
 
     fe()?.commitFixtureEditToAttr?.(fid);
     lt.timelineData?.precomputeAnimationData?.();
+    lt.clearSelectedKeyframe?.();
     applyAtTime(time);
 
     return { success: true, trackId: trackObjectId, time };
@@ -294,6 +311,8 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     });
 
     lt.timelineData?.precomputeAnimationData?.();
+    // 그룹 키 추가 후 키/픽스처 단일 선택으로 바뀌지 않게 유지
+    lt.clearSelectedKeyframe?.();
     applyAtTime(time);
 
     return {
@@ -350,15 +369,21 @@ export function createFixtureLightBridge(lightTimeline, editor) {
       const f = engine.getFixture(fid);
       if (!f) return;
 
+      const userHidden = !!lt._isTrackUserHidden?.(track);
       const tl = {};
       const dim = sampleProp(track.objectId, "dim", time);
       const pan = sampleProp(track.objectId, "pan", time);
       const tilt = sampleProp(track.objectId, "tilt", time);
       const color = sampleProp(track.objectId, "color", time);
+      const zoom = sampleProp(track.objectId, "zoom", time);
+      const focus = sampleProp(track.objectId, "focus", time);
 
-      if (dim != null) tl.dim = dim;
+      if (dim != null) tl.dim = userHidden ? 0 : dim;
+      else if (userHidden) tl.dim = 0;
       if (pan != null) tl.pan = pan;
       if (tilt != null) tl.tilt = tilt;
+      if (zoom != null) tl.zoom = zoom;
+      if (focus != null) tl.focus = focus;
       if (color) {
         tl.r = color.r;
         tl.g = color.g;
@@ -378,6 +403,9 @@ export function createFixtureLightBridge(lightTimeline, editor) {
         } else {
           f.prog = {};
         }
+      } else if (userHidden) {
+        f.tl = { dim: 0 };
+        anyTl = true;
       }
     });
 
@@ -514,6 +542,7 @@ export function createFixtureLightBridge(lightTimeline, editor) {
     clearTimelineOverrides,
     addKeyframeAtPlayhead,
     addKeyframesForSelection,
+    writeFixtureKeyframesAtTime,
     restoreKeyframeUI,
     navigateSelectionKeyframes,
     deleteSelectionKeyframesAtPlayhead,

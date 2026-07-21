@@ -24,6 +24,8 @@ class SetMaPanelLightingCommand extends Command {
     setMaPanelHistoryPlayback(true);
     try {
       this.mutateFn?.();
+      // 타임라인에서 키를 선택한 상태면 패널 수정을 해당 키에 반영
+      this.editor.lightTimeline?.syncSelectedVirtualKeyframesFromLive?.();
       this.newState = captureMaPanelLightingState(this.editor);
       const fe = this.editor.fixtureEngine;
       const lt = this.editor.lightTimeline;

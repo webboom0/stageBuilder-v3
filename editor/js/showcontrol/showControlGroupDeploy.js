@@ -171,10 +171,15 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
   }
   if (!object) {
     const forceNew = shouldForceNewCatalogInstance(editor, group, member, entry);
+    const spawnColor =
+      member.tintColor != null && member.tintColor !== ""
+        ? member.tintColor
+        : undefined;
     object = await spawnCatalogEntryInScene(editor, entry, {
       forceNew,
       displayName,
       group,
+      color: spawnColor,
     });
   }
   if (!object) throw new Error(`FBX 배치 실패: ${displayName}`);
@@ -195,12 +200,27 @@ async function deployCatalogMember(editor, member, catalog, group, memberIndex) 
   object.userData.scGroupId = group.id;
   object.userData.scMemberId = member.id;
 
-  // 그룹 색상 → WalkLite·일반 FBX 모두 적용
+  // 그룹 색상 → WalkLite·일반 FBX (멤버 개별 tint 있으면 그것 우선)
   try {
     const { colorForWalkLiteGroup, applyGroupMotionColor } = await import(
       "../utils/walkLitePerformer.js"
     );
-    applyGroupMotionColor(object, colorForWalkLiteGroup(editor, group));
+    const tint =
+      member.tintColor != null && member.tintColor !== ""
+        ? member.tintColor
+        : colorForWalkLiteGroup(editor, group);
+    applyGroupMotionColor(object, tint);
+    if (member.tintColor != null && member.tintColor !== "") {
+      object.userData.scCustomTint = true;
+    }
+    if (member.baseScale) {
+      const s = member.baseScale;
+      object.scale.set(
+        Number(s.x) || 1,
+        Number(s.y) || 1,
+        Number(s.z) || 1,
+      );
+    }
   } catch (_) {
     /* noop */
   }
@@ -232,7 +252,22 @@ async function deployActorMember(editor, member, group, memberIndex) {
     const { colorForWalkLiteGroup, applyGroupMotionColor } = await import(
       "../utils/walkLitePerformer.js"
     );
-    applyGroupMotionColor(object, colorForWalkLiteGroup(editor, group));
+    const tint =
+      member.tintColor != null && member.tintColor !== ""
+        ? member.tintColor
+        : colorForWalkLiteGroup(editor, group);
+    applyGroupMotionColor(object, tint);
+    if (member.tintColor != null && member.tintColor !== "") {
+      object.userData.scCustomTint = true;
+    }
+    if (member.baseScale) {
+      const s = member.baseScale;
+      object.scale.set(
+        Number(s.x) || 1,
+        Number(s.y) || 1,
+        Number(s.z) || 1,
+      );
+    }
   } catch (_) {
     /* noop */
   }

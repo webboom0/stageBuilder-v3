@@ -55,7 +55,21 @@ function SidebarObject(editor) {
   const getTintRoot = (object) => {
     let o = object;
     while (o) {
-      if (o.userData && o.userData.tintable === true) return o;
+      const ud = o.userData;
+      if (!ud) {
+        o = o.parent;
+        continue;
+      }
+      if (ud.tintable === true) return o;
+      // 경량 테스터(WalkLite·천록) — tintable 누락된 기존 객체도 인식
+      if (
+        ud.isTesterMotion ||
+        ud.procedural === "walk-lite" ||
+        ud.procedural === "cheonrok-lite" ||
+        ud.walkLiteColor != null
+      ) {
+        return o;
+      }
       o = o.parent;
     }
     return null;
@@ -273,7 +287,7 @@ function SidebarObject(editor) {
   const objectRotationYChipsRow = new UIRow();
   objectRotationYChipsRow.setClass("sb-object-roty-row");
   objectRotationYChipsRow.add(
-    new UIText("Y 회전 (30°)").setClass("Label"),
+    new UIText("Y 회전").setClass("Label"),
   );
   const objectRotationYChipsHost = new UIDiv();
   objectRotationYChipsHost.dom.className = "sb-object-roty-chips";
@@ -624,17 +638,87 @@ function SidebarObject(editor) {
 
   //   container.add(objectShadowRadiusRow);
 
-  // visible
-
+  // visible — 모션 타임라인 키프레임(보임/안보임). 트랙 헤더 눈 아이콘은 트랙 전체 숨김용.
   const objectVisibleRow = new UIRow();
-  const objectVisible = new UICheckbox().onChange(update);
-
+  objectVisibleRow.setClass("sb-object-visible-row");
   objectVisibleRow.add(
     new UIText(strings.getKey("sidebar/object/visible")).setClass("Label"),
   );
-  objectVisibleRow.add(objectVisible);
 
+  const visibleBtnWrap = document.createElement("div");
+  visibleBtnWrap.className = "sb-object-visible-btns";
+
+  const btnVisibleOn = document.createElement("button");
+  btnVisibleOn.type = "button";
+  btnVisibleOn.className = "sb-anim-btn Button sb-object-vis-btn";
+  btnVisibleOn.textContent = strings.getKey("sidebar/object/visible_on");
+  btnVisibleOn.title = "플레이헤드에 보임 키프레임";
+
+  const btnVisibleOff = document.createElement("button");
+  btnVisibleOff.type = "button";
+  btnVisibleOff.className = "sb-anim-btn Button sb-object-vis-btn";
+  btnVisibleOff.textContent = strings.getKey("sidebar/object/visible_off");
+  btnVisibleOff.title = "플레이헤드에 안보임 키프레임";
+
+  visibleBtnWrap.append(btnVisibleOn, btnVisibleOff);
+  objectVisibleRow.dom.appendChild(visibleBtnWrap);
   container.add(objectVisibleRow);
+
+  function syncVisibleButtons(isVisible) {
+    const on = !!isVisible;
+    btnVisibleOn.classList.toggle("is-active", on);
+    btnVisibleOff.classList.toggle("is-active", !on);
+    btnVisibleOn.setAttribute("aria-pressed", on ? "true" : "false");
+    btnVisibleOff.setAttribute("aria-pressed", on ? "false" : "true");
+  }
+
+  function resolveMotionTimeline() {
+    editor.connectTimelineInstances?.();
+    return (
+      editor.motionTimeline ||
+      editor.timeline?.timelines?.motion ||
+      window.timeline?.timelines?.motion ||
+      null
+    );
+  }
+
+  function setVisibleAtPlayhead(isVisible) {
+    const object = editor.selected;
+    if (!object) return;
+
+    const next = !!isVisible;
+    const mt = resolveMotionTimeline();
+    const hasMotionTrack =
+      !!mt &&
+      ((mt.timelineData?.getObjectTracks?.(object.uuid)?.size ?? 0) > 0 ||
+        !!mt.container?.querySelector?.(
+          `.timeline-track[data-uuid="${object.uuid}"]`,
+        ));
+
+    if (hasMotionTrack && typeof mt.addVisibleKeyframe === "function") {
+      object.visible = next;
+      const time =
+        mt.getPlayheadTimeSeconds?.() ??
+        (Number.isFinite(mt.currentTime) ? mt.currentTime : 0);
+      mt.addVisibleKeyframe(object.uuid, time, next);
+      mt.updateAnimation?.(time);
+      editor.signals.objectChanged.dispatch(object);
+      editor.signals.rendererUpdated?.dispatch?.();
+    } else if (object.visible !== next) {
+      editor.execute(new SetValueCommand(editor, object, "visible", next));
+    }
+
+    syncVisibleButtons(next);
+  }
+
+  btnVisibleOn.addEventListener("click", (e) => {
+    e.preventDefault();
+    setVisibleAtPlayhead(true);
+  });
+  btnVisibleOff.addEventListener("click", (e) => {
+    e.preventDefault();
+    setVisibleAtPlayhead(false);
+  });
 
   // frustumCulled
 
@@ -761,6 +845,11 @@ function SidebarObject(editor) {
     if (object.scale.distanceTo(newScale) >= 0.001) {
       editor.execute(new SetScaleCommand(editor, object, newScale));
       applyFloorContactAfterScale(object);
+      import("./showcontrol/groupTimelineKeyframes.js").then(
+        ({ persistMemberBaseAppearance }) => {
+          persistMemberBaseAppearance(editor, object);
+        },
+      );
     }
   }
 
@@ -809,6 +898,11 @@ function SidebarObject(editor) {
       if (object.scale.distanceTo(newScale) >= 0.01) {
         editor.execute(new SetScaleCommand(editor, object, newScale));
         applyFloorContactAfterScale(object);
+        import("./showcontrol/groupTimelineKeyframes.js").then(
+          ({ persistMemberBaseAppearance }) => {
+            persistMemberBaseAppearance(editor, object);
+          },
+        );
       }
 
       if (
@@ -935,35 +1029,30 @@ function SidebarObject(editor) {
         // ignore; some objects/materials don't support color
       }
 
-      // tint color (stored in userData.tintColor and applied to all mesh materials)
+      // tint color (userData.tintColor / walkLiteColor)
       try {
         const tintRoot = getTintRoot(object);
         if (tintRoot) {
           const nextHex = objectTintColor.getHexValue();
-          if (!tintRoot.userData) tintRoot.userData = {};
-          if (tintRoot.userData.tintColor !== nextHex) {
-            tintRoot.userData.tintColor = nextHex;
-          }
-
-          tintRoot.traverse((child) => {
-            if (!child || child.isMesh !== true) return;
-            const material = child.material;
-            const applyToMaterial = (mat) => {
-              if (!mat) return;
-              if (mat.color && typeof mat.color.setHex === "function") {
-                mat.color.setHex(nextHex);
-                mat.needsUpdate = true;
+          const prev =
+            tintRoot.userData.tintColor ?? tintRoot.userData.walkLiteColor;
+          if (prev !== nextHex) {
+            import("./utils/walkLitePerformer.js").then(({ applyGroupMotionColor }) => {
+              applyGroupMotionColor(tintRoot, nextHex);
+              tintRoot.userData.scCustomTint = true;
+              if (editor.signals?.materialChanged) {
+                editor.signals.materialChanged.dispatch(tintRoot, 0);
               }
-            };
-            if (Array.isArray(material)) {
-              material.forEach(applyToMaterial);
-            } else {
-              applyToMaterial(material);
-            }
-          });
-
-          if (editor.signals?.materialChanged) editor.signals.materialChanged.dispatch(tintRoot, 0);
-          if (editor.signals?.objectChanged) editor.signals.objectChanged.dispatch(tintRoot);
+              if (editor.signals?.objectChanged) {
+                editor.signals.objectChanged.dispatch(tintRoot);
+              }
+              import("./showcontrol/groupTimelineKeyframes.js").then(
+                ({ persistMemberBaseAppearance }) => {
+                  persistMemberBaseAppearance(editor, tintRoot);
+                },
+              );
+            });
+          }
         }
       } catch (e) {
         // ignore
@@ -1026,17 +1115,6 @@ function SidebarObject(editor) {
       ) {
         editor.execute(
           new SetValueCommand(editor, object, "decay", objectDecay.getValue()),
-        );
-      }
-
-      if (object.visible !== objectVisible.getValue()) {
-        editor.execute(
-          new SetValueCommand(
-            editor,
-            object,
-            "visible",
-            objectVisible.getValue(),
-          ),
         );
       }
 
@@ -1330,7 +1408,8 @@ function SidebarObject(editor) {
     try {
       const tintRoot = getTintRoot(object);
       if (tintRoot) {
-        const hex = (tintRoot.userData.tintColor !== undefined ? tintRoot.userData.tintColor : 0xff0000);
+        const raw = tintRoot.userData.tintColor ?? tintRoot.userData.walkLiteColor;
+        const hex = raw !== undefined ? raw : 0xd9c08a;
         const hexStr = new THREE.Color(hex).getHexString();
         objectTintColor.setHexValue(hexStr);
       }
@@ -1373,7 +1452,7 @@ function SidebarObject(editor) {
       objectShadowRadius.setValue(object.shadow.radius);
     }
 
-    objectVisible.setValue(object.visible);
+    syncVisibleButtons(object.visible);
     objectFrustumCulled.setValue(object.frustumCulled);
     objectRenderOrder.setValue(object.renderOrder);
 

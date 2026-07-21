@@ -23,6 +23,12 @@ async function loadAudioFilesFromFolder() {
       displayName: "난설",
       filename: "nanseol.mp3",
     },
+    {
+      path: "../files/music/hoegwang_banjo.wav",
+      name: "hoegwang_banjo",
+      displayName: "회광반조",
+      filename: "hoegwang_banjo.wav",
+    },
   ];
 
   try {
@@ -884,6 +890,12 @@ export class AudioTimeline extends BaseTimeline {
           name: "nanseol",
           displayName: "난설",
           filename: "nanseol.mp3",
+        },
+        {
+          path: "../files/music/hoegwang_banjo.wav",
+          name: "hoegwang_banjo",
+          displayName: "회광반조",
+          filename: "hoegwang_banjo.wav",
         },
       ];
       this.initAssetSelector();

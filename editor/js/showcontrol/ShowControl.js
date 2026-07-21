@@ -228,6 +228,15 @@ export class ShowControl {
           displayName: m.displayName || m.name || m.filename || "Member",
           actorId: m.actorId,
           deployedUuid: m.deployedUuid || m.uuid || null,
+          baseScale: m.baseScale
+            ? {
+                x: Number(m.baseScale.x) || 1,
+                y: Number(m.baseScale.y) || 1,
+                z: Number(m.baseScale.z) || 1,
+              }
+            : undefined,
+          tintColor:
+            m.tintColor != null && m.tintColor !== "" ? m.tintColor : undefined,
         };
       })
       .filter(Boolean);

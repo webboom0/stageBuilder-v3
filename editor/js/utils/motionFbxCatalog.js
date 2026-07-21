@@ -10,6 +10,22 @@ export const DEFAULT_LOCAL_FBX_LIST = [
     filename: "WalkLite.fbx",
     procedural: "walk-lite",
   },
+  // 천록 — 경량 4족 (실제 FBX 없음, 프로시저럴)
+  {
+    path: "procedural://cheonrok-lite",
+    name: "Cheonrok",
+    displayName: "천록 (경량)",
+    filename: "CheonrokLite.fbx",
+    procedural: "cheonrok-lite",
+  },
+  {
+    path: "procedural://kkekkori-lite",
+    name: "Kkekkori",
+    displayName: "꾀꼬리 (경량)",
+    filename: "KkekkoriLite.fbx",
+    procedural: "kkekkori-lite",
+  },
+  { path: "../files/fbx/Namoo.fbx", name: "Namoo", displayName: "Namoo", filename: "Namoo.fbx" },
   { path: "../files/fbx/Sitting.fbx", name: "Sitting", displayName: "Sitting", filename: "Sitting.fbx" },
   { path: "../files/fbx/Character1.fbx", name: "Character1", displayName: "Character1", filename: "Character1.fbx" },
   { path: "../files/fbx/Character2.fbx", name: "Character2", displayName: "Character2", filename: "Character2.fbx" },
@@ -141,6 +157,71 @@ async function spawnWalkLiteInScene(editor, entry, options = {}) {
   return object;
 }
 
+async function spawnCheonrokInScene(editor, entry, options = {}) {
+  const { createCheonrokLite, colorForWalkLiteGroup } = await import("./walkLitePerformer.js");
+  const { AddObjectCommand } = await import("../commands/AddObjectCommand.js");
+  const { captureMotionWorldReferenceHeight } = await import("./motionDisplayUnits.js");
+
+  const displayName =
+    options.displayName || entry.displayName || entry.name || "천록 (경량)";
+
+  // 천록은 멤버 tintColor 우선 (그룹 빨강으로 덮지 않음)
+  let color = options.color ?? 0xc4a574;
+  if (options.color == null && options.group) {
+    color = colorForWalkLiteGroup(editor, options.group);
+  }
+
+  const object = createCheonrokLite({ displayName, color });
+  object.userData.source = "motion";
+  object.userData.fileName = entry.filename || "CheonrokLite.fbx";
+  object.userData.filePath = entry.path || "procedural://cheonrok-lite";
+  object.userData.displayName = displayName;
+  if (options.group?.id) object.userData.scGroupId = options.group.id;
+  object.name = displayName;
+
+  captureMotionWorldReferenceHeight?.(object, editor);
+
+  if (editor.history && AddObjectCommand) {
+    editor.execute(new AddObjectCommand(editor, object));
+  } else {
+    editor.scene.add(object);
+    editor.signals?.objectAdded?.dispatch?.(object);
+    editor.signals?.sceneGraphChanged?.dispatch?.();
+  }
+
+  return object;
+}
+
+async function spawnKkekkoriInScene(editor, entry, options = {}) {
+  const { createKkekkoriLite } = await import("./walkLitePerformer.js");
+  const { AddObjectCommand } = await import("../commands/AddObjectCommand.js");
+  const { captureMotionWorldReferenceHeight } = await import("./motionDisplayUnits.js");
+
+  const displayName =
+    options.displayName || entry.displayName || entry.name || "꾀꼬리 (경량)";
+
+  const color = options.color ?? 0xffcc33;
+  const object = createKkekkoriLite({ displayName, color });
+  object.userData.source = "motion";
+  object.userData.fileName = entry.filename || "KkekkoriLite.fbx";
+  object.userData.filePath = entry.path || "procedural://kkekkori-lite";
+  object.userData.displayName = displayName;
+  if (options.group?.id) object.userData.scGroupId = options.group.id;
+  object.name = displayName;
+
+  captureMotionWorldReferenceHeight?.(object, editor);
+
+  if (editor.history && AddObjectCommand) {
+    editor.execute(new AddObjectCommand(editor, object));
+  } else {
+    editor.scene.add(object);
+    editor.signals?.objectAdded?.dispatch?.(object);
+    editor.signals?.sceneGraphChanged?.dispatch?.();
+  }
+
+  return object;
+}
+
 export async function spawnCatalogEntryInScene(editor, entry, options = {}) {
   const forceNew = !!options.forceNew;
   if (!forceNew) {
@@ -148,9 +229,17 @@ export async function spawnCatalogEntryInScene(editor, entry, options = {}) {
     if (existing) return existing;
   }
 
-  const { isWalkLiteCatalogEntry } = await import("./walkLitePerformer.js");
+  const { isWalkLiteCatalogEntry, isCheonrokCatalogEntry, isKkekkoriCatalogEntry } = await import(
+    "./walkLitePerformer.js"
+  );
   if (isWalkLiteCatalogEntry(entry)) {
     return spawnWalkLiteInScene(editor, entry, options);
+  }
+  if (isCheonrokCatalogEntry(entry)) {
+    return spawnCheonrokInScene(editor, entry, options);
+  }
+  if (isKkekkoriCatalogEntry(entry)) {
+    return spawnKkekkoriInScene(editor, entry, options);
   }
 
   const { waitForNewMotionObject, snapshotMotionUuids } = await import("./motionTimelineAutoTrack.js");

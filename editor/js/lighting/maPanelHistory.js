@@ -117,6 +117,7 @@ export function endMaPanelGesture(editor, label, mutateFn) {
 
   if (_inHistoryPlayback || !editor.history) {
     mutateFn?.();
+    editor.lightTimeline?.syncSelectedVirtualKeyframesFromLive?.();
     return;
   }
 
@@ -136,6 +137,7 @@ export function runMaPanelEdit(editor, label, mutateFn) {
 
   if (_inHistoryPlayback || !editor.history) {
     mutateFn();
+    editor.lightTimeline?.syncSelectedVirtualKeyframesFromLive?.();
     applyMaPanelLightingState(editor, captureMaPanelLightingState(editor));
     return;
   }

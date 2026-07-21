@@ -29,6 +29,7 @@ export class DataCompressor {
       clips: {},
       objectNames: {},
       visible: {},
+      groupFolders: {},
       currentTime: 0,
       maxTime: 0,
       frameRate: 30,
@@ -45,6 +46,7 @@ export class DataCompressor {
             clips: data.clips || decompressed.clips,
             objectNames: data.objectNames || decompressed.objectNames,
             visible: data.visible || decompressed.visible,
+            groupFolders: data.groupFolders || decompressed.groupFolders,
             currentTime: data.currentTime ?? decompressed.currentTime,
           };
         }
@@ -56,6 +58,9 @@ export class DataCompressor {
       Object.assign(merged.clips, data.clips || {});
       Object.assign(merged.objectNames, data.objectNames || {});
       if (data.visible) Object.assign(merged.visible, data.visible);
+      if (data.groupFolders && typeof data.groupFolders === "object") {
+        Object.assign(merged.groupFolders, data.groupFolders);
+      }
       if (data.currentTime !== undefined) merged.currentTime = data.currentTime;
       if (data.maxTime) merged.maxTime = Math.max(merged.maxTime, data.maxTime);
       if (data.frameRate) merged.frameRate = data.frameRate;
@@ -181,6 +186,7 @@ export class DataCompressor {
       clips: timelineData.clips,
       objectNames: timelineData.objectNames,
       visible: timelineData.visible,
+      groupFolders: timelineData.groupFolders,
       tracks: {},
     };
 
@@ -304,6 +310,7 @@ export class DataCompressor {
       clips: compressedData.clips,
       objectNames: compressedData.objectNames,
       visible: compressedData.visible,
+      groupFolders: compressedData.groupFolders,
       tracks: {},
     };
 

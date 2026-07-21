@@ -245,18 +245,20 @@ class Timeline {
       menu.style.top = `${e.clientY}px`;
       menu.style.zIndex = "1000";
 
+      const objectId = parseInt(track.dataset.objectId, 10);
+      const objectUuid = track.dataset.uuid;
+      const isAudioTrack = track.querySelector('.audio-sprite') && !objectUuid;
+      const motionTl = this.timelines.motion;
+      const isMotionTrack = !!(motionTl && objectUuid && !isAudioTrack);
+
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "timeline-btn";
       deleteBtn.innerHTML = `<i class="fa fa-trash" style="color: #ff6b6b;"></i>트랙 삭제`;
       deleteBtn.onclick = () => {
-        const objectId = parseInt(track.dataset.objectId, 10);
-        const objectUuid = track.dataset.uuid;
         console.log("트랙 삭제", { objectId, objectUuid });
 
-        const isAudioTrack = track.querySelector('.audio-sprite') && !objectUuid;
-
-        if (this.timelines.motion && objectUuid && !isAudioTrack) {
-          this.timelines.motion._removeTrackCompletelyInternal(objectUuid);
+        if (isMotionTrack) {
+          motionTl._removeTrackCompletelyInternal(objectUuid);
           console.log(`Motion 완전 삭제 완료: ${objectUuid}`);
         } else if (this.timelines.audio && (objectId || isAudioTrack)) {
           const audioId = objectId || track.dataset.objectId;
@@ -264,7 +266,7 @@ class Timeline {
           const removed = this.timelines.audio._removeTrackInternal(audioId);
           console.log(`Audio 트랙 삭제 완료: ${removed}`);
         } else if (this.timelines.motion?.timelineData && objectUuid) {
-          this.timelines.motion._removeTrackCompletelyInternal(objectUuid);
+          motionTl._removeTrackCompletelyInternal(objectUuid);
         } else {
           const wasDeleted = this.timelines.motion.timelineData.removeTrackById(objectId, 'position') ||
             this.timelines.motion.timelineData.removeTrackById(objectId, 'rotation') ||
@@ -276,7 +278,7 @@ class Timeline {
         menu.remove();
         if (
           editor.selected &&
-          editor.selected.uuid === track.dataset.objectId
+          editor.selected.uuid === objectUuid
         ) {
           editor.selected = null;
         }

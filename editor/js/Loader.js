@@ -6,6 +6,7 @@ import { AddObjectCommand } from "./commands/AddObjectCommand.js";
 
 import { LoaderUtils } from "./LoaderUtils.js";
 import { captureMotionWorldReferenceHeight } from "./utils/motionDisplayUnits.js";
+import { applyDefaultMotionSpawnPosition } from "./utils/motionSpawnDefaults.js";
 
 import { unzipSync, strFromU8 } from "three/addons/libs/fflate.module.js";
 
@@ -496,6 +497,7 @@ function Loader(editor) {
             object.userData.fileName = file.name;
             object.userData.filePath = `../files/fbx/${file.name}`;
             autoScaleObject(object, 30);
+            applyDefaultMotionSpawnPosition(object);
             object.updateMatrixWorld(true);
             captureMotionWorldReferenceHeight(object, editor);
 
@@ -805,6 +807,7 @@ function Loader(editor) {
             object.userData.fileName = file.name;
             object.userData.filePath = `../files/fbx/${file.name}`;
             autoScaleObject(object, 30);
+            applyDefaultMotionSpawnPosition(object);
             object.updateMatrixWorld(true);
             captureMotionWorldReferenceHeight(object, editor);
 

@@ -3,7 +3,7 @@ import { createPanel } from './ui/floatPanel.js';
 import { getApiUrl, AUDIO_UPLOAD_CONFIG } from "./config/audio-upload-config.js";
 
 /**
- * 서버 미연결·빈 목록일 때 에셋 패널에 보여줄 로컬 기본 음악 (수제천만)
+ * 서버 미연결·빈 목록일 때 에셋 패널에 보여줄 로컬 기본 음악
  */
 const DEFAULT_LOCAL_AUDIO_LIST = [
     {
@@ -11,6 +11,12 @@ const DEFAULT_LOCAL_AUDIO_LIST = [
         name: "ShJeCheon",
         displayName: "수제천",
         filename: "ShJeCheon.mp3",
+    },
+    {
+        path: "../files/music/hoegwang_banjo.wav",
+        name: "hoegwang_banjo",
+        displayName: "회광반조",
+        filename: "hoegwang_banjo.wav",
     },
 ];
 
@@ -22,7 +28,7 @@ function audioListFilenameKey(f) {
     return String(f.filename || f.name || "").toLowerCase();
 }
 
-/** 서버에 없는 로컬 기본 항목(수제천)을 목록 앞에 붙임 */
+/** 서버에 없는 로컬 기본 항목을 목록 앞에 붙임 */
 function prependLocalOnlyAudio(serverList) {
     const onServer = new Set((serverList || []).map(audioListFilenameKey).filter(Boolean));
     const extra = DEFAULT_LOCAL_AUDIO_LIST.filter((f) => {

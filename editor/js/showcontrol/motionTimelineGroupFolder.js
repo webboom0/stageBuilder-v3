@@ -2,22 +2,27 @@ import { getGroupClipRange } from "./groupSegments.js";
 import { runShowControlEdit } from "./showControlHistory.js";
 import {
   applyGroupMemberTimeline,
+  applyGroupTimelineClip,
+  applyMemberBaseAppearance,
   finalizeMotionTimeline,
   getMotionTimeline,
   resolveSelectedGroupMemberUuid,
   resolveSyncMemberUuids,
+  setGroupClipPreset,
 } from "./groupTimelineKeyframes.js";
 
 function injectGroupFolderStyles() {
-  if (document.getElementById("sb-timeline-group-folder-css")) return;
+  document.getElementById("sb-timeline-group-folder-css")?.remove();
   const style = document.createElement("style");
   style.id = "sb-timeline-group-folder-css";
   style.textContent = `
     .timeline-track-group{
-      border:1px solid rgba(255,204,68,0.22);
-      border-radius:8px;
-      margin:6px 4px 8px;
-      background:rgba(255,204,68,0.04);
+      border:none;
+      border-top:1px solid rgba(255,204,68,0.16);
+      border-bottom:1px solid rgba(255,204,68,0.16);
+      border-radius:0;
+      margin:0;
+      background:rgba(255,204,68,0.03);
       overflow:hidden;
     }
     .timeline-track-group.collapsed .track-group-body{ display:none; }
@@ -40,9 +45,15 @@ function injectGroupFolderStyles() {
       width:22px;height:22px;border:1px solid rgba(255,120,120,0.35);border-radius:6px;
       background:rgba(0,0,0,0.25);color:rgba(255,140,140,0.95);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;
     }
+    .timeline-track-group .track-group-body{
+      margin:0;
+      padding:0;
+    }
     .timeline-track-group .track-group-body .timeline-track{
-      margin:4px 6px 6px;
-      border-left:2px solid rgba(255,204,68,0.18);
+      margin:0 !important;
+      padding:0 !important;
+      border-left:none !important;
+      border-radius:0 !important;
     }
   `;
   document.head.appendChild(style);
@@ -61,18 +72,38 @@ function isTrackOwnedByOtherGroup(editor, uuid, groupId) {
 function findTrackUuidForMember(editor, member, motionTimeline, usedUuids = new Set(), groupId = null) {
   if (!motionTimeline?.container || !member) return null;
 
-  // 이름 매칭으로 다른 그룹 트랙을 가져오지 않음 — deployedUuid만 신뢰
   if (member.deployedUuid && !usedUuids.has(member.deployedUuid)) {
-    if (groupId && isTrackOwnedByOtherGroup(editor, member.deployedUuid, groupId)) {
-      return null;
+    if (!(groupId && isTrackOwnedByOtherGroup(editor, member.deployedUuid, groupId))) {
+      const el = motionTimeline.container.querySelector(
+        `.timeline-track[data-uuid="${member.deployedUuid}"]`,
+      );
+      if (el) return member.deployedUuid;
     }
-    const el = motionTimeline.container.querySelector(
-      `.timeline-track[data-uuid="${member.deployedUuid}"]`,
-    );
-    if (el) return member.deployedUuid;
   }
 
-  return null;
+  // 씬 객체 태그 / 트랙 data-sc-group-id 로 폴백
+  const candidates = [];
+  motionTimeline.container.querySelectorAll(".timeline-track[data-uuid]").forEach((el) => {
+    const uuid = el.dataset.uuid;
+    if (!uuid || usedUuids.has(uuid)) return;
+    if (groupId && isTrackOwnedByOtherGroup(editor, uuid, groupId)) return;
+    if (el.dataset.scGroupId && groupId && el.dataset.scGroupId !== groupId) return;
+
+    const obj = editor.scene?.getObjectByProperty?.("uuid", uuid);
+    if (groupId && obj?.userData?.scGroupId && obj.userData.scGroupId !== groupId) return;
+    if (member.id && obj?.userData?.scMemberId && obj.userData.scMemberId !== member.id) {
+      return;
+    }
+
+    if (
+      (groupId && (el.dataset.scGroupId === groupId || obj?.userData?.scGroupId === groupId)) ||
+      (member.id && obj?.userData?.scMemberId === member.id)
+    ) {
+      candidates.push(uuid);
+    }
+  });
+
+  return candidates[0] || null;
 }
 
 function updateGroupFolderMeta(folder) {
@@ -101,7 +132,23 @@ export function persistGroupFoldersToUserData(editor) {
   });
 
   if (!editor.scene.userData.motionTimeline) editor.scene.userData.motionTimeline = {};
+  // DOM에 폴더가 비어 있으면 기존 저장본을 지우지 않음 (로드 직후 재저장 보호)
+  if (Object.keys(folders).length === 0) {
+    const prev = editor.scene.userData.motionTimeline.groupFolders;
+    if (prev && typeof prev === "object" && Object.keys(prev).length > 0) {
+      return;
+    }
+  }
   editor.scene.userData.motionTimeline.groupFolders = folders;
+}
+
+function isUuidPresentInSceneOrTimeline(editor, uuid, motionTimeline) {
+  if (!uuid) return false;
+  if (editor.scene?.getObjectByProperty?.("uuid", uuid)) return true;
+  if (motionTimeline?.container?.querySelector(`.timeline-track[data-uuid="${uuid}"]`)) {
+    return true;
+  }
+  return false;
 }
 
 function applySavedGroupFoldersToMembers(editor) {
@@ -109,6 +156,7 @@ function applySavedGroupFoldersToMembers(editor) {
   const saved = editor?.scene?.userData?.motionTimeline?.groupFolders;
   if (!sc || !saved || typeof saved !== "object") return;
 
+  const motionTimeline = getMotionTimeline(editor);
   const objectNames = editor.scene.userData.motionTimeline?.objectNames || {};
   // 다른 그룹이 이미 소유한 deployedUuid는 덮어쓰지 않음
   const ownedUuids = new Set();
@@ -121,8 +169,19 @@ function applySavedGroupFoldersToMembers(editor) {
   let changed = false;
 
   Object.entries(saved).forEach(([groupId, info]) => {
-    const group = sc.getGroup?.(groupId) || sc.ensureGroups?.().find((g) => g.id === groupId);
-    if (!group) return;
+    let group = sc.getGroup?.(groupId) || sc.ensureGroups?.().find((g) => g.id === groupId);
+    // showControl에 그룹이 없어도 groupFolders만으로 복원
+    if (!group) {
+      group = sc._normalizeGroup
+        ? sc._normalizeGroup({ id: groupId, name: info?.name || "그룹", members: [] })
+        : { id: groupId, name: info?.name || "그룹", members: [] };
+      const groups = sc.ensureGroups?.() || [];
+      if (!groups.some((g) => g.id === groupId)) {
+        groups.push(group);
+      }
+      if (sc.registry) sc.registry.groups = groups;
+      changed = true;
+    }
     const uuids = Array.isArray(info?.trackUuids) ? info.trackUuids : [];
     uuids.forEach((uuid, index) => {
       if (!uuid) return;
@@ -135,7 +194,6 @@ function applySavedGroupFoldersToMembers(editor) {
       if (ownerElsewhere) return;
 
       if (!group.members[index]) {
-        // 인덱스에 멤버가 없을 때만 복원 (기존 멤버 목록을 덮어쓰지 않음)
         if (ownedUuids.has(uuid)) return;
         group.members[index] = {
           id: `mem_restore_${index}`,
@@ -147,15 +205,19 @@ function applySavedGroupFoldersToMembers(editor) {
         return;
       }
       const member = group.members[index];
-      // 이미 deployedUuid가 있으면 폴더 저장본으로 덮어쓰지 않음
-      if (member.deployedUuid) {
+      const currentOk = isUuidPresentInSceneOrTimeline(editor, member.deployedUuid, motionTimeline);
+      // 유효한 deployedUuid만 유지 — 없으면 폴더 저장본으로 교정
+      if (member.deployedUuid && currentOk) {
         if (!member.displayName && objectNames[member.deployedUuid]) {
           member.displayName = objectNames[member.deployedUuid];
           changed = true;
         }
         return;
       }
-      if (!ownedUuids.has(uuid)) {
+      if (!ownedUuids.has(uuid) || member.deployedUuid === uuid) {
+        if (member.deployedUuid && member.deployedUuid !== uuid) {
+          ownedUuids.delete(member.deployedUuid);
+        }
         member.deployedUuid = uuid;
         ownedUuids.add(uuid);
         changed = true;
@@ -170,12 +232,62 @@ function applySavedGroupFoldersToMembers(editor) {
   if (changed) sc.persistToSceneUserData?.();
 }
 
-function findSceneObjectForMember(editor, member, usedUuids = new Set()) {
+/** groupFolders.trackUuids 로 폴더 UI를 직접 재구성 (deployedUuid 불일치 대비) */
+function restoreFoldersFromSavedTrackLists(editor) {
+  const motionTimeline = getMotionTimeline(editor);
+  const saved = editor?.scene?.userData?.motionTimeline?.groupFolders;
+  if (!motionTimeline?.container || !saved || typeof saved !== "object") return;
+
+  const sc = editor?.showControl;
+  Object.entries(saved).forEach(([groupId, info]) => {
+    const group =
+      sc?.getGroup?.(groupId) ||
+      sc?.ensureGroups?.().find((g) => g.id === groupId) || {
+        id: groupId,
+        name: info?.name || "그룹",
+        members: [],
+      };
+    if (info?.name) group.name = info.name;
+
+    const folder = ensureGroupFolder(editor, group);
+    if (!folder) return;
+
+    const uuids = Array.isArray(info?.trackUuids) ? info.trackUuids : [];
+    uuids.forEach((uuid) => {
+      if (!uuid) return;
+      const trackEl = motionTimeline.container.querySelector(
+        `.timeline-track[data-uuid="${uuid}"]`,
+      );
+      if (!trackEl) return;
+      if (isTrackOwnedByOtherGroup(editor, uuid, groupId)) return;
+      attachTrackToGroupFolder(editor, group, trackEl);
+    });
+    updateGroupFolderMeta(folder);
+  });
+}
+
+function findSceneObjectForMember(editor, member, usedUuids = new Set(), groupId = null) {
   if (!member) return null;
 
   if (member.deployedUuid && !usedUuids.has(member.deployedUuid)) {
     const byUuid = editor.scene?.getObjectByProperty?.("uuid", member.deployedUuid);
     if (byUuid) return byUuid;
+  }
+
+  // 씬에 저장된 그룹 태그로 재연결
+  if (groupId || member.id) {
+    let found = null;
+    editor.scene?.traverse?.((o) => {
+      if (found || usedUuids.has(o.uuid)) return;
+      if (groupId && o.userData?.scGroupId !== groupId) return;
+      if (member.id && o.userData?.scMemberId && o.userData.scMemberId !== member.id) return;
+      if (groupId && o.userData?.scGroupId === groupId) {
+        if (!member.id || !o.userData?.scMemberId || o.userData.scMemberId === member.id) {
+          found = o;
+        }
+      }
+    });
+    if (found) return found;
   }
 
   if (member.actorId != null) {
@@ -230,9 +342,14 @@ export function reconcileGroupDeployedUuids(editor) {
     const used = new Set();
     (group.members || []).forEach((member) => {
       let uuid = null;
-      const obj = findSceneObjectForMember(editor, member, used);
-      if (obj) uuid = obj.uuid;
-      if (!uuid) uuid = findTrackUuidForMember(editor, member, motionTimeline, used);
+      const obj = findSceneObjectForMember(editor, member, used, group.id);
+      if (obj) {
+        uuid = obj.uuid;
+        if (!obj.userData) obj.userData = {};
+        obj.userData.scGroupId = group.id;
+        if (member.id) obj.userData.scMemberId = member.id;
+      }
+      if (!uuid) uuid = findTrackUuidForMember(editor, member, motionTimeline, used, group.id);
       if (uuid && member.deployedUuid !== uuid) {
         member.deployedUuid = uuid;
         changed = true;
@@ -525,6 +642,8 @@ export function restoreAllGroupFolders(editor) {
   motionTimeline.container.querySelectorAll(".timeline-track-group").forEach((folder) => folder.remove());
 
   reconcileGroupDeployedUuids(editor);
+  // 저장본 trackUuids 우선으로 폴더 복원 (멤버 UUID 불일치여도 단일트랙으로 남지 않게)
+  restoreFoldersFromSavedTrackLists(editor);
 
   const groups = editor?.showControl?.ensureGroups?.() || [];
   groups.forEach((group) => {
@@ -534,7 +653,18 @@ export function restoreAllGroupFolders(editor) {
   });
 }
 
-/** 프로젝트 로드 완료 후 — 폴더 재구성 + 그룹 클립/키프레임 재적용 */
+/** 저장된 모션 키가 있으면 true (로드 후 그룹 재생성으로 덮지 않음) */
+function memberHasSavedMotionKeys(motionTimeline, uuid) {
+  const tracks = motionTimeline?.timelineData?.getObjectTracks?.(uuid);
+  if (!tracks || tracks.size === 0) return false;
+  for (const [prop, td] of tracks) {
+    if (prop === "visible") continue;
+    if (td?.keyframeCount > 0) return true;
+  }
+  return false;
+}
+
+/** 프로젝트 로드 완료 후 — 폴더 재구성. 키는 저장본 유지(없을 때만 세그먼트에서 생성) */
 export function resyncAllGroupsAfterProjectLoad(editor) {
   editor?.connectTimelineInstances?.();
   const motionTimeline = getMotionTimeline(editor);
@@ -546,6 +676,8 @@ export function resyncAllGroupsAfterProjectLoad(editor) {
   const totalSeconds = motionTimeline.options?.totalSeconds || 180;
   const groups = sc.ensureGroups?.() || [];
   let playStart = 0;
+  const savedCurrent = Number(editor.scene?.userData?.motionTimeline?.currentTime);
+  const groupTrackUuids = new Set();
 
   groups.forEach((group) => {
     if (!group?.members?.length) return;
@@ -558,8 +690,20 @@ export function resyncAllGroupsAfterProjectLoad(editor) {
       const trackEl = motionTimeline.container?.querySelector(`.timeline-track[data-uuid="${uuid}"]`);
       if (!trackEl) return;
 
-      applyGroupMemberTimeline(motionTimeline, editor, group, memberIndex, uuid);
-      motionTimeline.restoreKeyframesUIFromTimelineData?.(trackEl, uuid);
+      groupTrackUuids.add(uuid);
+      const { startTime, duration, endsWithExit } = getGroupClipRange(group, totalSeconds);
+      const clipOpts = { endsWithExit };
+
+      if (memberHasSavedMotionKeys(motionTimeline, uuid)) {
+        // 저장 키 유지 — 클립 UI·기본 색/크기만 맞춤
+        setGroupClipPreset(editor, uuid, startTime, duration, clipOpts);
+        applyGroupTimelineClip(motionTimeline, uuid, startTime, duration, clipOpts);
+        applyMemberBaseAppearance(editor, member, editor.scene?.getObjectByProperty?.("uuid", uuid));
+        motionTimeline.restoreKeyframesUIFromTimelineData?.(trackEl, uuid);
+      } else {
+        applyGroupMemberTimeline(motionTimeline, editor, group, memberIndex, uuid);
+        motionTimeline.restoreKeyframesUIFromTimelineData?.(trackEl, uuid);
+      }
       synced += 1;
     });
 
@@ -569,12 +713,58 @@ export function resyncAllGroupsAfterProjectLoad(editor) {
     }
   });
 
-  const hasGroupTracks = groups.some((g) => g.members?.some((m) => m?.deployedUuid));
+  // groupFolders에만 있는 트랙도 그룹 클립 모드로 강제
+  const savedFolders = editor.scene?.userData?.motionTimeline?.groupFolders || {};
+  Object.entries(savedFolders).forEach(([groupId, info]) => {
+    const group = sc.getGroup?.(groupId) || groups.find((g) => g.id === groupId);
+    const { startTime, duration, endsWithExit } = group
+      ? getGroupClipRange(group, totalSeconds)
+      : { startTime: 0, duration: totalSeconds, endsWithExit: false };
+    const clipOpts = { endsWithExit };
+    (info?.trackUuids || []).forEach((uuid) => {
+      if (!uuid || groupTrackUuids.has(uuid)) return;
+      const trackEl = motionTimeline.container?.querySelector(`.timeline-track[data-uuid="${uuid}"]`);
+      if (!trackEl) return;
+      setGroupClipPreset(editor, uuid, startTime, duration, clipOpts);
+      applyGroupTimelineClip(motionTimeline, uuid, startTime, duration, clipOpts);
+      groupTrackUuids.add(uuid);
+    });
+  });
+
+  const hasGroupTracks = groupTrackUuids.size > 0 || groups.some((g) => g.members?.some((m) => m?.deployedUuid));
   if (hasGroupTracks) {
     const first = groups.find((g) => g.members?.some((m) => m?.deployedUuid));
     if (first) ({ startTime: playStart } = getGroupClipRange(first, totalSeconds));
-    finalizeMotionTimeline(motionTimeline, playStart);
-    motionTimeline.updateAnimation?.(playStart);
+
+    // 저장 시각이 그룹 표시 구간이면 유지, 아니면 그룹 시작으로
+    let t = Number.isFinite(playStart) ? playStart : 0;
+    if (Number.isFinite(savedCurrent)) {
+      const inRange = [...groupTrackUuids].some((uuid) => {
+        const trackEl = motionTimeline.container?.querySelector(`.timeline-track[data-uuid="${uuid}"]`);
+        const sprite = trackEl?.querySelector?.(".animation-sprite");
+        if (!sprite) return savedCurrent >= playStart;
+        const range = motionTimeline.constructor.resolveSpriteTimeRange?.(sprite, totalSeconds);
+        return range && savedCurrent >= range.playStart && savedCurrent <= range.playEnd;
+      });
+      if (inRange) t = savedCurrent;
+    }
+
+    motionTimeline.currentTime = t;
+    motionTimeline.movePlayheadToTime?.(t);
+    if (editor.scene?.userData?.timeline) {
+      editor.scene.userData.timeline.currentSeconds = t;
+    }
+    try {
+      window.timeline?.setCurrentTime?.(t);
+    } catch (_) {
+      /* ignore */
+    }
+
+    // 그룹 멤버 무대 표시 — visible 키프레임을 존중 (강제 true 금지)
+    finalizeMotionTimeline(motionTimeline, t);
+    motionTimeline.updateAnimation?.(t);
+
     editor.signals?.timelineChanged?.dispatch?.();
+    editor.signals?.rendererUpdated?.dispatch?.();
   }
 }

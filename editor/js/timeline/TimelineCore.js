@@ -159,13 +159,14 @@ export class TrackData {
       value,
       interpolation,
       propertyType: this.propertyType,
-      valueType: value ? typeof value : 'undefined',
-      hasX: value ? typeof value.x !== 'undefined' : false,
-      hasY: value ? typeof value.y !== 'undefined' : false,
-      hasZ: value ? typeof value.z !== 'undefined' : false
+      valueType: value !== undefined && value !== null ? typeof value : 'undefined',
+      hasX: value && typeof value === 'object' ? typeof value.x !== 'undefined' : false,
+      hasY: value && typeof value === 'object' ? typeof value.y !== 'undefined' : false,
+      hasZ: value && typeof value === 'object' ? typeof value.z !== 'undefined' : false
     });
 
-    if (!value) {
+    // boolean false 는 유효한 값 (visible 숨김 키프레임)
+    if (value === undefined || value === null) {
       console.error('Invalid value for keyframe: value is undefined or null');
       return false;
     }
@@ -200,8 +201,23 @@ export class TrackData {
 
     const existingIndex = this.findKeyframeIndex(time);
     if (existingIndex !== -1) {
-      console.warn("이미 존재하는 시간의 키프레임입니다:", time);
-      return false;
+      // 같은 시간이면 값만 갱신 (visible 토글 등)
+      if (this.propertyType === 'boolean') {
+        this.values[existingIndex] = value ? 1 : 0;
+      } else {
+        this.values[existingIndex * 3] = value.x;
+        this.values[existingIndex * 3 + 1] = value.y;
+        this.values[existingIndex * 3 + 2] = value.z;
+      }
+      this.interpolations[existingIndex] = interpolation;
+      this.dirty = true;
+      this.emit(KEYFRAME_EVENTS.UPDATED, {
+        index: existingIndex,
+        time,
+        value,
+        interpolation,
+      });
+      return true;
     }
 
     const index = this.keyframeCount;

@@ -3,9 +3,14 @@
  * 실제 FBX 없이 그룹 GO / 모션 트랙 부하 테스트용.
  */
 import * as THREE from "three";
+import { applyDefaultMotionSpawnPosition } from "./motionSpawnDefaults.js";
 
 export const WALK_LITE_FILENAME = "WalkLite.fbx";
 export const WALK_LITE_PROCEDURAL_ID = "walk-lite";
+export const CHEONROK_FILENAME = "CheonrokLite.fbx";
+export const CHEONROK_PROCEDURAL_ID = "cheonrok-lite";
+export const KKEKKORI_FILENAME = "KkekkoriLite.fbx";
+export const KKEKKORI_PROCEDURAL_ID = "kkekkori-lite";
 
 /** 그룹별 구분 색 (cosmos HTML 톤 + 추가 팔레트) */
 export const WALK_LITE_GROUP_COLORS = [
@@ -82,7 +87,7 @@ export function applyWalkLiteColor(object, color) {
   applyGroupMotionColor(object, color);
 }
 
-/** 그룹에 배치된 모든 모션 멤버 색 갱신 */
+/** 그룹에 배치된 모든 모션 멤버 색 갱신 (멤버별 tintColor / scCustomTint 있으면 유지) */
 export function recolorGroupMotionMembers(editor, group) {
   if (!editor?.scene || !group) return;
   const color = colorForWalkLiteGroup(editor, group);
@@ -94,8 +99,19 @@ export function recolorGroupMotionMembers(editor, group) {
     const isMotion =
       obj.userData?.source === "motion" ||
       obj.userData?.procedural === WALK_LITE_PROCEDURAL_ID ||
+      obj.userData?.procedural === CHEONROK_PROCEDURAL_ID ||
+      obj.userData?.procedural === KKEKKORI_PROCEDURAL_ID ||
       obj.userData?.type === "actor";
-    if (isMotion) applyGroupMotionColor(obj, color);
+    if (!isMotion) return;
+
+    if (m.tintColor != null && m.tintColor !== "") {
+      applyGroupMotionColor(obj, m.tintColor);
+      obj.userData.scCustomTint = true;
+      return;
+    }
+    if (obj.userData?.scCustomTint) return;
+
+    applyGroupMotionColor(obj, color);
   });
   editor.signals?.rendererUpdated?.dispatch?.();
   editor.signals?.materialChanged?.dispatch?.(null, 0);
@@ -136,6 +152,41 @@ export function isWalkLiteCatalogEntry(entry) {
     key === "walklite" ||
     key.includes("procedural://walk-lite") ||
     key.includes("walk-lite")
+  );
+}
+
+/** @returns {boolean} */
+export function isCheonrokCatalogEntry(entry) {
+  if (!entry) return false;
+  if (entry.procedural === CHEONROK_PROCEDURAL_ID) return true;
+  const key = String(entry.filename || entry.name || entry.path || "").toLowerCase();
+  return (
+    key === "cheonroklite.fbx" ||
+    key === "cheonrok" ||
+    key === "cheonroklite" ||
+    key.includes("procedural://cheonrok-lite") ||
+    key.includes("cheonrok-lite")
+  );
+}
+
+/** WalkLite / 천록 / 꾀꼬리 등 경량 프로시저럴 */
+export function isKkekkoriCatalogEntry(entry) {
+  if (!entry) return false;
+  if (entry.procedural === KKEKKORI_PROCEDURAL_ID) return true;
+  const key = String(entry.filename || entry.name || entry.path || "").toLowerCase();
+  return (
+    key === "kkekkorilite.fbx" ||
+    key === "kkekkori" ||
+    key.includes("procedural://kkekkori-lite") ||
+    key.includes("kkekkori-lite")
+  );
+}
+
+export function isLiteProceduralCatalogEntry(entry) {
+  return (
+    isWalkLiteCatalogEntry(entry) ||
+    isCheonrokCatalogEntry(entry) ||
+    isKkekkoriCatalogEntry(entry)
   );
 }
 
@@ -180,6 +231,7 @@ function autoScaleLikeFbxMotion(object, targetSize = MOTION_TARGET_SIZE) {
   if (Number.isFinite(box2.min.y)) {
     object.position.y -= box2.min.y;
   }
+  applyDefaultMotionSpawnPosition(object);
   return scale;
 }
 
@@ -264,6 +316,8 @@ export function createWalkLitePerformer(options = {}) {
   root.userData.displayName = displayName;
   root.userData.walkLiteColor = color;
   root.userData.isTesterMotion = true;
+  root.userData.tintable = true;
+  root.userData.tintColor = color;
 
   // FBX 모션과 동일: 최대 치수 → 30
   autoScaleLikeFbxMotion(root, targetSize);
@@ -302,4 +356,221 @@ function buildWalkClip() {
   ];
 
   return new THREE.AnimationClip("Walk", duration, tracks);
+}
+
+/** 천록 — WalkLite와 같은 경량 프로시저럴 4족 */
+
+export function createCheonrokLite(options = {}) {
+  const displayName = options.displayName || "천록";
+  const color = options.color ?? 0xc4a574;
+  const targetSize = options.targetSize ?? MOTION_TARGET_SIZE;
+
+  const root = new THREE.Group();
+  root.name = displayName;
+
+  const body = new THREE.Group();
+  body.name = "body";
+  root.add(body);
+
+  const skin = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.55,
+    metalness: 0.05,
+  });
+  const hornSkin = new THREE.MeshStandardMaterial({
+    color: 0xe8dcc8,
+    roughness: 0.4,
+    metalness: 0.05,
+  });
+
+  // 가로로 누운 몸통 (캡슐)
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 2.2, 3, 8), skin);
+  torso.name = "torso";
+  torso.rotation.z = Math.PI / 2;
+  torso.position.set(0, 1.55, 0);
+  torso.castShadow = true;
+  body.add(torso);
+
+  const neck = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.7, 3, 6), skin);
+  neck.name = "neck";
+  neck.position.set(0, 2.05, 1.15);
+  neck.rotation.x = -0.55;
+  neck.castShadow = true;
+  body.add(neck);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 9), skin);
+  head.name = "head";
+  head.position.set(0, 2.35, 1.65);
+  head.scale.set(1, 0.9, 1.15);
+  head.castShadow = true;
+  body.add(head);
+
+  [-0.18, 0.18].forEach((x, i) => {
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.55, 6), hornSkin);
+    horn.name = i === 0 ? "hornL" : "hornR";
+    horn.position.set(x, 2.7, 1.55);
+    horn.rotation.x = -0.4;
+    horn.castShadow = true;
+    body.add(horn);
+  });
+
+  const makeLeg = (name, x, z) => {
+    const leg = new THREE.Group();
+    leg.name = name;
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 1.15, 3, 6), skin);
+    mesh.position.y = -0.65;
+    mesh.castShadow = true;
+    leg.add(mesh);
+    leg.position.set(x, 1.35, z);
+    body.add(leg);
+    return leg;
+  };
+
+  const legFL = makeLeg("legFL", -0.38, 0.75);
+  const legFR = makeLeg("legFR", 0.38, 0.75);
+  const legBL = makeLeg("legBL", -0.38, -0.75);
+  const legBR = makeLeg("legBR", 0.38, -0.75);
+
+  root.userData.body = body;
+  root.userData.legFL = legFL;
+  root.userData.legFR = legFR;
+  root.userData.legBL = legBL;
+  root.userData.legBR = legBR;
+  root.userData.procedural = CHEONROK_PROCEDURAL_ID;
+  root.userData.source = "motion";
+  root.userData.fileName = "CheonrokLite";
+  root.userData.filePath = `procedural://${CHEONROK_PROCEDURAL_ID}`;
+  root.userData.displayName = displayName;
+  root.userData.dreamCheonrok = true;
+  root.userData.isTesterMotion = true;
+  root.userData.tintable = true;
+  root.userData.tintColor = color;
+
+  autoScaleLikeFbxMotion(root, targetSize);
+  root.animations = [buildCheonrokWalkClip()];
+
+  return root;
+}
+
+/** 4족 간단 워킹 클립 */
+function buildCheonrokWalkClip() {
+  const duration = 0.7;
+  const times = [0, 0.175, 0.35, 0.525, 0.7];
+  const amp = 0.45;
+  const s = [0, 1, 0, -1, 0];
+  const fl = s.map((v) => v * amp);
+  const fr = s.map((v) => -v * amp);
+  const bl = s.map((v) => -v * amp);
+  const br = s.map((v) => v * amp);
+  const bob = s.map((v) => Math.abs(v) * 0.04);
+
+  return new THREE.AnimationClip("Walk", duration, [
+    new THREE.NumberKeyframeTrack("body/legFL.rotation[x]", times, fl),
+    new THREE.NumberKeyframeTrack("body/legFR.rotation[x]", times, fr),
+    new THREE.NumberKeyframeTrack("body/legBL.rotation[x]", times, bl),
+    new THREE.NumberKeyframeTrack("body/legBR.rotation[x]", times, br),
+    new THREE.NumberKeyframeTrack("body.position[y]", times, bob),
+  ]);
+}
+
+/** 꾀꼬리 — 간단 새 실루엣 + 날개짓 */
+export function createKkekkoriLite(options = {}) {
+  const displayName = options.displayName || "꾀꼬리";
+  const color = options.color ?? 0xffcc33;
+  const targetSize = options.targetSize ?? 10;
+
+  const root = new THREE.Group();
+  root.name = displayName;
+
+  const body = new THREE.Group();
+  body.name = "body";
+  root.add(body);
+
+  const feather = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.55,
+    metalness: 0.08,
+  });
+  const beakMat = new THREE.MeshStandardMaterial({
+    color: 0xff8844,
+    roughness: 0.45,
+    metalness: 0.05,
+  });
+
+  // 몸통
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), feather);
+  torso.name = "torso";
+  torso.scale.set(1.1, 0.85, 1.35);
+  torso.position.set(0, 0.55, 0);
+  torso.castShadow = true;
+  body.add(torso);
+
+  // 머리
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), feather);
+  head.name = "head";
+  head.position.set(0, 0.95, 0.55);
+  head.castShadow = true;
+  body.add(head);
+
+  // 부리
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.35, 6), beakMat);
+  beak.name = "beak";
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.9, 0.9);
+  body.add(beak);
+
+  // 꼬리
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7, 6), feather);
+  tail.name = "tail";
+  tail.rotation.x = -Math.PI / 2.4;
+  tail.position.set(0, 0.45, -0.85);
+  body.add(tail);
+
+  const makeWing = (name, xSign) => {
+    const wing = new THREE.Group();
+    wing.name = name;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.45), feather);
+    mesh.position.x = xSign * 0.45;
+    mesh.castShadow = true;
+    wing.add(mesh);
+    wing.position.set(xSign * 0.35, 0.6, 0);
+    body.add(wing);
+    return wing;
+  };
+
+  const wingL = makeWing("wingL", -1);
+  const wingR = makeWing("wingR", 1);
+
+  root.userData.body = body;
+  root.userData.wingL = wingL;
+  root.userData.wingR = wingR;
+  root.userData.procedural = KKEKKORI_PROCEDURAL_ID;
+  root.userData.source = "motion";
+  root.userData.fileName = KKEKKORI_FILENAME;
+  root.userData.filePath = `procedural://${KKEKKORI_PROCEDURAL_ID}`;
+  root.userData.displayName = displayName;
+  root.userData.isTesterMotion = true;
+  root.userData.tintable = true;
+  root.userData.tintColor = color;
+
+  autoScaleLikeFbxMotion(root, targetSize);
+  root.animations = [buildKkekkoriFlapClip()];
+
+  return root;
+}
+
+function buildKkekkoriFlapClip() {
+  const duration = 0.45;
+  const times = [0, 0.1125, 0.225, 0.3375, 0.45];
+  const amp = 0.85;
+  const s = [0, 1, 0, -1, 0];
+  const wL = s.map((v) => v * amp);
+  const wR = s.map((v) => -v * amp);
+  const bob = s.map((v) => Math.abs(v) * 0.08);
+
+  return new THREE.AnimationClip("Flap", duration, [
+    new THREE.NumberKeyframeTrack("body/wingL.rotation[z]", times, wL),
+    new THREE.NumberKeyframeTrack("body/wingR.rotation[z]", times, wR),
+    new THREE.NumberKeyframeTrack("body.position[y]", times, bob),
+  ]);
 }

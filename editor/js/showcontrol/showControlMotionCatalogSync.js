@@ -1,21 +1,43 @@
 import { catalogEntryKey } from "../utils/motionFbxCatalog.js";
 import {
   isWalkLiteCatalogEntry,
+  isCheonrokCatalogEntry,
+  isKkekkoriCatalogEntry,
   WALK_LITE_FILENAME,
   WALK_LITE_PROCEDURAL_ID,
+  CHEONROK_FILENAME,
+  CHEONROK_PROCEDURAL_ID,
 } from "../utils/walkLitePerformer.js";
 
 function memberFilenameKey(member) {
   return catalogEntryKey({ filename: member?.filename, name: member?.displayName });
 }
 
-/** WalkLite(테스터) 멤버 — 카탈로그 삭제·정리에서 제외 */
+/** WalkLite / 천록 경량 멤버 — 카탈로그 삭제·정리에서 제외 */
 export function isWalkLiteGroupMember(member) {
   if (!member || member.actorId != null) return false;
   const fn = String(member.filename || "").toLowerCase();
-  if (fn === WALK_LITE_FILENAME.toLowerCase() || fn === "walklite") return true;
+  if (
+    fn === WALK_LITE_FILENAME.toLowerCase() ||
+    fn === "walklite" ||
+    fn === CHEONROK_FILENAME.toLowerCase() ||
+    fn === "cheonroklite" ||
+    fn === "cheonrok" ||
+    fn === "kkekkorilite.fbx" ||
+    fn === "kkekkorilite" ||
+    fn === "kkekkori"
+  ) {
+    return true;
+  }
   const path = String(member.path || "").toLowerCase();
-  if (path.includes("procedural://walk-lite") || path.includes(WALK_LITE_PROCEDURAL_ID)) {
+  if (
+    path.includes("procedural://walk-lite") ||
+    path.includes(WALK_LITE_PROCEDURAL_ID) ||
+    path.includes("procedural://cheonrok-lite") ||
+    path.includes(CHEONROK_PROCEDURAL_ID) ||
+    path.includes("procedural://kkekkori-lite") ||
+    path.includes("kkekkori-lite")
+  ) {
     return true;
   }
   return false;
@@ -30,19 +52,21 @@ function buildFilenameIndex(catalog) {
   return map;
 }
 
-function findWalkLiteCatalogIndex(catalog) {
-  return (catalog || []).findIndex((entry) => isWalkLiteCatalogEntry(entry));
+function findLiteProceduralCatalogIndex(catalog, predicate) {
+  return (catalog || []).findIndex((entry) => predicate(entry));
 }
 
 /**
  * FBX 카탈로그 변경 시 그룹 멤버를 filename 기준으로 재매핑.
- * 카탈로그에서 사라진 FBX 멤버는 제거 (WalkLite 제외).
+ * 카탈로그에서 사라진 FBX 멤버는 제거 (WalkLite·천록 제외).
  */
 export function syncGroupMembersWithCatalog(showControl, catalog) {
   if (!showControl) return { removed: 0, updated: 0 };
 
   const byFilename = buildFilenameIndex(catalog);
-  const walkLiteIdx = findWalkLiteCatalogIndex(catalog);
+  const walkLiteIdx = findLiteProceduralCatalogIndex(catalog, isWalkLiteCatalogEntry);
+  const cheonrokIdx = findLiteProceduralCatalogIndex(catalog, isCheonrokCatalogEntry);
+  const kkekkoriIdx = findLiteProceduralCatalogIndex(catalog, isKkekkoriCatalogEntry);
   let removed = 0;
   let updated = 0;
 
@@ -57,12 +81,26 @@ export function syncGroupMembersWithCatalog(showControl, catalog) {
         continue;
       }
 
-      // 테스터(WalkLite) — 항상 유지, 인덱스만 갱신
+      // 경량 프로시저럴 — 항상 유지, 인덱스만 갱신
       if (isWalkLiteGroupMember(member)) {
-        if (walkLiteIdx >= 0) {
-          const entry = catalog[walkLiteIdx];
-          if (member.catalogIndex !== walkLiteIdx) updated++;
-          member.catalogIndex = walkLiteIdx;
+        const isCheonrok =
+          isCheonrokCatalogEntry(member) ||
+          String(member.filename || "")
+            .toLowerCase()
+            .includes("cheonrok");
+        const isBird =
+          isKkekkoriCatalogEntry(member) ||
+          String(member.filename || "")
+            .toLowerCase()
+            .includes("kkekkori") ||
+          String(member.path || "")
+            .toLowerCase()
+            .includes("kkekkori");
+        const idx = isBird ? kkekkoriIdx : isCheonrok ? cheonrokIdx : walkLiteIdx;
+        if (idx >= 0) {
+          const entry = catalog[idx];
+          if (member.catalogIndex !== idx) updated++;
+          member.catalogIndex = idx;
           member.filename = entry.filename || member.filename;
           member.path = entry.path || member.path;
         }

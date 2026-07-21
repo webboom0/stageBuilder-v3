@@ -5,6 +5,8 @@ import { rigFixtureCount, RIG_MATRIX } from "../lighting/fixtureTypes.js";
 import {
   readHouseLightLevels,
   setHouseLightLevel,
+  setHouseLightColor,
+  setHouseLightSize,
   applyStageGrand,
   readStageGrand,
 } from "../lighting/houseStageLights.js";
@@ -13,7 +15,8 @@ import { runMaPanelEdit } from "../lighting/maPanelHistory.js";
 import { runShowControlEdit } from "../showcontrol/showControlHistory.js";
 import { getGroupTotalDuration, getGroupStartFormation, getSegmentSpacing, normalizeRotYDeg, SEGMENT_EASING, SEGMENT_EASING_LABELS, SEGMENT_KIND, SEGMENT_KIND_LABELS } from "../showcontrol/groupSegments.js";
 import {
-  isWalkLiteCatalogEntry,
+  isCheonrokCatalogEntry,
+  isLiteProceduralCatalogEntry,
   normalizeColorHex,
   colorForWalkLiteGroup,
   recolorGroupMotionMembers,
@@ -1172,7 +1175,8 @@ export function createShowControlPanel(editor, options = {}) {
         const label = (entry.displayName || entry.name || entry.filename || `#${num}`).replace(/</g, "&lt;");
         const status =
           inOtherGroup ? `${groupLabel} · 복제 가능` : groupLabel;
-        const isTester = isWalkLiteCatalogEntry(entry);
+        const isTester = isLiteProceduralCatalogEntry(entry);
+        const isCheonrok = isCheonrokCatalogEntry(entry);
         const cell = document.createElement("div");
         cell.className =
           "sb-ens-cell" +
@@ -1180,7 +1184,7 @@ export function createShowControlPanel(editor, options = {}) {
           (inOtherGroup ? " other-group" : "") +
           (isTester ? " is-tester" : "");
         cell.innerHTML = `
-          ${isTester ? `<span class="sb-ens-tester-badge">테스터</span>` : ""}
+          ${isTester ? `<span class="sb-ens-tester-badge">${isCheonrok ? "천록" : "테스터"}</span>` : ""}
           <div class="sb-fbx-slot-num">${num}</div>
           <div class="lbl">${label}</div>
           <small>${status}${deployed ? " · LIVE" : ""}</small>
@@ -1386,7 +1390,7 @@ export function createShowControlPanel(editor, options = {}) {
               <label>From Z</label><input id="gmFz" type="number" step="0.1" value="${Number(activeGroup.fromZ || 0)}" />
             </div>
             ${stagePickButtonHtml({ active: pickFromOn, title: "시작 위치", dataAttr: "seg-pick-from" })}
-            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">시작 Y 회전 (30°)</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:4px">시작 Y 회전</div>
             <div class="sb-ens-seg-rot" data-from-rot style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px"></div>
             ${startFmtSection}
           </div>
@@ -1416,7 +1420,7 @@ export function createShowControlPanel(editor, options = {}) {
           </div>
           ${isHold ? "" : `
           ${stagePickButtonHtml({ active: pickOn, title: pickLbl.replace(/ \(무대 클릭\)$/, ""), dataAttr: "seg-pick", dataValue: seg.id })}
-          <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:4px">끝 Y 회전 (30°)</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:4px">끝 Y 회전</div>
           <div class="sb-ens-seg-rot" data-seg-rot="${seg.id}" style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0"></div>
           <div class="sb-ens-seg-ease" data-seg-ease="${seg.id}" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 4px">
             <span style="font-size:10px;color:rgba(255,255,255,0.45);margin-right:2px">Easing</span>
@@ -1848,7 +1852,8 @@ export function createShowControlPanel(editor, options = {}) {
       grandVal.textContent = `${grandSlider.value}%`;
       blackoutBtn.classList.toggle("on", !!editor.fixtureEngine?.blackout);
       const wl = editor.scene?.userData?.workLightLevel ?? 0;
-      workBtn.classList.toggle("on", wl > 0.01);
+      // GRAND에 묶인 약한 작업등(예: 5%→3%)은 WORK ON으로 표시하지 않음
+      workBtn.classList.toggle("on", wl >= 0.5);
     };
     syncGrand();
 
@@ -1888,13 +1893,22 @@ export function createShowControlPanel(editor, options = {}) {
     const paneHouse = document.createElement("div");
     paneHouse.className = "sb-sc-pane";
     const houseLevels = readHouseLightLevels(editor.scene);
+    const pct = (v) => Math.round((Number(v) || 0) * 100);
     paneHouse.innerHTML = `
-      <div class="ec-row sb-sc-ec"><label>Stage Fill</label><input type="range" class="lt" id="sbHouseFill" min="0" max="100" value="${Math.round((houseLevels.fill ?? 0) * 100)}" /><span class="val" id="sbHouseFillVal">${Math.round((houseLevels.fill ?? 0) * 100)}%</span></div>
-      <div class="ec-row sb-sc-ec"><label>FOH Left</label><input type="range" class="lt" id="sbHouseL" min="0" max="100" value="${Math.round((houseLevels.fohL ?? 0) * 100)}" /><span class="val" id="sbHouseLVal">${Math.round((houseLevels.fohL ?? 0) * 100)}%</span></div>
-      <div class="ec-row sb-sc-ec"><label>FOH Center</label><input type="range" class="lt" id="sbHouseC" min="0" max="100" value="${Math.round((houseLevels.fohC ?? 0) * 100)}" /><span class="val" id="sbHouseCVal">${Math.round((houseLevels.fohC ?? 0) * 100)}%</span></div>
-      <div class="ec-row sb-sc-ec"><label>FOH Right</label><input type="range" class="lt" id="sbHouseR" min="0" max="100" value="${Math.round((houseLevels.fohR ?? 0) * 100)}" /><span class="val" id="sbHouseRVal">${Math.round((houseLevels.fohR ?? 0) * 100)}%</span></div>
+      <div class="ec-row sb-sc-ec"><label>Stage Fill</label><input type="range" class="lt" id="sbHouseFill" min="0" max="100" value="${pct(houseLevels.fill)}" /><span class="val" id="sbHouseFillVal">${pct(houseLevels.fill)}%</span></div>
+      <div class="ec-row sb-sc-ec sb-house-extra"><label>Fill Color</label><input type="color" id="sbHouseFillColor" value="${houseLevels.colorFill || "#ffffff"}" /></div>
+      <div class="ec-row sb-sc-ec"><label>FOH Left</label><input type="range" class="lt" id="sbHouseL" min="0" max="100" value="${pct(houseLevels.fohL)}" /><span class="val" id="sbHouseLVal">${pct(houseLevels.fohL)}%</span></div>
+      <div class="ec-row sb-sc-ec sb-house-extra"><label>L Color</label><input type="color" id="sbHouseLColor" value="${houseLevels.colorL || "#ffffff"}" /><label style="min-width:36px">Size</label><input type="range" class="lt" id="sbHouseLSize" min="0" max="100" value="${pct(houseLevels.sizeL)}" /><span class="val" id="sbHouseLSizeVal">${pct(houseLevels.sizeL)}%</span></div>
+      <div class="ec-row sb-sc-ec"><label>FOH Center</label><input type="range" class="lt" id="sbHouseC" min="0" max="100" value="${pct(houseLevels.fohC)}" /><span class="val" id="sbHouseCVal">${pct(houseLevels.fohC)}%</span></div>
+      <div class="ec-row sb-sc-ec sb-house-extra"><label>C Color</label><input type="color" id="sbHouseCColor" value="${houseLevels.colorC || "#ffffff"}" /><label style="min-width:36px">Size</label><input type="range" class="lt" id="sbHouseCSize" min="0" max="100" value="${pct(houseLevels.sizeC)}" /><span class="val" id="sbHouseCSizeVal">${pct(houseLevels.sizeC)}%</span></div>
+      <div class="ec-row sb-sc-ec"><label>FOH Right</label><input type="range" class="lt" id="sbHouseR" min="0" max="100" value="${pct(houseLevels.fohR)}" /><span class="val" id="sbHouseRVal">${pct(houseLevels.fohR)}%</span></div>
+      <div class="ec-row sb-sc-ec sb-house-extra"><label>R Color</label><input type="color" id="sbHouseRColor" value="${houseLevels.colorR || "#ffffff"}" /><label style="min-width:36px">Size</label><input type="range" class="lt" id="sbHouseRSize" min="0" max="100" value="${pct(houseLevels.sizeR)}" /><span class="val" id="sbHouseRSizeVal">${pct(houseLevels.sizeR)}%</span></div>
+      <div class="sb-rowbtns" style="margin-top:8px">
+        <button type="button" class="btn" id="sbHouseToTimeline">LIGHTING에 HOUSE 트랙 열기</button>
+        <button type="button" class="btn" id="sbHouseAddKey" title="선택 HOUSE 트랙에 현재 값 키프레임">+ 키프레임</button>
+      </div>
       <div class="hint" style="margin-top:8px;color:rgba(255,255,255,0.5);font-size:11px">
-        FOH Left/Center/Right = 핀스팟(_StageFrontSpot) · Stage Fill은 GRAND와 연동
+        Color / Size(빔 각도) 조절 가능 · LIGHTING 타임라인 키를 선택한 뒤 여기 값을 바꾸면 해당 키가 갱신됩니다
       </div>
     `;
     host.appendChild(paneHouse);
@@ -1915,6 +1929,79 @@ export function createShowControlPanel(editor, options = {}) {
     bindHouse("#sbHouseL", "#sbHouseLVal", "fohL", "FOH Left");
     bindHouse("#sbHouseC", "#sbHouseCVal", "fohC", "FOH Center");
     bindHouse("#sbHouseR", "#sbHouseRVal", "fohR", "FOH Right");
+
+    const bindHouseColor = (id, key, label) => {
+      const el = paneHouse.querySelector(id);
+      el?.addEventListener("input", () => {
+        runMaPanelEdit(editor, label, () => {
+          setHouseLightColor(editor, key, el.value);
+        });
+        editor.signals.rendererUpdated?.dispatch?.();
+      });
+    };
+    bindHouseColor("#sbHouseFillColor", "colorFill", "Fill Color");
+    bindHouseColor("#sbHouseLColor", "colorL", "FOH L Color");
+    bindHouseColor("#sbHouseCColor", "colorC", "FOH C Color");
+    bindHouseColor("#sbHouseRColor", "colorR", "FOH R Color");
+
+    const bindHouseSize = (id, valId, key, label) => {
+      const el = paneHouse.querySelector(id);
+      const vel = paneHouse.querySelector(valId);
+      el?.addEventListener("input", () => {
+        const v = clamp01(Number(el.value) / 100);
+        runMaPanelEdit(editor, label, () => {
+          setHouseLightSize(editor, key, v);
+        });
+        if (vel) vel.textContent = `${Math.round(v * 100)}%`;
+        editor.signals.rendererUpdated?.dispatch?.();
+      });
+    };
+    bindHouseSize("#sbHouseLSize", "#sbHouseLSizeVal", "sizeL", "FOH L Size");
+    bindHouseSize("#sbHouseCSize", "#sbHouseCSizeVal", "sizeC", "FOH C Size");
+    bindHouseSize("#sbHouseRSize", "#sbHouseRSizeVal", "sizeR", "FOH R Size");
+
+    paneHouse.querySelector("#sbHouseToTimeline")?.addEventListener("click", () => {
+      try {
+        editor.connectTimelineInstances?.();
+        window.timeline?.switchTimeline?.("light");
+        const lt = editor.lightTimeline || window.timeline?.timelines?.light;
+        lt?.houseBridge?.ensureTracks?.();
+        const lightSec = document.querySelector(".tl-section-light");
+        lightSec?.classList.remove("tl-section--collapsed");
+        lightSec?.querySelector(".sec")?.setAttribute("aria-expanded", "true");
+        const first = lt?.tracks?.get?.("house_fohC") || lt?.tracks?.get?.("house_fill");
+        if (first?.element) {
+          lt.selectedTrackId = first.objectId;
+          lt.container
+            ?.querySelectorAll(".light-timeline.timeline-track--selected")
+            .forEach((el) => el.classList.remove("timeline-track--selected"));
+          first.element.classList.add("timeline-track--selected");
+          first.element.scrollIntoView?.({ block: "nearest" });
+        }
+      } catch (e) {
+        console.warn("[HOUSE] 타임라인 열기 실패:", e);
+      }
+    });
+
+    paneHouse.querySelector("#sbHouseAddKey")?.addEventListener("click", () => {
+      try {
+        editor.connectTimelineInstances?.();
+        const lt = editor.lightTimeline || window.timeline?.timelines?.light;
+        if (!lt) {
+          alert("조명 타임라인을 찾을 수 없습니다.");
+          return;
+        }
+        lt.houseBridge?.ensureTracks?.();
+        const trackId =
+          lt.selectedTrackId && String(lt.selectedTrackId).startsWith("house_")
+            ? lt.selectedTrackId
+            : "house_fohC";
+        const res = lt.addKeyframeAtPlayhead?.(trackId);
+        if (!res?.success && res?.message) alert(res.message);
+      } catch (e) {
+        console.warn("[HOUSE] 키프레임 추가 실패:", e);
+      }
+    });
 
     const secFix = document.createElement("div");
     secFix.className = "sb-sc-sec";

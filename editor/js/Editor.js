@@ -173,11 +173,16 @@ function Editor() {
 Editor.prototype = {
   initWorkLights: function () {
     if (!this.scene) return;
+    // 씬에서 제거된 옛 참조면 재생성
+    if (this._workLights?.group && this._workLights.group.parent !== this.scene) {
+      this._workLights = null;
+    }
     if (this._workLights) return;
 
     const g = new THREE.Group();
     g.name = "_WorkLights";
     g.userData.type = "workLights";
+    g.userData.excludeFromTimeline = true;
 
     const amb = new THREE.AmbientLight(0xffffff, 0);
     const hemi = new THREE.HemisphereLight(0x9fb4d4, 0x202833, 0);
@@ -229,6 +234,8 @@ Editor.prototype = {
   setScene: function (scene) {
     try {
       this.fixtureEngine?.disposeRig?.();
+      // 씬 교체 시 work light 참조가 끊김 — 재생성 필요
+      this._workLights = null;
 
       // 재로드 시 기존 자식이 남아 중복·UUID 충돌이 나지 않도록 먼저 비움
       while (this.scene.children.length > 0) {
@@ -1668,6 +1675,17 @@ Editor.prototype = {
             console.log("scene.userData 첫 번째 객체 데이터:", sceneFirstObjectData);
             console.log("scene.userData 첫 번째 객체 타입:", typeof sceneFirstObjectData);
             console.log("scene.userData 첫 번째 객체가 배열인가:", Array.isArray(sceneFirstObjectData));
+          }
+
+          // ShowControl을 모션 onAfterLoad 전에 로드 — UUID 리맵이 deployedUuid에 반영됨
+          try {
+            if (!this.showControl && this.scene.userData?.showControl) {
+              const { ShowControl } = await import("./showcontrol/ShowControl.js");
+              this.showControl = new ShowControl(this);
+            }
+            this.showControl?.loadFromSceneUserData?.();
+          } catch (scEarlyErr) {
+            console.warn("ShowControl 조기 로드 실패:", scEarlyErr);
           }
 
           // MotionTimeline에서 데이터 로드

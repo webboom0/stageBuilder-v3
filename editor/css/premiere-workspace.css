@@ -1028,6 +1028,24 @@ body {
   max-width: 100%;
   font-family: var(--ui) !important;
   font-weight: 400 !important;
+  cursor: text;
+}
+
+.sb-tl .track-name-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-size: 9px !important;
+  font-family: var(--ui) !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
+  color: var(--ink) !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(100, 180, 255, 0.65) !important;
+  border-radius: 3px;
+  padding: 1px 4px !important;
+  outline: none !important;
 }
 
 .sb-tl .track-header .track-info > span:not(.track-name) {
@@ -1178,6 +1196,20 @@ body {
   opacity: 1;
   font-size: 8px;
   font-weight: 700;
+}
+
+.sb-tl .timeline-track.house-timeline .light-type-badge--house {
+  background: #6ec8ff;
+  color: #102030;
+  opacity: 1;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.sb-tl .track-name--house {
+  font-size: 10px;
+  color: rgba(110, 200, 255, 0.92);
+  font-family: JetBrains Mono, monospace;
 }
 
 .sb-tl .track-name--fixture {
@@ -1630,6 +1662,21 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
   background: var(--accent) !important;
   border-color: #000 !important;
   box-shadow: 0 0 6px rgba(154, 134, 255, 0.7) !important;
+}
+
+/* 무대 표시/숨김(visible) 키 — 모션 키와 구분 */
+.sb-tl .keyframe.keyframe--visible {
+  width: 8px !important;
+  height: 8px !important;
+  z-index: 6 !important;
+}
+.sb-tl .keyframe.keyframe--hide {
+  background: #e07070 !important;
+  border-color: #4a1010 !important;
+}
+.sb-tl .keyframe.keyframe--show {
+  background: #6ecf8a !important;
+  border-color: #143820 !important;
 }
 
 /* 키프레임 호버 — 시간만 표시 (다이아몬드 rotate 보정, 네이티브 title·중복 툴팁 제거) */
@@ -2133,6 +2180,17 @@ div.timeline-group[data-timeline="audio"] .property-edit-panel {
 .sb-right-dock .sb-sc-pane,
 .sb-right-dock .sb-ens-pane {
   padding: 10px 8px 12px 10px !important;
+}
+
+.sb-right-dock .sb-house-extra input[type="color"] {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .sb-right-dock .sb-ens,
@@ -3187,6 +3245,19 @@ body.sb-panel-resize-active * {
 
 .sb-right-dock [data-panel-id="properties"] .sb-anim-btn.Button.is-playing,
 .sb-properties-panel .sb-anim-btn.Button.is-playing {
+  color: var(--accent) !important;
+  border-color: rgba(154, 134, 255, 0.5) !important;
+  background: rgba(154, 134, 255, 0.12) !important;
+}
+
+.sb-object-visible-btns {
+  display: inline-flex !important;
+  gap: 4px !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+.sb-right-dock [data-panel-id="properties"] .sb-object-vis-btn.Button.is-active,
+.sb-properties-panel .sb-object-vis-btn.Button.is-active {
   color: var(--accent) !important;
   border-color: rgba(154, 134, 255, 0.5) !important;
   background: rgba(154, 134, 255, 0.12) !important;

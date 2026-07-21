@@ -1,7 +1,7 @@
 /** 모션 객체 로드 후 타임라인 트랙 자동 연결 */
 
 import { catalogEntryKey } from "./motionFbxCatalog.js";
-import { isWalkLiteCatalogEntry } from "./walkLitePerformer.js";
+import { isLiteProceduralCatalogEntry } from "./walkLitePerformer.js";
 
 export function getMotionObjects(scene) {
   const list = [];
@@ -161,7 +161,7 @@ export function ensureMotionTimelineTrack(editor, object) {
 
 function isProceduralCatalogEntry(entry) {
   if (!entry) return false;
-  if (isWalkLiteCatalogEntry(entry)) return true;
+  if (isLiteProceduralCatalogEntry(entry)) return true;
   return String(entry.path || "").startsWith("procedural://");
 }
 

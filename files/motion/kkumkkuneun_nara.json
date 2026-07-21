@@ -1,0 +1,142 @@
+{
+  "maxTime": 60,
+  "frameRate": 30,
+  "currentTime": 0,
+  "tracks": {
+    "dream-char1-hyomyeong": [
+      {
+        "time": 0,
+        "position": { "x": 0, "y": 0, "z": 40, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 6,
+        "position": { "x": 0, "y": 0, "z": 40, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 0.4, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 8,
+        "position": { "x": 0, "y": 0, "z": 40, "interpolation": 0 },
+        "rotation": { "x": 1.15, "y": 0.2, "z": 0.15, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 18,
+        "position": { "x": -15, "y": 0, "z": 35, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 0.9, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 20,
+        "position": { "x": -25, "y": 0, "z": 32, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 1.2, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 35,
+        "position": { "x": -70, "y": 0, "z": 15, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 0.6, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 41.5,
+        "position": { "x": 75, "y": 8, "z": 95, "interpolation": 0 },
+        "rotation": { "x": 0.2, "y": 0.3, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.12, "y": 0.12, "z": 0.12, "interpolation": 0 }
+      },
+      {
+        "time": 45,
+        "position": { "x": -95, "y": 0, "z": 40, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 1.4, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 58,
+        "position": { "x": -18, "y": 0, "z": 30, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 0.3, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      }
+    ],
+    "dream-char2-jeongjo": [
+      {
+        "time": 0,
+        "position": { "x": 120, "y": 0, "z": -20, "interpolation": 0 },
+        "rotation": { "x": 0, "y": -1.2, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 19.5,
+        "position": { "x": 120, "y": 0, "z": -20, "interpolation": 0 },
+        "rotation": { "x": 0, "y": -1.2, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 20,
+        "position": { "x": 40, "y": 0, "z": 32, "interpolation": 0 },
+        "rotation": { "x": 0, "y": -1.0, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 35,
+        "position": { "x": -55, "y": 0, "z": 18, "interpolation": 0 },
+        "rotation": { "x": 0, "y": 0.5, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 41.5,
+        "position": { "x": 85, "y": 10, "z": 100, "interpolation": 0 },
+        "rotation": { "x": 0.15, "y": 0.2, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.11, "y": 0.11, "z": 0.11, "interpolation": 0 }
+      },
+      {
+        "time": 45,
+        "position": { "x": 95, "y": 0, "z": 40, "interpolation": 0 },
+        "rotation": { "x": 0, "y": -1.4, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      },
+      {
+        "time": 58,
+        "position": { "x": 18, "y": 0, "z": 30, "interpolation": 0 },
+        "rotation": { "x": 0, "y": -0.3, "z": 0, "interpolation": 0 },
+        "scale": { "x": 0.148, "y": 0.148, "z": 0.148, "interpolation": 0 }
+      }
+    ]
+  },
+  "clips": {
+    "dream-char1-hyomyeong": {
+      "left": 0,
+      "width": 60,
+      "duration": 60,
+      "initialLeft": 0
+    },
+    "dream-char2-jeongjo": {
+      "left": 0,
+      "width": 60,
+      "duration": 60,
+      "initialLeft": 0
+    }
+  },
+  "visible": {
+    "dream-char1-hyomyeong": {
+      "keyframes": [
+        { "time": 0, "value": true },
+        { "time": 42, "value": false },
+        { "time": 45, "value": true }
+      ]
+    },
+    "dream-char2-jeongjo": {
+      "keyframes": [
+        { "time": 0, "value": false },
+        { "time": 20, "value": true },
+        { "time": 42, "value": false },
+        { "time": 45, "value": true }
+      ]
+    }
+  },
+  "objectNames": {
+    "dream-char1-hyomyeong": "효명세자",
+    "dream-char2-jeongjo": "정조·이야기꾼"
+  }
+}

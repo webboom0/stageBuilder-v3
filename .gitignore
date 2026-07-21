@@ -29,3 +29,8 @@ Thumbs.db
 files/fbx/2.fbx
 files/fbx/1.fbx
 files/fbx/Orc Idle.fbx
+
+# GitHub 100MB 제한 초과 wav (로컬 전용 — 푸시 제외)
+files/music/daeri_cheongjeong.wav
+files/music/1. 대리청정하는 효명 (1).wav
+files/music/회광반조.wav
