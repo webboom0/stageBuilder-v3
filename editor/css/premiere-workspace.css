@@ -3606,6 +3606,11 @@ body.sb-panel-resize-active * {
   padding: 0 !important;
 }
 
+/* 난설 단독 버튼 행 — 인라인 display:none 을 !important 가 덮어쓰지 않게 */
+.sb-left-dock .nanseol-panel-row.nanseol-panel-row--hidden {
+  display: none !important;
+}
+
 .sb-left-dock .stage-selector > br,
 .sb-left-dock .nanseol-panel-row > br {
   display: none !important;

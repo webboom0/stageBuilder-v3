@@ -3,7 +3,7 @@ import { UIPanel, UIRow, UIText } from "./libs/ui.js";
 import { AddObjectCommand } from "./commands/AddObjectCommand.js";
 import { RemoveObjectCommand } from "./commands/RemoveObjectCommand.js";
 import { appendDreamNationButton } from "./Sidebar.Hyomyeong.js";
-import { appendHoegwangButton } from "./Sidebar.Hoegwang.js";
+import { appendHoegwangButton, appendCombinedActsButton } from "./Sidebar.Hoegwang.js";
 
 /**
  * 난설 프리셋: 스크린샷 기준 PointLight 2개 + 무대(Box) 쪽 보조 조명 1개
@@ -229,8 +229,11 @@ function SidebarNanseol(editor) {
 
   const row = new UIRow();
   row.setClass("nanseol-panel-row");
-  // 난설 버튼은 UI에서 숨김 (기능 코드는 유지)
+  // 난설 버튼은 UI에서 숨김 (기능 코드는 유지) — CSS !important 우회용 클래스
+  row.addClass("nanseol-panel-row--hidden");
   row.dom.style.display = "none";
+  row.dom.setAttribute("hidden", "");
+  row.dom.setAttribute("aria-hidden", "true");
 
   const label = new UIText("난설").setClass("Label");
   row.add(label);
@@ -828,7 +831,8 @@ function SidebarNanseol(editor) {
   row.dom.appendChild(wrap);
   container.add(row);
 
-  // 무대연출: 4막 회광반조 → 5막 꿈꾸는 나라
+  // 무대연출: 4·5막 통합 → 4막 회광반조 → 5막 꿈꾸는 나라
+  appendCombinedActsButton(container, editor);
   appendHoegwangButton(container, editor);
   appendDreamNationButton(container, editor);
 

@@ -14,7 +14,7 @@ import * as TWEEN from "../../../examples/jsm/libs/tween.module.js";
 // 타임라인 설정 상수
 export const TIMELINE_CONSTRAINTS = {
   MIN_SECONDS: 60,    // 최소 1분
-  MAX_SECONDS: 300,   // 최대 5분
+  MAX_SECONDS: 600,   // 최대 10분 (4·5막 통합·회광반조.wav ~6분)
   MIN_FPS: 1,         // 최소 FPS
   MAX_FPS: 120        // 최대 FPS
 };
@@ -62,7 +62,7 @@ class Timeline {
 
     // 기본 타임라인 설정을 먼저 초기화
     this.defaultSettings = {
-      totalSeconds: 180, // 3분 (60초~300초 범위 내)
+      totalSeconds: 180, // 3분 (설정 범위 1~10분)
       framesPerSecond: 30, // 60에서 30으로 변경하여 성능 향상
       currentFrame: 0,
     };

@@ -113,6 +113,25 @@ const DURATION = CUE.end;
 /** @deprecated 조명/나무 호환 — 악단 무대 체류 끝(원형 홀드 종료) */
 CUE.s2HoldEnd = CUE.s2CircleHoldEnd;
 
+/** 큐 오프셋 실행용 스냅샷 (4·5막 통합 시) */
+const CUE_BASE = { ...CUE };
+let RUN_DURATION = DURATION;
+
+function beginCueOffset(t0 = 0, totalDuration = null) {
+  const offset = Number(t0) || 0;
+  for (const k of Object.keys(CUE_BASE)) {
+    if (typeof CUE_BASE[k] === "number") CUE[k] = CUE_BASE[k] + offset;
+  }
+  CUE.s2HoldEnd = CUE.s2CircleHoldEnd;
+  RUN_DURATION = totalDuration != null ? Number(totalDuration) : CUE.end;
+}
+
+function endCueOffset() {
+  Object.assign(CUE, CUE_BASE);
+  CUE.s2HoldEnd = CUE.s2CircleHoldEnd;
+  RUN_DURATION = DURATION;
+}
+
 /** 난설 나무 — 무대 뒤쪽 배치 */
 const DREAM_BG_TREES = [
   { position: [-121.571, 2.038, -48.961] },
@@ -260,15 +279,24 @@ function showDreamLoading(message) {
 }
 
 function ensureTimelineDuration(editor, seconds = DURATION) {
+  const sec = Math.max(60, Math.ceil(Number(seconds) || DURATION));
   try {
-    const tl = window.timeline;
+    const tl = window.timeline || editor?.timeline;
+    if (typeof tl?.applyTimelineSettings === "function") {
+      tl.applyTimelineSettings({ totalSeconds: sec });
+      return;
+    }
     if (!tl?.timelineSettings) return;
-    if (tl.timelineSettings.totalSeconds !== seconds) {
-      tl.timelineSettings.totalSeconds = seconds;
-      Object.values(tl.timelines || {}).forEach((t) => {
-        t?.updateSettings?.({ totalSeconds: seconds });
-      });
-      tl.updateUI?.();
+    tl.timelineSettings.totalSeconds = sec;
+    Object.values(tl.timelines || {}).forEach((t) => {
+      t?.updateSettings?.({ totalSeconds: sec });
+    });
+    tl.recreateTimeRuler?.();
+    tl.updateTimelineUI?.();
+    if (editor.scene) {
+      editor.scene.userData = editor.scene.userData || {};
+      editor.scene.userData.timeline = editor.scene.userData.timeline || {};
+      editor.scene.userData.timeline.totalSeconds = sec;
     }
   } catch (e) {
     console.warn("[꿈꾸는 나라] 타임라인 길이 설정 실패:", e);
@@ -493,7 +521,7 @@ function writeFxCue(lt, bridge, fid, time, cap) {
  * 3) 효명 MH #13 고정 + 정조·천록 MH #15 추적
  * 5) 도장/이야기꾼: MH #12/#16 블루
  */
-async function injectDreamLightsToTimeline(editor, followTargets = {}) {
+async function injectDreamLightsToTimeline(editor, followTargets = {}, lightOpts = {}) {
   const lt = await resolveLightTimeline(editor);
   if (!lt) {
     alert("조명 타임라인을 찾을 수 없습니다. 새로고침 후 다시 시도해주세요.");
@@ -521,8 +549,11 @@ async function injectDreamLightsToTimeline(editor, followTargets = {}) {
     return [];
   }
 
-  clearFixtureKeyframes(lt);
-  clearHouseKeyframes(lt);
+  const preserve = !!lightOpts.preserveExisting;
+  if (!preserve) {
+    clearFixtureKeyframes(lt);
+    clearHouseKeyframes(lt);
+  }
 
   const homeOf = (fid) => {
     const f = engine.getFixture(fid);
@@ -590,10 +621,11 @@ async function injectDreamLightsToTimeline(editor, followTargets = {}) {
     /* ignore */
   }
 
-  offAllFx(0);
-  offAllHouse(0);
+  if (!preserve) {
+    offAllFx(0);
+    offAllHouse(0);
+  }
   pinFohOff([
-    0,
     CUE.s1SpotIn,
     CUE.s1Hold,
     CUE.s1Gone,
@@ -611,7 +643,7 @@ async function injectDreamLightsToTimeline(editor, followTargets = {}) {
     CUE.s5Approach,
     CUE.s5Hold,
     CUE.s5Gone,
-    DURATION,
+    RUN_DURATION,
   ]);
 
   // —— Scene 1: 천장 MH #13 → 효명 (aim + 캡처 zoom/focus/dim) ——
@@ -747,11 +779,11 @@ async function injectDreamLightsToTimeline(editor, followTargets = {}) {
   offAllHouse(CUE.s5Gone);
 
   if (lt.timelineData) {
-    lt.timelineData.maxTime = Math.max(lt.timelineData.maxTime || 0, DURATION);
+    lt.timelineData.maxTime = Math.max(lt.timelineData.maxTime || 0, RUN_DURATION);
     lt.timelineData.dirty = true;
     lt.timelineData.precomputeAnimationData?.(
       undefined,
-      lt.options?.totalSeconds ?? DURATION,
+      lt.options?.totalSeconds ?? RUN_DURATION,
       lt.options?.framesPerSecond ?? 30
     );
   }
@@ -894,10 +926,16 @@ function appendDreamNationButton(parentPanel, editor) {
   return wrap;
 }
 
-async function applyDreamNation(editor) {
-  const hideLoading = showDreamLoading("꿈꾸는 나라 무대 로딩 중...");
+async function applyDreamNation(editor, options = {}) {
+  const hideLoading = options.skipLoading
+    ? () => {}
+    : showDreamLoading(options.loadingMessage || "꿈꾸는 나라 무대 로딩 중...");
+  const t0 = Number(options.timeOffset) || 0;
+  const totalDur =
+    options.totalDuration != null ? Number(options.totalDuration) : t0 + DURATION;
+  beginCueOffset(t0, totalDur);
   try {
-    ensureTimelineDuration(editor, DURATION);
+    ensureTimelineDuration(editor, totalDur);
 
     try {
       const cam = editor.viewportCamera || editor.camera;
@@ -1044,39 +1082,52 @@ async function applyDreamNation(editor) {
     await deployJeongjoCheonrokGroup(editor);
 
     // 조명 — 정조·천록 동선 좌표로 스포트 추적
-    await injectDreamLightsToTimeline(editor, {
-      hyomyeongCenter: [0, 2, 50],
-      hyomyeong: [-12.29, 2, 50],
-      jeongjoHold: [10.8, 0, 59.55],
-      cheonrokHold: [25.8, 0, 59.55],
-      dojang: [-13.82, 2, 85.34],
-      storyteller: [17.49, 2, 82.42],
-      jeongjoPath: [
-        { t: CUE.s3Start, p: [261.11, 0, -108.51] },
-        { t: CUE.s3Arrive, p: [10.8, 0, 59.55] },
-        { t: CUE.s3HoldEnd, p: [10.8, 0, 59.55] },
-      ],
-      cheonrokPath: [
-        { t: CUE.s3Start, p: [271.11, 0, -108.51] },
-        { t: CUE.s3Arrive, p: [25.8, 0, 59.55] },
-        { t: CUE.s3HoldEnd, p: [25.8, 0, 59.55] },
-      ],
-    });
-
-    try {
-      if (editor.audioTimeline?.addAudioFromAsset) {
-        await editor.audioTimeline.addAudioFromAsset(DREAM_AUDIO);
+    await injectDreamLightsToTimeline(
+      editor,
+      {
+        hyomyeongCenter: [0, 2, 50],
+        hyomyeong: [-12.29, 2, 50],
+        jeongjoHold: [10.8, 0, 59.55],
+        cheonrokHold: [25.8, 0, 59.55],
+        dojang: [-13.82, 2, 85.34],
+        storyteller: [17.49, 2, 82.42],
+        jeongjoPath: [
+          { t: CUE.s3Start, p: [261.11, 0, -108.51] },
+          { t: CUE.s3Arrive, p: [10.8, 0, 59.55] },
+          { t: CUE.s3HoldEnd, p: [10.8, 0, 59.55] },
+        ],
+        cheonrokPath: [
+          { t: CUE.s3Start, p: [271.11, 0, -108.51] },
+          { t: CUE.s3Arrive, p: [25.8, 0, 59.55] },
+          { t: CUE.s3HoldEnd, p: [25.8, 0, 59.55] },
+        ],
+      },
+      {
+        preserveExisting: !!options.preserveLights,
+        totalDuration: totalDur,
       }
-    } catch (e) {
-      console.warn("[꿈꾸는 나라] 오디오 실패:", e);
+    );
+
+    if (!options.skipAudio) {
+      try {
+        if (editor.audioTimeline?.addAudioFromAsset) {
+          await editor.audioTimeline.addAudioFromAsset(DREAM_AUDIO);
+        }
+      } catch (e) {
+        console.warn("[꿈꾸는 나라] 오디오 실패:", e);
+      }
     }
 
     if (typeof editor.deselect === "function") editor.deselect();
-    console.log("[꿈꾸는 나라] 녹화 모션 연출 적용 완료", cast?.names);
+    console.log("[꿈꾸는 나라] 녹화 모션 연출 적용 완료", cast?.names, {
+      timeOffset: t0,
+      totalDur,
+    });
   } catch (e) {
     console.error("[꿈꾸는 나라] 실패:", e);
     alert(`꿈꾸는 나라 적용 오류: ${e.message || e}`);
   } finally {
+    endCueOffset();
     hideLoading();
   }
 }
@@ -1205,7 +1256,11 @@ async function deployAkdanGroup(editor) {
     poseAtFull(mt, obj, CUE.s2CircleArrive, circle, [0, 0, 0], null);
     poseAtFull(mt, obj, CUE.s2CircleHoldEnd, circle, [0, 0, 0], null);
     poseAtFull(mt, obj, CUE.s2Gone, [AKDAN_EXIT_X, 0, xz], [0, 0, 0], null);
-    setVisibleKeys(mt, obj, [[0, true]]);
+    setVisibleKeys(mt, obj, [
+      [0, false],
+      [CUE.s2Start, true],
+      [CUE.s2Gone, false],
+    ]);
   });
 
   console.log("[꿈꾸는 나라] 악단 12명 배치 (격자→원형)");
@@ -1363,7 +1418,11 @@ async function deployJeongjoCheonrokGroup(editor) {
       poseAtFull(mt, jeongObj, CUE.s3Arrive, [10.8, 0, 59.55], [0, 0, 0], null, noScale);
       poseAtFull(mt, jeongObj, CUE.s3HoldEnd, [10.8, 0, 59.55], [0, 0, 0], null, noScale);
       poseAtFull(mt, jeongObj, CUE.s3Gone + 0.05, [233.27, 0, -47.71], [0, 0, 0], null, noScale);
-      setVisibleKeys(mt, jeongObj, [[0, true]]);
+      setVisibleKeys(mt, jeongObj, [
+        [0, false],
+        [CUE.s3Start, true],
+        [CUE.s3Gone, false],
+      ]);
       clearObjectMotionKeyframes(mt, jeongObj.uuid, { only: ["scale"] });
     }
     persistMemberBaseAppearance(editor, jeongObj);
@@ -1409,12 +1468,16 @@ async function deployJeongjoCheonrokGroup(editor) {
       poseAtFull(mt, cheonObj, CUE.s3Arrive, [25.8, 0, 59.55], [0, 0, 0], CHEONROK_SCALE, noScale);
       poseAtFull(mt, cheonObj, CUE.s3HoldEnd, [25.8, 0, 59.55], [0, 0, 0], CHEONROK_SCALE, noScale);
       poseAtFull(mt, cheonObj, CUE.s3Gone, [243.27, 0, -47.71], [0, 0, 0], CHEONROK_SCALE, noScale);
-      setVisibleKeys(mt, cheonObj, [[0, true]]);
+      setVisibleKeys(mt, cheonObj, [
+        [0, false],
+        [CUE.s3Start, true],
+        [CUE.s3Gone, false],
+      ]);
       clearObjectMotionKeyframes(mt, cheonObj.uuid, { only: ["scale"] });
       mt.timelineData.dirty = true;
       mt.timelineData.precomputeAnimationData?.(
         mt.getClipInfoCallback?.(),
-        DURATION,
+        RUN_DURATION,
         mt.fps || 30
       );
       mt.updateAnimation?.(CUE.s3Arrive);
@@ -1508,7 +1571,8 @@ async function buildCastAndMotion(editor, { treeGroup }) {
     poseAtFull(mt, hyo, CUE.s3HoldEnd, [-12.29, 1.89, 50], [0, 0, 0], sc);
     poseAtFull(mt, hyo, CUE.s3Gone, [233.32, 1.89, -35.89], [0, 0, 0], sc);
     setVisibleKeys(mt, hyo, [
-      [0, true],
+      [0, false],
+      [CUE.s1SpotIn, true],
       [CUE.s1Gone, false],
       [CUE.s3Start, true],
       [CUE.s3Gone, false],
@@ -1553,7 +1617,7 @@ async function buildCastAndMotion(editor, { treeGroup }) {
   mt.timelineData.dirty = true;
   mt.timelineData.precomputeAnimationData?.(
     mt.getClipInfoCallback?.(),
-    DURATION,
+    RUN_DURATION,
     mt.fps || 30
   );
   mt.updateUI?.();
@@ -1628,4 +1692,9 @@ async function loadCharacterFbx(editor, path, fileName, baseName) {
   });
 }
 
-export { appendDreamNationButton, applyDreamNation };
+export {
+  appendDreamNationButton,
+  applyDreamNation,
+  CUE as DREAM_CUE,
+  DURATION as DREAM_DURATION,
+};

@@ -14,6 +14,7 @@ import {
   clearObjectMotionKeyframes,
   persistMemberBaseAppearance,
 } from "./showcontrol/groupTimelineKeyframes.js";
+import { applyDreamNation, DREAM_DURATION } from "./Sidebar.Hyomyeong.js";
 
 /**
  * 4막 회광반조 — 대본·시뮬레이션 PDF 기준 (~170초)
@@ -225,23 +226,46 @@ function showLoading(message) {
 }
 
 function ensureTimelineDuration(editor, seconds = DURATION) {
+  const sec = Math.max(60, Math.ceil(Number(seconds) || DURATION));
   try {
-    const mt = editor.motionTimeline || editor.timeline?.timelines?.motion;
-    const lt = editor.lightTimeline || editor.timeline?.timelines?.light;
-    [mt, lt].forEach((t) => {
-      if (!t) return;
-      if (t.options) t.options.totalSeconds = Math.max(t.options.totalSeconds || 0, seconds);
-      if (t.totalSeconds != null) t.totalSeconds = Math.max(t.totalSeconds || 0, seconds);
-      if (t.timelineData) {
-        t.timelineData.maxTime = Math.max(t.timelineData.maxTime || 0, seconds);
-        t.timelineData.dirty = true;
+    const tl = window.timeline || editor?.timeline;
+    // 마스터 타임라인 UI(룰러)·모션/조명/오디오 전부 동기화
+    if (typeof tl?.applyTimelineSettings === "function") {
+      tl.applyTimelineSettings({ totalSeconds: sec });
+    } else if (tl?.timelineSettings) {
+      tl.timelineSettings.totalSeconds = sec;
+      Object.values(tl.timelines || {}).forEach((t) => {
+        t?.updateSettings?.({ totalSeconds: sec });
+        if (t?.options) t.options.totalSeconds = sec;
+        if (t) t.totalSeconds = sec;
+        if (t?.timelineData) {
+          t.timelineData.maxTime = Math.max(t.timelineData.maxTime || 0, sec);
+          t.timelineData.dirty = true;
+        }
+      });
+      tl.recreateTimeRuler?.();
+      tl.updateTimelineUI?.();
+    } else {
+      const mt = editor.motionTimeline || editor.timeline?.timelines?.motion;
+      const lt = editor.lightTimeline || editor.timeline?.timelines?.light;
+      [mt, lt].forEach((t) => {
+        if (!t) return;
+        if (t.options) t.options.totalSeconds = sec;
+        if (t.totalSeconds != null) t.totalSeconds = sec;
+        t.updateSettings?.({ totalSeconds: sec });
+        if (t.timelineData) {
+          t.timelineData.maxTime = Math.max(t.timelineData.maxTime || 0, sec);
+          t.timelineData.dirty = true;
+        }
+      });
+    }
+    if (editor.scene) {
+      editor.scene.userData = editor.scene.userData || {};
+      editor.scene.userData.timeline = editor.scene.userData.timeline || {};
+      editor.scene.userData.timeline.totalSeconds = sec;
+      if (!editor.scene.userData.timeline.framesPerSecond) {
+        editor.scene.userData.timeline.framesPerSecond = 30;
       }
-    });
-    if (editor.scene?.userData?.timeline) {
-      editor.scene.userData.timeline.totalSeconds = Math.max(
-        editor.scene.userData.timeline.totalSeconds || 0,
-        seconds
-      );
     }
   } catch (e) {
     console.warn("[회광반조] 타임라인 길이 설정 실패:", e);
@@ -467,7 +491,7 @@ function clearFxHouse(lt) {
   });
 }
 
-async function injectHoegwangLights(editor) {
+async function injectHoegwangLights(editor, lightOpts = {}) {
   const lt = await resolveLightTimeline(editor);
   if (!lt || typeof editor.initFixtureEngine !== "function") return;
 
@@ -651,12 +675,14 @@ async function injectHoegwangLights(editor) {
     writeFxCue(lt, bridge, fid, CUE.end, { dim: 0, ...a, zoom: 18, ...WHITE });
   });
 
+  const maxT =
+    lightOpts.totalDuration != null ? Number(lightOpts.totalDuration) : DURATION;
   if (lt.timelineData) {
-    lt.timelineData.maxTime = Math.max(lt.timelineData.maxTime || 0, DURATION);
+    lt.timelineData.maxTime = Math.max(lt.timelineData.maxTime || 0, maxT);
     lt.timelineData.dirty = true;
     lt.timelineData.precomputeAnimationData?.(
       undefined,
-      lt.options?.totalSeconds ?? DURATION,
+      lt.options?.totalSeconds ?? maxT,
       lt.options?.framesPerSecond ?? 30
     );
   }
@@ -805,10 +831,14 @@ async function deployMudongRehearsal(editor) {
   return true;
 }
 
-async function applyHoegwangBanjo(editor) {
-  const hide = showLoading("4막 회광반조 로딩 중...");
+async function applyHoegwangBanjo(editor, options = {}) {
+  const hide = options.skipLoading
+    ? () => {}
+    : showLoading(options.loadingMessage || "4막 회광반조 로딩 중...");
+  const totalDur =
+    options.totalDuration != null ? Number(options.totalDuration) : DURATION;
   try {
-    ensureTimelineDuration(editor, DURATION);
+    ensureTimelineDuration(editor, totalDur);
 
     try {
       const cam = editor.viewportCamera || editor.camera;
@@ -1110,21 +1140,27 @@ async function applyHoegwangBanjo(editor) {
       }
     }
 
-    await injectHoegwangLights(editor);
+    await injectHoegwangLights(editor, { totalDuration: totalDur });
 
-    try {
-      if (editor.audioTimeline?.addAudioFromAsset) {
-        await editor.audioTimeline.addAudioFromAsset(HOEGWANG_AUDIO);
+    if (!options.skipAudio) {
+      try {
+        if (editor.audioTimeline?.addAudioFromAsset) {
+          await editor.audioTimeline.addAudioFromAsset(HOEGWANG_AUDIO);
+          // 4막 단독: 타임라인은 연출 길이(≈170초). 오디오 클립도 그에 맞춤
+          fitHoegwangAudioClip(editor, totalDur);
+        }
+      } catch (e) {
+        console.warn("[회광반조] 오디오 실패:", e);
       }
-    } catch (e) {
-      console.warn("[회광반조] 오디오 실패:", e);
     }
+
+    ensureTimelineDuration(editor, totalDur);
 
     if (mt) {
       mt.timelineData.dirty = true;
       mt.timelineData.precomputeAnimationData?.(
         mt.getClipInfoCallback?.(),
-        DURATION,
+        totalDur,
         mt.fps || 30
       );
       mt.updateUI?.();
@@ -1132,7 +1168,7 @@ async function applyHoegwangBanjo(editor) {
     }
 
     if (typeof editor.deselect === "function") editor.deselect();
-    console.log("[회광반조] 4막 적용 완료", DURATION, "초 — 대본 동선 기준");
+    console.log("[회광반조] 4막 적용 완료", totalDur, "초 — 대본 동선 기준");
   } catch (e) {
     console.error("[회광반조] 실패:", e);
     alert(`회광반조 적용 오류: ${e.message || e}`);
@@ -1151,7 +1187,7 @@ function appendHoegwangButton(parentPanel, editor) {
   btn.className = "nanseol-apply-button sb-dock-btn sb-dock-btn--wide sb-dock-btn--accent";
   btn.textContent = "회광반조";
   btn.title =
-    "4막 회광반조 ~2분50초 — 대본 동선(점검→포위→변사→의례→춘앵무→탑조명)";
+    "4막만 (~2분50초). 노래 클립도 연출 길이에 맞춤. 6분 전체는「4·5막 통합」";
 
   btn.addEventListener("click", () => applyHoegwangBanjo(editor));
   wrap.appendChild(btn);
@@ -1161,4 +1197,106 @@ function appendHoegwangButton(parentPanel, editor) {
   return wrap;
 }
 
-export { appendHoegwangButton, applyHoegwangBanjo, CUE as HOEGWANG_CUE };
+/** 회광반조.wav ≈ 355.4초 — 4막(170) + 5막(175) = 345초 연출, 타임라인은 오디오에 맞춤 */
+const COMBINED_AUDIO_SEC = 356;
+const ACT5_OFFSET = CUE.end; // 170 — 4막 끝(암전) 직후 5막
+
+function fitHoegwangAudioClip(editor, clipSeconds) {
+  try {
+    const at = editor.audioTimeline;
+    if (!at?.tracks) return;
+    const total =
+      Number(window.timeline?.timelineSettings?.totalSeconds) ||
+      Number(clipSeconds) ||
+      COMBINED_AUDIO_SEC;
+    const maxDur = Math.min(Number(clipSeconds) || total, total);
+    at.tracks.forEach((track) => {
+      const el = track.element || track.sprite;
+      const sprite = el?.querySelector?.(".audio-sprite") || (el?.classList?.contains("audio-sprite") ? el : null);
+      if (!sprite) return;
+      const name = String(track.name || sprite.dataset.name || "");
+      if (name && !/hoegwang|회광/i.test(name) && track.name !== HOEGWANG_AUDIO.name) return;
+      sprite.dataset.duration = String(maxDur);
+      sprite.style.left = "0%";
+      sprite.style.width = `${Math.min(100, (maxDur / total) * 100)}%`;
+      const obj = editor.scene?.getObjectById?.(parseInt(track.objectId || track.id, 10));
+      if (obj?.userData) {
+        obj.userData.duration = maxDur;
+        obj.userData.audioStartTime = 0;
+        obj.userData.audioEndTime = maxDur;
+      }
+    });
+    at.updateSettings?.({ totalSeconds: total });
+  } catch (e) {
+    console.warn("[회광반조] 오디오 클립 길이 맞춤 실패:", e);
+  }
+}
+
+async function applyHoegwangDreamCombined(editor) {
+  const totalDur = Math.max(COMBINED_AUDIO_SEC, ACT5_OFFSET + DREAM_DURATION);
+  const hide = showLoading("4·5막 통합 로딩 중...");
+  try {
+    // 룰러/재생 길이를 먼저 6분대로 고정 (기존 상한 5분·미동기화 버그 방지)
+    ensureTimelineDuration(editor, totalDur);
+
+    await applyHoegwangBanjo(editor, {
+      skipAudio: true,
+      skipLoading: true,
+      totalDuration: totalDur,
+    });
+    await applyDreamNation(editor, {
+      skipAudio: true,
+      skipLoading: true,
+      timeOffset: ACT5_OFFSET,
+      totalDuration: totalDur,
+      preserveLights: true,
+    });
+    try {
+      if (editor.audioTimeline?.addAudioFromAsset) {
+        await editor.audioTimeline.addAudioFromAsset(HOEGWANG_AUDIO);
+      }
+    } catch (e) {
+      console.warn("[4·5막] 오디오 실패:", e);
+    }
+    ensureTimelineDuration(editor, totalDur);
+    fitHoegwangAudioClip(editor, totalDur);
+    console.log(
+      `[4·5막] 통합 완료 — 4막 0~${ACT5_OFFSET}s / 5막 ${ACT5_OFFSET}~${
+        ACT5_OFFSET + DREAM_DURATION
+      }s / 타임라인·오디오 ${totalDur}s`
+    );
+  } catch (e) {
+    console.error("[4·5막] 실패:", e);
+    alert(`4·5막 통합 적용 오류: ${e.message || e}`);
+  } finally {
+    hide();
+  }
+}
+
+function appendCombinedActsButton(parentPanel, editor) {
+  const wrap = document.createElement("div");
+  wrap.className = "nanseol-button-wrap";
+  wrap.style.paddingTop = "0";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "nanseol-apply-button sb-dock-btn sb-dock-btn--wide sb-dock-btn--accent";
+  btn.textContent = "4·5막 통합";
+  btn.title =
+    "회광반조(4막≈2:50) + 꿈꾸는 나라(5막≈2:55) 연속. 타임라인·오디오 ≈5:56. 4막 암전 후 5막 시작";
+
+  btn.addEventListener("click", () => applyHoegwangDreamCombined(editor));
+  wrap.appendChild(btn);
+
+  const host = parentPanel?.dom || parentPanel;
+  if (host) host.appendChild(wrap);
+  return wrap;
+}
+
+export {
+  appendHoegwangButton,
+  appendCombinedActsButton,
+  applyHoegwangBanjo,
+  applyHoegwangDreamCombined,
+  CUE as HOEGWANG_CUE,
+};
