@@ -12,16 +12,16 @@ let AUDIO_FILES = [];
 async function loadAudioFilesFromFolder() {
   const defaultList = () => [
     {
-      path: "../files/music/SUJESHUN.mp3",
-      name: "SUJESHUN",
+      path: "../files/music/ShJeCheon.mp3",
+      name: "ShJeCheon",
       displayName: "수제천",
-      filename: "SUJESHUN.mp3",
+      filename: "ShJeCheon.mp3",
     },
     {
-      path: "../files/music/nanseol.mp3",
-      name: "nanseol",
-      displayName: "난설",
-      filename: "nanseol.mp3",
+      path: "../files/music/DRAMA.mp3",
+      name: "DRAMA",
+      displayName: "드라마",
+      filename: "DRAMA.mp3",
     },
   ];
 
@@ -30,10 +30,9 @@ async function loadAudioFilesFromFolder() {
 
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 5000);
-    // 운영 서버와 동일: credentials omit + cors (config의 origin URL 사용)
     const response = await fetch(
       getApiUrl(AUDIO_UPLOAD_CONFIG.ENDPOINTS.GET_FILES),
-      { signal: ctrl.signal, method: "GET", mode: "cors", credentials: "omit" },
+      { signal: ctrl.signal, credentials: "include" },
     ).finally(() => clearTimeout(t));
 
     if (response.ok) {
@@ -874,17 +873,15 @@ export class AudioTimeline extends BaseTimeline {
       // 기본 파일 목록으로 초기화
       AUDIO_FILES = [
         {
-          path: "../files/music/SUJESHUN.mp3",
-          name: "SUJESHUN",
-          displayName: "수제천",
-          filename: "SUJESHUN.mp3",
+          path: "../files/music/ShJeCheon.mp3",
+          name: "ShJeCheon",
+          displayName: "수제천"
         },
         {
-          path: "../files/music/nanseol.mp3",
-          name: "nanseol",
-          displayName: "난설",
-          filename: "nanseol.mp3",
-        },
+          path: "../files/music/DRAMA.mp3",
+          name: "DRAMA",
+          displayName: "드라마"
+        }
       ];
       this.initAssetSelector();
     }

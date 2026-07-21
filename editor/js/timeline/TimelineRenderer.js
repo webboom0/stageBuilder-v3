@@ -77,7 +77,7 @@ class TimelineRenderer {
           </div>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
-          <button id="render-mute-btn" type="button" title="렌더링 중 오디오 음소거" style="display: none; background: #444; border: none; color: white; padding: 8px 12px; border-radius: 4px; cursor: pointer;"><i class="fas fa-volume-up"></i> 소리</button>
+          <button id="render-mute-btn" type="button" title="미리듣기 음소거 (비디오 오디오는 유지)" style="display: none; background: #444; border: none; color: white; padding: 8px 12px; border-radius: 4px; cursor: pointer;"><i class="fas fa-volume-up"></i> 소리</button>
           <button id="start-render-btn" style="background: #4CAF50; border: none; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;"><i class="fas fa-play"></i> 렌더링 시작</button>
           <button id="download-video-btn" style="background: #2196F3; border: none; color: white; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; display: none;"> 비디오 다운로드</button>
           <button id="close-render-popup" style="background: #666; border: none; color: white; padding: 8px 12px; border-radius: 4px; cursor: pointer;">닫기</button>
@@ -456,15 +456,20 @@ class TimelineRenderer {
       canvasControls.appendChild(resetViewBtn);
       canvasControls.appendChild(debugVisibleBtn);
       
-      // 렌더링 캔버스
+      // 렌더링 캔버스 (기본 HD 16:9)
       const renderCanvas = document.createElement('canvas');
       renderCanvas.id = 'render-canvas';
-      renderCanvas.width = 1200;
-      renderCanvas.height = 600;
+      renderCanvas.width = 1280;
+      renderCanvas.height = 720;
       renderCanvas.style.cssText = `
         border: 1px solid #333;
         background: #000;
         cursor: grab;
+        width: 100%;
+        max-width: 1280px;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        display: block;
       `;
       
       canvasContainer.appendChild(renderStatus);
@@ -525,8 +530,12 @@ class TimelineRenderer {
         if (this._renderAudioResult && this._renderAudioResult.setMuted) {
           this._renderAudioResult.setMuted(this._renderMuted);
         }
-        muteBtn.title = this._renderMuted ? '소리 켜기' : '렌더링 중 오디오 음소거';
-        muteBtn.innerHTML = this._renderMuted ? '<i class="fas fa-volume-mute"></i> 음소거' : '<i class="fas fa-volume-up"></i> 소리';
+        muteBtn.title = this._renderMuted
+          ? '소리 켜기'
+          : '미리듣기 음소거 (비디오 오디오는 유지)';
+        muteBtn.innerHTML = this._renderMuted
+          ? '<i class="fas fa-volume-mute"></i> 음소거'
+          : '<i class="fas fa-volume-up"></i> 소리';
       });
     }
 
@@ -699,7 +708,6 @@ class TimelineRenderer {
         alpha: false,
         preserveDrawingBuffer: true
       });
-      this.renderRenderer.setSize(1280, 720);
       this.renderRenderer.setPixelRatio(1);
       this.renderRenderer.setClearColor(0x000000, 1);
       
@@ -713,11 +721,14 @@ class TimelineRenderer {
         this.renderCamera.position.set(0, 30, 177.16);
         this.renderCamera.lookAt(0, 30, 0); // Y축 30 위치를 바라보도록 설정
       } else {
-        this.renderCamera = new THREE.PerspectiveCamera(75, 1200 / 600, 0.1, 1000);
+        this.renderCamera = new THREE.PerspectiveCamera(75, 1280 / 720, 0.1, 1000);
         // 초기 카메라 위치 설정
         this.renderCamera.position.set(0, 30, 177.16);
         this.renderCamera.lookAt(0, 30, 0);
       }
+
+      // 해상도·카메라 aspect·표시 비율을 함께 맞춤 (짜부 방지)
+      this.applyRenderSize(canvas, 1280, 720);
 
       // 4. 원본 씬 설정 (도우미 객체 제거, FBX 애니메이션 활성화, 애니메이션 믹서 설정)
       this.removeHelperObjects(this.editor.scene);
@@ -1560,7 +1571,8 @@ class TimelineRenderer {
       const videoProgressText = document.getElementById('video-progress-text');
 
       videoProgressContainer.style.display = 'none';
-      videoProgressBar.style.width = '0%';
+      if (videoProgressFill) videoProgressFill.style.width = '0%';
+      if (videoProgressBar) videoProgressBar.style.width = '100%';
       videoProgressText.innerHTML = '0% 완료';
 
       // 🎬 렌더링 중 캔버스 컨트롤 비활성화
@@ -2624,7 +2636,7 @@ class TimelineRenderer {
             const muteBtn = document.getElementById('render-mute-btn');
             if (muteBtn) {
               muteBtn.style.display = '';
-              muteBtn.title = '렌더링 중 오디오 음소거';
+              muteBtn.title = '미리듣기 음소거 (비디오 오디오는 유지)';
               muteBtn.innerHTML = '<i class="fas fa-volume-up"></i> 소리';
             }
             console.log("🎵 렌더링 중 오디오 재생 시작");
@@ -2637,10 +2649,8 @@ class TimelineRenderer {
       // 해상도 파싱
       const [width, height] = resolution.split('x').map(Number);
 
-      // 캔버스 크기 조정
-      canvas.width = width;
-      canvas.height = height;
-      this.renderRenderer.setSize(width, height);
+      // 캔버스 크기·카메라 aspect·표시 비율 조정
+      this.applyRenderSize(canvas, width, height);
 
       // 렌더링 상태 업데이트
       statusElement.innerHTML = `🎬 렌더링 중... (${width}x${height}, ${fps} FPS, ${duration}초)`;
@@ -2773,9 +2783,9 @@ class TimelineRenderer {
       progressFill.style.width = '100%';
       progressText.innerHTML = '100% 완료!';
 
-      // 비디오 다운로드 프로그레스바 표시
-      videoProgressFill.style.width = '100%';
-      videoProgressText.innerHTML = '100% 완료!';
+      // 비디오 다운로드 프로그레스는 아직 시작 전 — 초기화만
+      if (videoProgressFill) videoProgressFill.style.width = '0%';
+      if (videoProgressText) videoProgressText.innerHTML = '비디오 다운로드 대기 중...';
 
       // 프레임 정보 최종 업데이트
       const frameInfo = document.getElementById('frame-info');
@@ -2867,7 +2877,8 @@ class TimelineRenderer {
       const videoProgressText = document.getElementById('video-progress-text');
 
       videoProgressContainer.style.display = 'flex';
-      videoProgressBar.style.width = '0%';
+      if (videoProgressBar) videoProgressBar.style.width = '100%';
+      if (videoProgressFill) videoProgressFill.style.width = '0%';
       videoProgressText.innerHTML = '0% 완료';
 
       // 렌더링 설정 가져오기
@@ -2965,13 +2976,20 @@ class TimelineRenderer {
       ? reusedContext
       : new (window.AudioContext || window.webkitAudioContext)();
     const destination = audioContext.createMediaStreamDestination();
-    const gainNode = audioContext.createGain();
-    gainNode.gain.value = 1;
+
+    // 녹화용(비디오에 들어갈 소리)과 미리듣기(스피커)를 분리
+    // → 음소거는 미리듣기만 끄고, WebM 오디오는 유지
+    const recordGain = audioContext.createGain();
+    recordGain.gain.value = 1;
+    const previewGain = audioContext.createGain();
+    previewGain.gain.value = 1;
+
     const source = audioContext.createBufferSource();
     source.buffer = renderedBuffer;
-    source.connect(gainNode);
-    gainNode.connect(destination);
-    gainNode.connect(audioContext.destination); // 스피커로 재생 (렌더링 중 들리도록)
+    source.connect(recordGain);
+    source.connect(previewGain);
+    recordGain.connect(destination);
+    previewGain.connect(audioContext.destination);
 
     return {
       stream: destination.stream,
@@ -2990,11 +3008,14 @@ class TimelineRenderer {
         }
       },
       setMuted: (muted) => {
-        gainNode.gain.value = muted ? 0 : 1;
+        // 스피커 미리듣기만 음소거 — 비디오 녹화 스트림은 그대로
+        previewGain.gain.value = muted ? 0 : 1;
       },
       audioContext,
       source,
-      gainNode
+      gainNode: previewGain,
+      recordGain,
+      previewGain
     };
   }
 
@@ -3089,6 +3110,14 @@ class TimelineRenderer {
 
             console.log("✅ WebM 비디오 다운로드 완료");
 
+            // 프로그레스바 최종 100% 고정
+            const doneFill = document.getElementById('video-progress-fill');
+            const doneText = document.getElementById('video-progress-text');
+            const doneBar = document.getElementById('video-progress-bar');
+            if (doneBar) doneBar.style.width = '100%';
+            if (doneFill) doneFill.style.width = '100%';
+            if (doneText) doneText.innerHTML = `100% 완료 (${totalFrames}/${totalFrames} 프레임)`;
+
             // 버튼 상태 복원
             const downloadBtn = document.getElementById('download-video-btn');
             if (downloadBtn) {
@@ -3104,10 +3133,23 @@ class TimelineRenderer {
 
         // 녹화 시작 (오디오가 있으면 비디오와 동시에 재생 시작)
         if (hasAudio && audioResult && audioResult.startPlayback) {
+          // 다운로드 중에도 음소거 버튼으로 미리듣기만 제어 (비디오 오디오는 유지)
+          this._renderAudioResult = audioResult;
+          if (this._renderMuted && audioResult.setMuted) {
+            audioResult.setMuted(true);
+          }
+          const muteBtn = document.getElementById('render-mute-btn');
+          if (muteBtn) {
+            muteBtn.style.display = '';
+            muteBtn.title = this._renderMuted ? '소리 켜기' : '미리듣기 음소거 (비디오 오디오는 유지)';
+            muteBtn.innerHTML = this._renderMuted
+              ? '<i class="fas fa-volume-mute"></i> 음소거'
+              : '<i class="fas fa-volume-up"></i> 소리';
+          }
           audioResult.startPlayback();
         }
         mediaRecorder.start();
-        console.log("🎬 MediaRecorder 녹화 시작" + (hasAudio ? " (오디오 포함)" : ""));
+        console.log("🎬 MediaRecorder 녹화 시작" + (hasAudio ? " (오디오 포함, 미리듣기 음소거=" + !!this._renderMuted + ")" : ""));
 
         // 프레임들을 순차적으로 캔버스에 그리기
         let currentFrame = 0;
@@ -3184,11 +3226,16 @@ class TimelineRenderer {
   // 🎬 비디오 다운로드 프로그레스바 업데이트
   updateVideoProgress(currentFrame, totalFrames) {
     try {
+      const videoProgressBar = document.getElementById('video-progress-bar');
       const videoProgressFill = document.getElementById('video-progress-fill');
       const videoProgressText = document.getElementById('video-progress-text');
 
-      if (videoProgressFill && videoProgressText) {
-        const progress = ((currentFrame + 1) / totalFrames) * 100;
+      if (videoProgressBar) {
+        videoProgressBar.style.width = '100%';
+      }
+
+      if (videoProgressFill && videoProgressText && totalFrames > 0) {
+        const progress = Math.min(100, ((currentFrame + 1) / totalFrames) * 100);
         videoProgressFill.style.width = `${progress}%`;
         videoProgressText.innerHTML = `${Math.round(progress)}% 완료 (${currentFrame + 1}/${totalFrames} 프레임)`;
       }
@@ -3242,13 +3289,37 @@ class TimelineRenderer {
   updateResolution(canvas, resolution) {
     try {
       const [width, height] = resolution.split('x').map(Number);
-      canvas.width = width;
-      canvas.height = height;
-      this.renderRenderer.setSize(width, height);
+      this.applyRenderSize(canvas, width, height);
+      this.renderFirstFrame();
       console.log(`🎬 캔버스 크기 업데이트: ${width}x${height}`);
     } catch (error) {
       console.error("❌ 해상도 업데이트 실패:", error);
     }
+  }
+
+  /**
+   * 렌더 버퍼·카메라 aspect·캔버스 표시 비율을 해상도에 맞게 동기화.
+   * updateStyle=false 로 CSS는 별도 제어해 레이아웃에 의한 짜부를 방지한다.
+   */
+  applyRenderSize(canvas, width, height) {
+    if (!canvas || !width || !height) return;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    if (this.renderRenderer) {
+      this.renderRenderer.setSize(width, height, false);
+    }
+
+    if (this.renderCamera) {
+      this.renderCamera.aspect = width / height;
+      this.renderCamera.updateProjectionMatrix();
+    }
+
+    canvas.style.width = '100%';
+    canvas.style.maxWidth = `${width}px`;
+    canvas.style.height = 'auto';
+    canvas.style.aspectRatio = `${width} / ${height}`;
   }
 
   // 🎬 FPS 업데이트
