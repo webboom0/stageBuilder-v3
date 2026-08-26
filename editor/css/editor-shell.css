@@ -1306,6 +1306,14 @@ body.sb-picking canvas {
   margin-bottom: 2px;
 }
 
+.ec-row.is-axis-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.ec-row.is-axis-disabled input {
+  cursor: not-allowed;
+}
+
 .sb-assets-upload {
   display: inline-flex;
   align-items: center;

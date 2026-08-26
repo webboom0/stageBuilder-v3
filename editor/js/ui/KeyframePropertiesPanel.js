@@ -46,7 +46,7 @@ export function createKeyframePropertiesPanel(opts) {
         </div>
 
         <div class="ec-row-group" data-role="pos-group">
-          <div class="ec-row-group-label">위치</div>
+          <div class="ec-row-group-label">위치 <span class="sb-props-hint">Y 고정</span></div>
         </div>
         <button type="button" class="sb-stage-pick-btn" data-role="stage-pick">
           <span class="sb-stage-pick-ico" aria-hidden="true">◎</span>
@@ -146,7 +146,13 @@ export function createKeyframePropertiesPanel(opts) {
   let boundAnimMotionId = null;
 
   const xyz = {
-    pos: mountXyzSliders(posGroup, 'pos', { min: -500, max: 500, step: 0.01, precision: 3 }),
+    pos: mountXyzSliders(posGroup, 'pos', {
+      min: -500,
+      max: 500,
+      step: 0.01,
+      precision: 3,
+      disabledAxes: [1], // Y locked — stage floor only
+    }),
   };
 
   function currentMotion() {
@@ -165,7 +171,8 @@ export function createKeyframePropertiesPanel(opts) {
       return;
     }
     const pos = xyz.pos.read();
-    m.object.position.set(pos[0], pos[1], pos[2]);
+    // Keep current Y (axis disabled in UI)
+    m.object.position.set(pos[0], m.object.position.y, pos[2]);
     pushObjectToSelectedKey(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
@@ -241,6 +248,10 @@ export function createKeyframePropertiesPanel(opts) {
     const locked = !!engine.getTrack(m.trackId)?.locked;
     formEl.classList.toggle('is-locked', locked);
     formEl.querySelectorAll('input, select, button').forEach((node) => {
+      if (node.closest?.('.is-axis-disabled')) {
+        /** @type {HTMLInputElement|HTMLSelectElement|HTMLButtonElement} */ (node).disabled = true;
+        return;
+      }
       if (node.closest?.('[data-role="anim-host"]')) {
         /** @type {HTMLInputElement|HTMLSelectElement|HTMLButtonElement} */ (node).disabled = locked;
         return;
@@ -367,22 +378,27 @@ export function createKeyframePropertiesPanel(opts) {
 
 function mountXyzSliders(groupEl, prefix, bounds) {
   const axes = ['X', 'Y', 'Z'];
-  /** @type {Array<{ range: HTMLInputElement, num: HTMLInputElement }>} */
+  const disabled = new Set(bounds.disabledAxes || []);
+  /** @type {Array<{ range: HTMLInputElement, num: HTMLInputElement, disabled: boolean }>} */
   const rows = [];
   axes.forEach((axis, i) => {
     const row = document.createElement('div');
     row.className = 'ec-row';
+    const isOff = disabled.has(i);
+    if (isOff) row.classList.add('is-axis-disabled');
     const unit = bounds.unit ? ` <span class="sb-kf-unit">${bounds.unit}</span>` : '';
     row.innerHTML = `
       <label>${axis}</label>
       <input type="range" class="acc" data-${prefix}-range="${i}"
-        min="${bounds.min}" max="${bounds.max}" step="${bounds.step}" value="0" />
+        min="${bounds.min}" max="${bounds.max}" step="${bounds.step}" value="0"
+        ${isOff ? 'disabled' : ''} />
       <input type="number" class="Number ec-val" data-${prefix}="${i}"
-        step="${bounds.step}" value="0" />${unit}`;
+        step="${bounds.step}" value="0" ${isOff ? 'disabled' : ''} />${unit}`;
     groupEl.appendChild(row);
     rows.push({
       range: /** @type {HTMLInputElement} */ (row.querySelector(`[data-${prefix}-range="${i}"]`)),
       num: /** @type {HTMLInputElement} */ (row.querySelector(`[data-${prefix}="${i}"]`)),
+      disabled: isOff,
     });
   });
 
@@ -408,6 +424,7 @@ function mountXyzSliders(groupEl, prefix, bounds) {
     },
     onChange(fn) {
       rows.forEach((r) => {
+        if (r.disabled) return;
         r.range.addEventListener('input', () => {
           r.num.value = r.range.value;
           fn();

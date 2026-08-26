@@ -87,10 +87,10 @@ export function createViewportInteraction(opts) {
     if (!selectedMotionId) return;
     const m = motion.get(selectedMotionId);
     if (!m) return;
-    // Keep feet-ish Y above deck during translate
+    // Motion translate is XZ only — lock Y to pre-drag (or current) height
     if (mode === 'translate') {
-      const deckY = getStageDeckWorldY(stageManager);
-      if (m.object.position.y < deckY - 5) m.object.position.y = deckY;
+      const lockY = dragSnap?.before?.position?.y;
+      if (Number.isFinite(lockY)) m.object.position.y = lockY;
     }
     syncLiveKeyPreview(m);
   });
@@ -98,6 +98,8 @@ export function createViewportInteraction(opts) {
   function setMode(next) {
     mode = next;
     transform.setMode(next);
+    // Hide Y arrow in translate; keep Y for rotate/scale
+    transform.showY = next !== 'translate';
   }
 
   function setLocal(on) {
