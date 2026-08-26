@@ -1,0 +1,31 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Env
+.env
+.env.*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea
+.cursor/
+
+# Logs
+*.log
+
+# Uploaded / local media (keep folder markers)
+server/files/fbx/**
+server/files/music/**
+server/files/video/**
+server/files/projects/**
+!server/files/**/.gitkeep
+
+# Stage assets linked from v3 (large; local junction)
+server/files/stage/
+
+# GitHub 100MB limit / local-only large assets (if present under root files/)
+files/fbx/2.fbx
+files/fbx/1.fbx
+files/fbx/Orc Idle.fbx

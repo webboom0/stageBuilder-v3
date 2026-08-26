@@ -1,0 +1,1099 @@
+import { DURATION_MODE } from '../../domain/timeline/types.js';
+
+/**
+ * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
+ * @param {HTMLElement} host
+ * @param {{
+ *   engine: import('../../domain/timeline/TimelineEngine.js').TimelineEngine,
+ *   getMotionKeyValue?: (trackId: string) => any,
+ *   onTrackSelect?: (trackId: string, opt?: { selectKey?: boolean }) => void,
+ *   onTrackRemove?: (trackId: string) => boolean | void,
+ * }} ctx
+ */
+export function mountTimelineShell(host, ctx) {
+  const { engine, getMotionKeyValue, onTrackSelect, onTrackRemove } = ctx;
+
+  host.classList.add('sb-tl');
+  host.tabIndex = 0;
+  host.setAttribute('aria-label', '타임라인');
+  host.innerHTML = `
+    <div class="sb-tl-toolbar">
+      <button type="button" class="sb-tl-btn" data-act="to-start" title="처음으로">⏮</button>
+      <button type="button" class="sb-tl-btn" data-act="play" title="재생/일시정지">▶</button>
+      <button type="button" class="sb-tl-btn" data-act="to-end" title="끝으로">⏭</button>
+      <span class="sb-tl-time" data-role="time">0.00 / ${engine.durationSec.toFixed(0)}s</span>
+      <label class="sb-tl-field">Length
+        <input type="number" data-role="duration" min="1" step="1" value="${engine.durationSec}" />
+      </label>
+      <label class="sb-tl-field">Duration mode
+        <select data-role="duration-mode">
+          <option value="${DURATION_MODE.SCALE_ALL}">Scale keys</option>
+          <option value="${DURATION_MODE.CLAMP_END}">Keep absolute / clamp</option>
+        </select>
+      </label>
+      <button type="button" class="sb-tl-btn" data-act="zoom-out" title="줌 아웃">−</button>
+      <button type="button" class="sb-tl-btn" data-act="zoom-in" title="줌 인">+</button>
+      <button type="button" class="sb-tl-btn" data-act="add-key" title="플레이헤드에 키 추가 (K)">+ Key</button>
+      <button type="button" class="sb-tl-btn" data-act="del-key" title="선택 키 삭제 (D / Del)">Del</button>
+      <button type="button" class="sb-tl-btn" data-act="add-track" title="Demo 트랙 추가 (Alt+T)">+ Track</button>
+      <button type="button" class="sb-tl-btn" data-act="undo" title="실행 취소">Undo</button>
+      <button type="button" class="sb-tl-btn" data-act="redo" title="다시 실행">Redo</button>
+      <span class="sb-tl-jumps" data-role="jumps" role="toolbar" aria-label="타임라인 섹션">
+        <button type="button" class="sb-tl-jump is-on" data-section="all">All</button>
+        <button type="button" class="sb-tl-jump" data-section="motion">Motion</button>
+        <button type="button" class="sb-tl-jump" data-section="light">Light</button>
+        <button type="button" class="sb-tl-jump" data-section="audio">Audio</button>
+      </span>
+      <button type="button" class="sb-tl-btn sb-tl-btn-help" data-act="shortcuts" title="단축키 안내">?</button>
+    </div>
+    <div class="sb-tl-body">
+      <div class="sb-tl-labels" data-role="labels"></div>
+      <div class="sb-tl-viewport" data-role="viewport">
+        <div class="sb-tl-canvas" data-role="canvas">
+          <div class="sb-tl-ruler" data-role="ruler"></div>
+          <div class="sb-tl-tracks" data-role="tracks"></div>
+          <div class="sb-tl-playhead" data-role="playhead">
+            <div class="sb-tl-playhead-head" data-role="playhead-head" title="드래그하여 스크럽"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const wrapper = host.closest('.timelineWrapper') || host.parentElement;
+  const detachHeight = attachTimelineHeightResize(wrapper);
+
+  /** @type {'all' | 'motion' | 'light' | 'audio'} */
+  let sectionFilter = 'all';
+
+  const SECTION_META = [
+    { id: 'motion', label: 'Motion' },
+    { id: 'light', label: 'Light', stub: 'Phase 4 — 조명 트랙' },
+    { id: 'audio', label: 'Audio', stub: 'Phase 5 — 오디오 트랙' },
+  ];
+
+  const el = {
+    time: host.querySelector('[data-role="time"]'),
+    duration: host.querySelector('[data-role="duration"]'),
+    durationMode: host.querySelector('[data-role="duration-mode"]'),
+    labels: host.querySelector('[data-role="labels"]'),
+    viewport: host.querySelector('[data-role="viewport"]'),
+    canvas: host.querySelector('[data-role="canvas"]'),
+    ruler: host.querySelector('[data-role="ruler"]'),
+    tracks: host.querySelector('[data-role="tracks"]'),
+    playhead: host.querySelector('[data-role="playhead"]'),
+    playBtn: host.querySelector('[data-act="play"]'),
+    jumps: host.querySelector('[data-role="jumps"]'),
+  };
+
+  function timelineWidthPx() {
+    return Math.max(engine.durationSec * engine.pxPerSec, el.viewport.clientWidth || 400);
+  }
+
+  function secToX(sec) {
+    return sec * engine.pxPerSec;
+  }
+
+  function xToSec(x) {
+    return clamp(x / engine.pxPerSec, 0, engine.durationSec);
+  }
+
+  function render() {
+    const w = timelineWidthPx();
+    el.canvas.style.width = `${w}px`;
+    el.time.textContent = `${engine.playheadSec.toFixed(2)} / ${engine.durationSec.toFixed(0)}s`;
+    el.duration.value = String(Math.round(engine.durationSec));
+    el.durationMode.value = engine.durationMode;
+    el.playBtn.textContent = engine.playing ? '⏸' : '▶';
+    el.playhead.style.left = `${secToX(engine.playheadSec)}px`;
+
+    // ruler ticks
+    const step = niceStep(engine.pxPerSec);
+    let ticks = '';
+    for (let t = 0; t <= engine.durationSec + 1e-6; t += step) {
+      ticks += `<span class="sb-tl-tick" style="left:${secToX(t)}px"><i>${formatTick(t)}</i></span>`;
+    }
+    el.ruler.innerHTML = ticks;
+
+    // labels + tracks by section (Motion / Light / Audio) — folders collapse
+    const trackList = engine.listTracks();
+    let labelsHtml = '';
+    let tracksHtml = '';
+
+    for (const sec of SECTION_META) {
+      if (sectionFilter !== 'all' && sectionFilter !== sec.id) continue;
+      const rows = trackList.filter((tr) => (tr.section || 'motion') === sec.id);
+      labelsHtml += `<div class="sb-tl-sec-label" data-section="${sec.id}">${escapeHtml(sec.label)}</div>`;
+      tracksHtml += `<div class="sb-tl-sec-lane" data-section="${sec.id}"></div>`;
+
+      if (!rows.length && sec.stub) {
+        labelsHtml += `<div class="sb-tl-label sb-tl-label-stub" data-section="${sec.id}">—</div>`;
+        tracksHtml += `<div class="sb-tl-track sb-tl-track-stub" data-section="${sec.id}"><span class="sb-tl-stub">${escapeHtml(sec.stub)}</span></div>`;
+        continue;
+      }
+
+      const { folders, loose } = partitionByFolder(rows, engine);
+      for (const folder of folders) {
+        const collapsed = !!folder.meta.collapsed;
+        labelsHtml += `<div class="sb-tl-folder-label ${collapsed ? 'is-collapsed' : ''}" data-folder="${folder.id}">
+          <button type="button" class="sb-tl-folder-toggle" data-folder="${folder.id}" title="접기/펼치기">${collapsed ? '▸' : '▾'}</button>
+          ${escapeHtml(folder.meta.name)}
+        </div>`;
+        tracksHtml += `<div class="sb-tl-folder-lane" data-folder="${folder.id}"></div>`;
+        if (collapsed) continue;
+        for (const tr of folder.tracks) {
+          labelsHtml += trackLabelHtml(tr, engine, true);
+          tracksHtml += trackRowHtml(tr, engine, secToX);
+        }
+      }
+      for (const tr of loose) {
+        labelsHtml += trackLabelHtml(tr, engine, false);
+        tracksHtml += trackRowHtml(tr, engine, secToX);
+      }
+    }
+
+    el.labels.innerHTML = labelsHtml;
+    el.tracks.innerHTML = tracksHtml;
+  }
+
+  // toolbar actions
+  host.querySelector('[data-act="to-start"]').addEventListener('click', () => {
+    engine.pause();
+    engine.setPlayhead(0);
+  });
+  host.querySelector('[data-act="to-end"]').addEventListener('click', () => {
+    engine.pause();
+    engine.setPlayhead(engine.durationSec);
+  });
+  el.playBtn.addEventListener('click', () => engine.togglePlay());
+  host.querySelector('[data-act="zoom-in"]').addEventListener('click', () => {
+    engine.setZoom(engine.pxPerSec * 1.25);
+  });
+  host.querySelector('[data-act="zoom-out"]').addEventListener('click', () => {
+    engine.setZoom(engine.pxPerSec / 1.25);
+  });
+  host.querySelector('[data-act="undo"]').addEventListener('click', () => engine.undo());
+  host.querySelector('[data-act="redo"]').addEventListener('click', () => engine.redo());
+  host.querySelector('[data-act="shortcuts"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleShortcutsPopup();
+  });
+
+  el.jumps?.addEventListener('click', (e) => {
+    const btn = e.target.closest?.('.sb-tl-jump');
+    if (!btn) return;
+    sectionFilter = /** @type {typeof sectionFilter} */ (btn.dataset.section || 'all');
+    el.jumps.querySelectorAll('.sb-tl-jump').forEach((b) => {
+      b.classList.toggle('is-on', b === btn);
+    });
+    host.classList.toggle('tl-filtered', sectionFilter !== 'all');
+    render();
+  });
+
+  host.querySelector('[data-act="add-key"]').addEventListener('click', () => {
+    addKeyAtPlayhead();
+  });
+
+  host.querySelector('[data-act="del-key"]').addEventListener('click', () => {
+    deleteSelectedKey();
+  });
+
+  host.querySelector('[data-act="add-track"]').addEventListener('click', () => {
+    addDemoTrack();
+  });
+
+  el.duration.addEventListener('change', () => {
+    const v = Number(el.duration.value);
+    if (!Number.isFinite(v) || v <= 0) return;
+    engine.setDuration(v, engine.durationMode);
+  });
+
+  el.durationMode.addEventListener('change', () => {
+    engine.setDurationMode(el.durationMode.value);
+  });
+
+  let dragMoved = false;
+  /** @type {null | { kind: 'key', trackId: string, keyId: string, startTime: number, lastTime: number, pointerId: number } | { kind: 'scrub', pointerId: number }} */
+  let drag = null;
+  /** @type {HTMLElement | null} */
+  let ctxMenu = null;
+  /** @type {HTMLElement | null} */
+  let shortcutsPopup = null;
+
+  function closeCtx() {
+    if (!ctxMenu) return;
+    ctxMenu.remove();
+    ctxMenu = null;
+  }
+
+  function closeShortcutsPopup() {
+    if (!shortcutsPopup) return;
+    shortcutsPopup.remove();
+    shortcutsPopup = null;
+  }
+
+  function toggleShortcutsPopup() {
+    if (shortcutsPopup) {
+      closeShortcutsPopup();
+      return;
+    }
+    closeCtx();
+    const pop = document.createElement('div');
+    pop.className = 'sb-tl-help';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', '타임라인 단축키');
+    pop.innerHTML = `
+      <div class="sb-tl-help-head">
+        <strong>타임라인 단축키</strong>
+        <button type="button" class="sb-tl-help-close" data-act="close-help" aria-label="닫기">×</button>
+      </div>
+      <table class="sb-tl-help-table">
+        <tr><td>K</td><td>선택 트랙 · 플레이헤드에 키 추가</td></tr>
+        <tr><td>D / Del</td><td>선택 키 삭제</td></tr>
+        <tr><td>← / →</td><td>선택 키 1프레임 이동</td></tr>
+        <tr><td>[ / ]</td><td>선택 키 1프레임 이동 (대체)</td></tr>
+        <tr><td>Shift+← / →</td><td>선택 키 1초 이동</td></tr>
+        <tr><td>Alt+← / →</td><td>선택 키 0.1초 이동</td></tr>
+        <tr><td>M</td><td>선택 키 → 초 입력 이동</td></tr>
+        <tr><td>Shift+M</td><td>플레이헤드 → 초 입력 이동</td></tr>
+        <tr><td>Space</td><td>재생 / 일시정지</td></tr>
+        <tr><td>Ctrl+Z / Y</td><td>Undo / Redo</td></tr>
+        <tr><td>Alt+T</td><td>Demo 트랙 추가</td></tr>
+      </table>
+      <p class="sb-tl-help-note">플레이헤드 스크럽: 룰러 위 빨간 머리·빈 트랙을 드래그. 키와 겹쳐도 키를 먼저 선택할 수 있습니다. (모션/조명 실트랙은 Phase 3~)</p>
+    `;
+    const btn = host.querySelector('[data-act="shortcuts"]');
+    const br = btn?.getBoundingClientRect?.();
+    document.body.appendChild(pop);
+    if (br) {
+      const pr = pop.getBoundingClientRect();
+      let left = br.right - pr.width;
+      let top = br.bottom + 6;
+      if (left < 8) left = 8;
+      if (top + pr.height > window.innerHeight - 8) top = br.top - pr.height - 6;
+      pop.style.left = `${left}px`;
+      pop.style.top = `${top}px`;
+    }
+    pop.querySelector('[data-act="close-help"]')?.addEventListener('click', closeShortcutsPopup);
+    shortcutsPopup = pop;
+  }
+
+  function onDocPointerDown(e) {
+    if (ctxMenu && ctxMenu.contains(/** @type {Node} */ (e.target))) return;
+    if (shortcutsPopup && shortcutsPopup.contains(/** @type {Node} */ (e.target))) return;
+    if (timeMoveDialog && timeMoveDialog.contains(/** @type {Node} */ (e.target))) return;
+    if (e.target.closest?.('[data-act="shortcuts"]')) return;
+    closeCtx();
+    closeShortcutsPopup();
+  }
+
+  /**
+   * @param {number} clientX
+   * @param {number} clientY
+   * @param {{ label: string, shortcut?: string, disabled?: boolean, action?: () => void, sep?: boolean }[]} items
+   */
+  function openCtx(clientX, clientY, items) {
+    closeCtx();
+    const menu = document.createElement('ul');
+    menu.className = 'sb-tl-ctx';
+    menu.setAttribute('role', 'menu');
+    for (const item of items) {
+      if (item.sep) {
+        const sep = document.createElement('li');
+        sep.className = 'sb-tl-ctx-sep';
+        sep.setAttribute('role', 'separator');
+        menu.appendChild(sep);
+        continue;
+      }
+      const li = document.createElement('li');
+      li.setAttribute('role', 'none');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('role', 'menuitem');
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      btn.appendChild(label);
+      if (item.shortcut) {
+        const sc = document.createElement('span');
+        sc.className = 'sb-tl-ctx-sc';
+        sc.textContent = item.shortcut;
+        btn.appendChild(sc);
+      }
+      if (item.disabled) btn.disabled = true;
+      btn.addEventListener('click', () => {
+        closeCtx();
+        item.action?.();
+      });
+      li.appendChild(btn);
+      menu.appendChild(li);
+    }
+    document.body.appendChild(menu);
+    const pad = 6;
+    const rect = menu.getBoundingClientRect();
+    let left = clientX;
+    let top = clientY;
+    if (left + rect.width > window.innerWidth - pad) left = window.innerWidth - rect.width - pad;
+    if (top + rect.height > window.innerHeight - pad) top = window.innerHeight - rect.height - pad;
+    menu.style.left = `${Math.max(pad, left)}px`;
+    menu.style.top = `${Math.max(pad, top)}px`;
+    ctxMenu = menu;
+  }
+
+  function secFromClientX(clientX) {
+    const rect = el.canvas.getBoundingClientRect();
+    return xToSec(clientX - rect.left + el.viewport.scrollLeft);
+  }
+
+  function resolveTrackId(preferred) {
+    return preferred
+      ?? engine.selectedTrackId
+      ?? engine.listTracks().find((t) => t.kind === 'motion')?.id
+      ?? engine.listTracks().find((t) => t.kind !== 'clip')?.id
+      ?? null;
+  }
+
+  function defaultKeyValue(track) {
+    if (track.kind === 'motion') {
+      return getMotionKeyValue?.(track.id) ?? {
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        opacity: 1,
+        visible: true,
+      };
+    }
+    if (track.kind === 'bool') return true;
+    if (track.kind === 'scalar') return 1;
+    if (track.kind === 'vec3') {
+      if (track.name.includes('scale')) return [1, 1, 1];
+      return [0, 0, 0];
+    }
+    return 1;
+  }
+
+  /** Selected (or preferred) track @ playhead */
+  function addKeyAtPlayhead(preferredTrackId) {
+    const trackId = resolveTrackId(preferredTrackId);
+    if (!trackId) return null;
+    const track = engine.getTrack(trackId);
+    if (!track || track.kind === 'clip') return null;
+    if (track.locked) return null;
+    const existing = track.keys.findAtTime(engine.playheadSec);
+    if (existing) {
+      selectTimelineKey(trackId, existing.id);
+      return existing;
+    }
+    return engine.addKeyframe(trackId, engine.playheadSec, defaultKeyValue(track));
+  }
+
+  function addKeyAtTime(trackId, timeSec) {
+    const resolved = resolveTrackId(trackId);
+    if (!resolved) return null;
+    const track = engine.getTrack(resolved);
+    if (!track || track.kind === 'clip') return null;
+    if (track.locked) return null;
+    const existing = track.keys.findAtTime(timeSec);
+    if (existing) {
+      selectTimelineKey(resolved, existing.id);
+      return existing;
+    }
+    return engine.addKeyframe(resolved, timeSec, defaultKeyValue(track));
+  }
+
+  function nudgeSelectedKey(deltaSec) {
+    if (!engine.selectedTrackId || !engine.selectedKeyframeId) return false;
+    const track = engine.getTrack(engine.selectedTrackId);
+    if (track?.locked) return false;
+    const kf = track?.keys.get(engine.selectedKeyframeId);
+    if (!kf) return false;
+    engine.moveKeyframe(engine.selectedTrackId, engine.selectedKeyframeId, kf.timeSec + deltaSec);
+    const moved = track.keys.get(engine.selectedKeyframeId);
+    if (moved) scrollTimeIntoView(moved.timeSec);
+    return true;
+  }
+
+  function scrollTimeIntoView(timeSec) {
+    const x = secToX(timeSec);
+    const vp = el.viewport;
+    const margin = 48;
+    if (x < vp.scrollLeft + margin) {
+      vp.scrollLeft = Math.max(0, x - margin);
+    } else if (x > vp.scrollLeft + vp.clientWidth - margin) {
+      vp.scrollLeft = x - vp.clientWidth + margin;
+    }
+  }
+
+  function focusTimeline() {
+    if (typeof host.focus === 'function') host.focus({ preventScroll: true });
+  }
+
+  /**
+   * Select key on timeline + stage object; scrub playhead to key so opacity/visible match.
+   * @param {string} trackId
+   * @param {string} keyId
+   * @param {{ scrub?: boolean }} [opt]
+   */
+  function selectTimelineKey(trackId, keyId, opt = {}) {
+    if (!trackId || !keyId) return;
+    engine.selectKeyframe(trackId, keyId);
+    if (opt.scrub !== false) {
+      const kf = engine.getTrack(trackId)?.keys.get(keyId);
+      if (kf) {
+        engine.pause();
+        engine.setPlayhead(kf.timeSec);
+        scrollTimeIntoView(kf.timeSec);
+      }
+    }
+    onTrackSelect?.(trackId, { selectKey: false });
+    focusTimeline();
+  }
+
+  /** @type {HTMLElement | null} */
+  let timeMoveDialog = null;
+
+  function closeTimeMoveDialog() {
+    if (!timeMoveDialog) return;
+    timeMoveDialog.remove();
+    timeMoveDialog = null;
+  }
+
+  /**
+   * @param {'key' | 'playhead'} mode
+   * M — 선택 키프레임 이동 / Shift+M — 플레이헤드 이동
+   */
+  function openTimeMoveDialog(mode) {
+    closeTimeMoveDialog();
+    closeCtx();
+    closeShortcutsPopup();
+
+    const isKey = mode === 'key';
+    const hasKey = !!(engine.selectedTrackId && engine.selectedKeyframeId);
+    const track = hasKey ? engine.getTrack(engine.selectedTrackId) : null;
+    const kf = hasKey && track ? track.keys.get(engine.selectedKeyframeId) : null;
+    const canMoveKey = isKey && hasKey && !!kf && !track?.locked;
+
+    if (isKey && !canMoveKey) {
+      // 키 미선택·잠금이면 안내만 (폼 생략)
+      return;
+    }
+
+    const defaultSec = isKey && kf ? kf.timeSec : engine.playheadSec;
+    const maxSec = engine.durationSec;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'sb-tl-time-dlg-overlay';
+    overlay.innerHTML = `
+      <div class="sb-tl-time-dlg" role="dialog" aria-modal="true"
+        aria-label="${isKey ? '키프레임 시간 이동' : '플레이헤드 이동'}">
+        <div class="sb-tl-time-dlg-head">
+          <strong>${isKey ? '키프레임 시간 이동' : '플레이헤드 이동'}</strong>
+          <button type="button" class="sb-tl-help-close" data-act="close-time" aria-label="닫기">×</button>
+        </div>
+        <p class="sb-tl-time-dlg-hint">
+          ${isKey
+            ? '선택한 키프레임을 입력한 초로 이동합니다.'
+            : '플레이헤드를 입력한 초로 이동합니다.'}
+        </p>
+        <label class="sb-tl-time-dlg-field">
+          <span>시간 (초)</span>
+          <input type="number" data-role="time-sec" min="0" max="${maxSec}" step="0.01"
+            value="${Number(defaultSec.toFixed(2))}" />
+        </label>
+        <p class="sb-tl-time-dlg-range">0 ~ ${maxSec.toFixed(0)}초</p>
+        <div class="sb-tl-time-dlg-actions">
+          <button type="button" class="sb-tl-btn" data-act="cancel-time">취소</button>
+          <button type="button" class="sb-tl-btn sb-tl-btn-primary" data-act="apply-time">이동</button>
+        </div>
+      </div>
+    `;
+
+    const apply = () => {
+      const input = /** @type {HTMLInputElement | null} */ (
+        overlay.querySelector('[data-role="time-sec"]')
+      );
+      const raw = Number(input?.value);
+      if (!Number.isFinite(raw)) return;
+      const t = clamp(raw, 0, maxSec);
+      engine.pause();
+      if (isKey) {
+        if (!engine.selectedTrackId || !engine.selectedKeyframeId) return;
+        engine.moveKeyframe(engine.selectedTrackId, engine.selectedKeyframeId, t);
+      }
+      engine.setPlayhead(t);
+      scrollTimeIntoView(t);
+      closeTimeMoveDialog();
+      focusTimeline();
+    };
+
+    overlay.querySelector('[data-act="close-time"]')?.addEventListener('click', closeTimeMoveDialog);
+    overlay.querySelector('[data-act="cancel-time"]')?.addEventListener('click', closeTimeMoveDialog);
+    overlay.querySelector('[data-act="apply-time"]')?.addEventListener('click', apply);
+    overlay.addEventListener('pointerdown', (e) => {
+      if (e.target === overlay) closeTimeMoveDialog();
+    });
+
+    const input = /** @type {HTMLInputElement} */ (overlay.querySelector('[data-role="time-sec"]'));
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        apply();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeTimeMoveDialog();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    timeMoveDialog = overlay;
+    requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  }
+
+  function toggleTrackHidden(trackId) {
+    const track = engine.getTrack(trackId);
+    if (!track) return;
+    track.hidden = !track.hidden;
+    engine.emit('tracks');
+    engine.emit('change');
+  }
+
+  function toggleTrackLocked(trackId) {
+    const track = engine.getTrack(trackId);
+    if (!track) return;
+    track.locked = !track.locked;
+    engine.emit('tracks');
+    engine.emit('change');
+  }
+
+  function frameStep() {
+    return 1 / Math.max(1, engine.fps || 30);
+  }
+
+  // track label select + folder toggle + header controls + context
+  el.labels.addEventListener('click', (e) => {
+    focusTimeline();
+    closeCtx();
+    const toggle = e.target.closest?.('.sb-tl-folder-toggle');
+    if (toggle?.dataset.folder) {
+      const f = engine.folders.get(toggle.dataset.folder);
+      if (f) engine.setFolderCollapsed(f.id, !f.collapsed);
+      return;
+    }
+    const ctrl = e.target.closest?.('[data-tl-act]');
+    if (ctrl) {
+      e.stopPropagation();
+      const trackId = ctrl.closest?.('.sb-tl-label')?.dataset?.track;
+      if (!trackId) return;
+      const act = ctrl.dataset.tlAct;
+      if (act === 'vis') toggleTrackHidden(trackId);
+      else if (act === 'key') {
+        engine.selectedTrackId = trackId;
+        engine.selectedKeyframeId = null;
+        addKeyAtPlayhead(trackId);
+        engine.emit('selection');
+        onTrackSelect?.(trackId);
+      } else if (act === 'lock') toggleTrackLocked(trackId);
+      return;
+    }
+    const label = e.target.closest?.('.sb-tl-label');
+    if (!label) return;
+    engine.selectedTrackId = label.dataset.track;
+    engine.selectedKeyframeId = null;
+    engine.emit('selection');
+    if (label.dataset.track) onTrackSelect?.(label.dataset.track);
+  });
+
+  el.labels.addEventListener('contextmenu', (e) => {
+    const label = e.target.closest?.('.sb-tl-label');
+    if (!label) return;
+    e.preventDefault();
+    const trackId = label.dataset.track;
+    engine.selectedTrackId = trackId;
+    engine.selectedKeyframeId = null;
+    engine.emit('selection');
+    openCtx(e.clientX, e.clientY, [
+      { label: '키 추가 (플레이헤드)', shortcut: 'K', action: () => addKeyAtPlayhead(trackId) },
+      { sep: true },
+      {
+        label: '트랙 추가 (Demo)',
+        shortcut: 'Alt+T',
+        action: () => {
+          addDemoTrack();
+        },
+      },
+      {
+        label: '트랙 삭제',
+        action: () => {
+          // Scene mesh disposed → do not push undoable track restore (would orphan keys without object)
+          const removedScene = onTrackRemove?.(trackId) === true;
+          engine.removeTrack(trackId, { history: !removedScene });
+        },
+      },
+    ]);
+  });
+
+  // key / empty track / ruler context
+  el.viewport.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const keyBtn = e.target.closest?.('.sb-tl-key');
+    const trackRow = e.target.closest?.('.sb-tl-track');
+    const clickSec = secFromClientX(e.clientX);
+
+    if (keyBtn) {
+      const trackId = keyBtn.dataset.track;
+      const keyId = keyBtn.dataset.key;
+      selectTimelineKey(trackId, keyId);
+      const kf = engine.getTrack(trackId)?.keys.get(keyId);
+      openCtx(e.clientX, e.clientY, [
+        { label: '키 추가 (플레이헤드)', shortcut: 'K', action: () => addKeyAtPlayhead(trackId) },
+        {
+          label: '여기에 키 추가',
+          action: () => addKeyAtTime(trackId, clickSec),
+        },
+        { sep: true },
+        {
+          label: `플레이헤드 → ${kf ? kf.timeSec.toFixed(2) : '?'}s`,
+          action: () => {
+            if (kf) {
+              engine.pause();
+              engine.setPlayhead(kf.timeSec);
+            }
+          },
+        },
+        { sep: true },
+        {
+          label: '키 삭제',
+          shortcut: 'D',
+          action: () => engine.removeKeyframe(trackId, keyId),
+        },
+      ]);
+      return;
+    }
+
+    const trackId = resolveTrackId(trackRow?.dataset.track);
+    if (trackId) {
+      engine.selectedTrackId = trackId;
+      engine.selectedKeyframeId = null;
+      engine.emit('selection');
+    }
+    openCtx(e.clientX, e.clientY, [
+      {
+        label: '키 추가 (플레이헤드)',
+        shortcut: 'K',
+        disabled: !trackId,
+        action: () => addKeyAtPlayhead(trackId),
+      },
+      {
+        label: '여기에 키 추가',
+        disabled: !trackId,
+        action: () => addKeyAtTime(trackId, clickSec),
+      },
+      { sep: true },
+      {
+        label: '플레이헤드를 여기로',
+        action: () => {
+          engine.pause();
+          engine.setPlayhead(clickSec);
+        },
+      },
+    ]);
+  });
+
+  el.viewport.addEventListener('click', (e) => {
+    if (dragMoved) {
+      dragMoved = false;
+      return;
+    }
+    closeCtx();
+    const keyBtn = e.target.closest?.('.sb-tl-key');
+    if (keyBtn) {
+      selectTimelineKey(keyBtn.dataset.track, keyBtn.dataset.key);
+      return;
+    }
+    engine.pause();
+    engine.setPlayhead(secFromClientX(e.clientX));
+  });
+
+  // pointer: key drag or playhead scrub (no clip resize — unify with lights)
+  el.viewport.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    focusTimeline();
+    closeCtx();
+    const keyBtn = e.target.closest?.('.sb-tl-key');
+    if (keyBtn) {
+      e.preventDefault();
+      const track = engine.getTrack(keyBtn.dataset.track);
+      const kf = track?.keys.get(keyBtn.dataset.key);
+      if (!track || !kf) return;
+      if (track.locked) {
+        selectTimelineKey(track.id, kf.id);
+        return;
+      }
+      dragMoved = false;
+      selectTimelineKey(track.id, kf.id, { scrub: true });
+      drag = {
+        kind: 'key',
+        trackId: track.id,
+        keyId: kf.id,
+        startTime: kf.timeSec,
+        lastTime: kf.timeSec,
+        pointerId: e.pointerId,
+      };
+      el.viewport.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // scrub on ruler, playhead, or empty track area
+    e.preventDefault();
+    engine.pause();
+    dragMoved = false;
+    drag = { kind: 'scrub', pointerId: e.pointerId };
+    engine.setPlayhead(secFromClientX(e.clientX));
+    el.viewport.setPointerCapture(e.pointerId);
+  });
+
+  el.viewport.addEventListener('pointermove', (e) => {
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.kind === 'scrub') {
+      dragMoved = true;
+      engine.setPlayhead(secFromClientX(e.clientX));
+      return;
+    }
+    const track = engine.getTrack(drag.trackId);
+    if (!track) return;
+    const t = secFromClientX(e.clientX);
+    if (Math.abs(t - drag.startTime) > 1e-4) dragMoved = true;
+    // Skip if another key already occupies this time (no stacking)
+    if (track.keys.findAtTime(t, { excludeId: drag.keyId })) return;
+    const updated = track.keys.update(drag.keyId, { timeSec: t });
+    if (!updated) return;
+    drag.lastTime = t;
+    engine.emit('keys');
+  });
+
+  el.viewport.addEventListener('pointerup', (e) => {
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.kind === 'scrub') {
+      drag = null;
+      return;
+    }
+    const { trackId, keyId, startTime, lastTime } = drag;
+    drag = null;
+    if (Math.abs(startTime - lastTime) < 1e-6) return;
+    const track = engine.getTrack(trackId);
+    if (!track) return;
+    track.keys.update(keyId, { timeSec: startTime });
+    engine.moveKeyframe(trackId, keyId, lastTime);
+  });
+
+  el.viewport.addEventListener('pointercancel', () => {
+    drag = null;
+  });
+
+  function addDemoTrack() {
+    const n = engine.listTracks().length + 1;
+    const t = engine.addTrack({ name: `Demo · track ${n}`, kind: 'scalar', group: 'demo', section: 'motion' });
+    engine.selectedTrackId = t.id;
+    engine.selectedKeyframeId = null;
+    engine.emit('selection');
+    return t;
+  }
+
+  function deleteSelectedKey() {
+    if (!engine.selectedTrackId || !engine.selectedKeyframeId) return false;
+    if (engine.getTrack(engine.selectedTrackId)?.locked) return false;
+    engine.removeKeyframe(engine.selectedTrackId, engine.selectedKeyframeId);
+    return true;
+  }
+
+  // keyboard (capture — 뷰포트/브라우저보다 먼저 키프레임 이동 처리)
+  const onKey = (e) => {
+    if (timeMoveDialog) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeTimeMoveDialog();
+      }
+      return;
+    }
+
+    if (e.target.closest?.('input, select, textarea, [contenteditable="true"]')) return;
+
+    const keyLower = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+    if (keyLower === 'Escape') {
+      closeCtx();
+      closeShortcutsPopup();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && keyLower === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) engine.redo();
+      else engine.undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && keyLower === 'y') {
+      e.preventDefault();
+      engine.redo();
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && keyLower === 't') {
+      e.preventDefault();
+      addDemoTrack();
+      return;
+    }
+
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && keyLower === 'k') {
+      e.preventDefault();
+      addKeyAtPlayhead();
+      return;
+    }
+
+    // M — 선택 키 / Shift+M — 플레이헤드
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && keyLower === 'm') {
+      e.preventDefault();
+      openTimeMoveDialog(e.shiftKey ? 'playhead' : 'key');
+      return;
+    }
+
+    if (
+      e.key === 'Delete'
+      || e.key === 'Backspace'
+      || (!e.ctrlKey && !e.metaKey && !e.altKey && keyLower === 'd')
+    ) {
+      if (deleteSelectedKey()) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // 키프레임 시간 이동 — 선택된 키 필요
+    if (engine.selectedKeyframeId) {
+      let delta = 0;
+      if (e.key === 'ArrowLeft') delta = -1;
+      else if (e.key === 'ArrowRight') delta = 1;
+      else if (keyLower === '[') delta = -1;
+      else if (keyLower === ']') delta = 1;
+
+      if (delta !== 0) {
+        e.preventDefault();
+        let step = frameStep();
+        if (e.shiftKey) step = 1;
+        else if (e.altKey) step = 0.1;
+        nudgeSelectedKey(delta * step);
+        return;
+      }
+    }
+
+    if (e.key === ' ') {
+      if (host.contains(document.activeElement) || e.target === document.body || host.contains(e.target)) {
+        e.preventDefault();
+        engine.togglePlay();
+      }
+    }
+  };
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('pointerdown', onDocPointerDown, true);
+
+  const unsub = engine.subscribe(() => render());
+  render();
+
+  return {
+    destroy() {
+      unsub();
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onDocPointerDown, true);
+      closeCtx();
+      closeShortcutsPopup();
+      closeTimeMoveDialog();
+      detachHeight?.();
+    },
+    render,
+  };
+}
+
+const TL_HEIGHT_KEY = 'sb-timeline-height';
+const TL_HEIGHT_DEFAULT = 320;
+const TL_HEIGHT_MIN = 160;
+
+/**
+ * Drag the top edge of `.timelineWrapper` to resize (persisted).
+ * @param {HTMLElement | null} wrapper
+ */
+function attachTimelineHeightResize(wrapper) {
+  if (!wrapper || wrapper.dataset.heightResizeAttached === '1') return () => {};
+  wrapper.dataset.heightResizeAttached = '1';
+
+  const maxH = () => Math.round(window.innerHeight * 0.7);
+
+  let height = TL_HEIGHT_DEFAULT;
+  const saved = parseInt(localStorage.getItem(TL_HEIGHT_KEY), 10);
+  if (Number.isFinite(saved)) height = saved;
+  height = clamp(height, TL_HEIGHT_MIN, maxH());
+  wrapper.style.height = `${height}px`;
+
+  const handle = document.createElement('div');
+  handle.className = 'sb-tl-height-handle';
+  handle.setAttribute('role', 'separator');
+  handle.setAttribute('aria-orientation', 'horizontal');
+  handle.setAttribute('aria-label', '타임라인 높이 조절');
+  handle.title = '드래그하여 타임라인 높이 조절';
+  wrapper.prepend(handle);
+
+  const onPointerDown = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = wrapper.offsetHeight;
+    wrapper.classList.add('is-resizing');
+    document.body.classList.add('sb-tl-resize-active');
+    handle.setPointerCapture?.(e.pointerId);
+
+    const onMove = (ev) => {
+      // drag up → taller
+      const next = clamp(startH + (startY - ev.clientY), TL_HEIGHT_MIN, maxH());
+      wrapper.style.height = `${next}px`;
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    const onUp = (ev) => {
+      wrapper.classList.remove('is-resizing');
+      document.body.classList.remove('sb-tl-resize-active');
+      handle.releasePointerCapture?.(ev.pointerId);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+      localStorage.setItem(TL_HEIGHT_KEY, String(wrapper.offsetHeight));
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  };
+
+  handle.addEventListener('pointerdown', onPointerDown);
+
+  const onWinResize = () => {
+    const capped = clamp(wrapper.offsetHeight, TL_HEIGHT_MIN, maxH());
+    if (capped !== wrapper.offsetHeight) {
+      wrapper.style.height = `${capped}px`;
+    }
+  };
+  window.addEventListener('resize', onWinResize);
+
+  return () => {
+    handle.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('resize', onWinResize);
+    handle.remove();
+    delete wrapper.dataset.heightResizeAttached;
+  };
+}
+
+function niceStep(pxPerSec) {
+  const targetPx = 64;
+  const raw = targetPx / pxPerSec;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const n = raw / pow;
+  const step = n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10;
+  return step * pow;
+}
+
+/**
+ * @param {import('../../domain/timeline/Track.js').Track[]} rows
+ * @param {import('../../domain/timeline/TimelineEngine.js').TimelineEngine} engine
+ */
+function partitionByFolder(rows, engine) {
+  /** @type {Map<string, { id: string, meta: { id: string, name: string, collapsed: boolean }, tracks: typeof rows }>} */
+  const map = new Map();
+  /** @type {typeof rows} */
+  const loose = [];
+  for (const tr of rows) {
+    if (!tr.folderId) {
+      loose.push(tr);
+      continue;
+    }
+    let bucket = map.get(tr.folderId);
+    if (!bucket) {
+      const meta = engine.folders.get(tr.folderId) || {
+        id: tr.folderId,
+        name: tr.folderId,
+        collapsed: false,
+      };
+      bucket = { id: tr.folderId, meta, tracks: [] };
+      map.set(tr.folderId, bucket);
+    }
+    bucket.tracks.push(tr);
+  }
+  return { folders: [...map.values()], loose };
+}
+
+/** @param {import('../../domain/timeline/Track.js').Track} tr */
+function trackLabelHtml(tr, engine, nested) {
+  const nest = nested ? ' sb-tl-label-nested' : '';
+  const accent = tr.color || sectionAccent(tr.section);
+  const sel = engine.selectedTrackId === tr.id ? ' is-selected' : '';
+  const hid = tr.hidden ? ' is-hidden' : '';
+  const loc = tr.locked ? ' is-locked' : '';
+  const eyeIcon = tr.hidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+  const lockIcon = tr.locked ? 'fas fa-lock' : 'fas fa-lock-open';
+  const keyDisabled = tr.locked ? ' disabled' : '';
+  return `<div class="sb-tl-label${nest}${sel}${hid}${loc}"
+    data-track="${tr.id}" data-section="${tr.section || 'motion'}"
+    style="--track-accent:${escapeAttr(accent)}">
+    <i class="sb-tl-swatch" style="background:${escapeAttr(accent)}"></i>
+    <span class="sb-tl-label-name">${escapeHtml(tr.name)}</span>
+    <span class="sb-tl-label-ctrls" role="group" aria-label="트랙 제어">
+      <button type="button" class="sb-tl-hbtn${tr.hidden ? ' is-on' : ''}" data-tl-act="vis"
+        title="보이기/숨기기"><i class="${eyeIcon}"></i></button>
+      <button type="button" class="sb-tl-hbtn sb-tl-hbtn-key" data-tl-act="key"${keyDisabled}
+        title="키프레임 추가 (K)"><span class="sb-tl-kf-diamond" aria-hidden="true"></span></button>
+      <button type="button" class="sb-tl-hbtn${tr.locked ? ' is-on' : ''}" data-tl-act="lock"
+        title="잠금"><i class="${lockIcon}"></i></button>
+    </span>
+  </div>`;
+}
+
+/** @param {import('../../domain/timeline/Track.js').Track} tr */
+function trackRowHtml(tr, engine, secToX) {
+  const accent = tr.color || sectionAccent(tr.section);
+  const keys = tr.keys.list().map((kf) => {
+    const sel = engine.selectedKeyframeId === kf.id ? ' is-selected' : '';
+    return `<button type="button" class="sb-tl-key${sel}" data-track="${tr.id}" data-key="${kf.id}"
+      style="left:${secToX(kf.timeSec)}px;--key-fill:${escapeAttr(accent)}" title="${kf.timeSec.toFixed(2)}s"></button>`;
+  }).join('');
+  return `<div class="sb-tl-track" data-track="${tr.id}" data-section="${tr.section || 'motion'}"
+    style="--track-accent:${escapeAttr(accent)}">${keys}</div>`;
+}
+
+function sectionAccent(section) {
+  if (section === 'light') return '#c9a227';
+  if (section === 'audio') return '#4a7ab5';
+  return '#3d7a5a';
+}
+
+function formatTick(t) {
+  if (t >= 60) {
+    const m = Math.floor(t / 60);
+    const s = Math.round(t % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+  return Number.isInteger(t) ? `${t}s` : `${t.toFixed(1)}s`;
+}
+
+function clamp(v, a, b) {
+  return Math.min(b, Math.max(a, v));
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, '&quot;');
+}

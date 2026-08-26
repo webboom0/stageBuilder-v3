@@ -1,0 +1,10 @@
+# Server files directory
+
+Runtime uploads and project folders:
+
+- `music/` — audio uploads
+- `fbx/` — motion FBX
+- `video/` — video backgrounds
+- `projects/` — project folders (Phase 6)
+
+Optional: copy assets from v3 `StageBuilder_v3/editor/../files/` for local testing.

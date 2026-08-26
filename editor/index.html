@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+  <title>StageBuilder v4</title>
+  <link rel="icon" href="images/stagebuilder-logo.png" type="image/png" />
+  <link rel="apple-touch-icon" href="images/stagebuilder-logo.png" />
+  <!-- v3 editor/index.html — 동일 CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.css"
+    integrity="sha512-kJlvECunwXftkPwyvHbclArO8wszgBGisiLeuDFwNM8ws+wKIw0sv1os3ClWZOcrEB2eRXULYUsm8OVRGJKwGA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="css/editor-shell.css" />
+  <link rel="stylesheet" href="css/timeline.css" />
+</head>
+<body class="premiere-workspace">
+  <div class="wrapper">
+    <div class="viewerWrapper sb-editor-grid">
+      <aside class="side sb-left" id="sidebar-left">
+        <nav id="sidebar-left-rail" class="sb-left-rail" aria-label="왼쪽 도구"></nav>
+        <div id="sidebar-left-dock" class="sb-left-dock"></div>
+      </aside>
+
+      <div class="viewer sb-program">
+        <div class="topWrapper">
+          <div class="topMenuBar">
+            <a class="sb-brand-mark" href="javascript:void(0)" title="StageBuilder" aria-label="StageBuilder">
+              <img src="images/stagebuilder-logo.png" width="18" height="18" alt="StageBuilder" draggable="false" />
+            </a>
+            <div id="menubar" class="menubar" aria-label="메뉴"></div>
+            <div id="viewport-controls" class="menubar-viewport-controls"></div>
+          </div>
+        </div>
+        <div id="viewport"></div>
+        <div class="toolBar">
+          <div id="toolbar" class="sb-viewport-toolbar" aria-label="뷰프리셋"></div>
+        </div>
+        <div id="status">Initializing…</div>
+      </div>
+
+      <aside class="side sb-right">
+        <div id="sidebar-right-dock" class="sb-right-dock"></div>
+        <nav id="sidebar-right-rail" class="sb-right-rail" aria-label="오른쪽 패널"></nav>
+      </aside>
+    </div>
+    <div class="timelineWrapper">
+      <div id="timeline" class="timeline" aria-label="타임라인"></div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="./js/app/bootstrap.js"></script>
+</body>
+</html>

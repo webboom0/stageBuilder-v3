@@ -1,0 +1,3 @@
+﻿# Uploaded media — ignore so IDE/Live Preview file watchers do not
+# reload the editor page when Assets upload/delete writes FBX/video/audio.
+server/files/**
