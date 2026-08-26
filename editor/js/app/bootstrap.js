@@ -17,7 +17,7 @@ import { mountTimelineShell } from '../ui/timeline/TimelineShell.js';
 import { MotionDirector } from '../domain/motion/MotionDirector.js';
 import { MotionGroupStore } from '../domain/motion/MotionGroupStore.js';
 import { applyGroupSegmentsToMotion } from '../domain/motion/applyGroupSegments.js';
-import { applyMotionExitKeys } from '../domain/motion/applyMotionExit.js';
+import { applyImportedKeysToTrack, importV3MotionJson } from '../domain/motion/importV3MotionJson.js';
 import { applyMotionSegmentsToTrack } from '../domain/motion/applyMotionSegments.js';
 import { ensureGroupSegments } from '../domain/motion/groupSegments.js';
 import { colorForGroup, recolorGroupDeployedMembers } from '../domain/motion/walkLitePerformer.js';
@@ -59,9 +59,9 @@ const MENU_PHASE_HINTS = {
   'show:standby': 'Phase 7 — Show Control',
   'show:presets': 'Phase 7 — 무대연출',
   'view:skeleton': 'Phase 3 — 모션',
-  'help:tutorial': 'docs/사용자_튜토리얼.md',
+  'help:tutorial': '사용자 튜토리얼 (HTML)',
   'help:qa': 'docs/04_작업단위_테스트_튜토리얼.md',
-  'help:about': 'StageBuilder v4 · Phase 3 Motion (1 track)',
+  'help:about': 'StageBuilder v4 · Phase 3 Motion',
 };
 
 function setStatus(text) {
@@ -266,6 +266,57 @@ async function main() {
     timeline.emit('tracks');
   }
 
+  function importV3MotionJsonFile() {
+    const target = motion.findByTrackId(timeline.selectedTrackId)
+      || (interaction?.getSelectedMotionId?.()
+        ? motion.get(interaction.getSelectedMotionId())
+        : null);
+    if (!target) {
+      refreshStatus('v3 JSON 가져오기: 먼저 모션을 선택하세요');
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = importV3MotionJson(text);
+        if (!parsed.ok) {
+          refreshStatus(`가져오기 실패: ${parsed.error}`);
+          return;
+        }
+        let trackKeys = parsed.tracks[0];
+        if (parsed.tracks.length > 1) {
+          const names = parsed.tracks
+            .map((t, i) => `${i + 1}:${t.sourceId.slice(0, 8)}(${t.keys.length}키)`)
+            .join(' · ');
+          const pick = window.prompt(
+            `트랙 ${parsed.tracks.length}개 발견. 적용할 번호(1~${parsed.tracks.length})\n${names}`,
+            '1',
+          );
+          const idx = Math.max(0, (Number(pick) || 1) - 1);
+          trackKeys = parsed.tracks[Math.min(idx, parsed.tracks.length - 1)];
+        }
+        const result = applyImportedKeysToTrack({
+          engine: timeline,
+          trackId: target.trackId,
+          keys: trackKeys.keys,
+        });
+        motion.apply(timeline.playheadSec);
+        refreshStatus(
+          `v3 모션 JSON → ${target.name}: ${result.added}키 (지움 ${result.cleared}) · src ${trackKeys.sourceId.slice(0, 8)}…`,
+        );
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`가져오기 오류: ${err.message || err}`);
+      }
+    });
+    input.click();
+  }
+
   async function deployGroup(groupId) {
     const group = groupStore.get(groupId);
     if (!group?.members?.length) return;
@@ -355,20 +406,6 @@ async function main() {
     groupStore,
     getMotion: (trackId) => motion.findByTrackId(trackId),
     onStagePick: (motionId) => interaction?.beginStagePick(motionId),
-    onMotionExit: (motionId) => {
-      interaction?.beginPointPick((pt) => {
-        const item = motion.get(motionId);
-        if (!item) return;
-        applyMotionExitKeys({
-          engine: timeline,
-          motionItem: item,
-          x: pt.x,
-          z: pt.z,
-        });
-        motion.apply(timeline.playheadSec);
-        refreshStatus('퇴장 키 추가 (opacity → 0)');
-      }, '퇴장 위치 — 바닥 클릭 (Esc 취소)');
-    },
     onPickAnimPoint: (pick) => {
       const label = pick.mode === 'from'
         ? '단일 모션 시작 위치 — 바닥 클릭 (Esc 취소)'
@@ -471,6 +508,22 @@ async function main() {
         const g = groupStore.getActive();
         if (g) deployGroup(g.id);
         else refreshStatus('활성 그룹 없음');
+        return;
+      }
+      if (action === 'file:import:v3motion') {
+        importV3MotionJsonFile();
+        return;
+      }
+      if (action === 'help:tutorial') {
+        const url = apiUrl('/stageBuilder/tutorial/');
+        window.open(url, '_blank', 'noopener,noreferrer');
+        refreshStatus('사용 안내 열림');
+        return;
+      }
+      if (action === 'help:qa') {
+        const url = apiUrl('/docs/04_%EC%9E%91%EC%97%85%EB%8B%A8%EC%9C%84_%ED%85%8C%EC%8A%A4%ED%8A%B8_%ED%8A%9C%ED%86%A0%EB%A6%AC%EC%96%BC.md');
+        window.open(url, '_blank', 'noopener,noreferrer');
+        refreshStatus('QA 문서 열림');
         return;
       }
       if (action === 'help:about') {

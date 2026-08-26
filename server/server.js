@@ -22,6 +22,7 @@ const DEV_SKIP_AUTH =
 
 const ROOT = path.join(__dirname, '..');
 const EDITOR_ROOT = path.join(ROOT, 'editor');
+const DOCS_ROOT = path.join(ROOT, 'docs');
 const STAGEBUILDER_FILES_ROOT = path.join(__dirname, 'files');
 const PROJECTS_ROOT = path.join(STAGEBUILDER_FILES_ROOT, 'projects');
 
@@ -254,6 +255,9 @@ app.get('/api/projects', requireAuth, (_req, res) => {
 // ─── Static (pivot-compatible paths) ───
 app.use('/stageBuilder', requireAuth, express.static(EDITOR_ROOT));
 app.use('/files', requireAuth, express.static(STAGEBUILDER_FILES_ROOT));
+// Alias for older bookmarks — same files live under /stageBuilder/tutorial/
+app.use('/tutorial', requireAuth, express.static(path.join(EDITOR_ROOT, 'tutorial')));
+app.use('/docs', requireAuth, express.static(DOCS_ROOT));
 
 app.get('/', requireAuth, (_req, res) => {
   res.redirect('/stageBuilder/index.html');
@@ -276,6 +280,7 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`StageBuilder v4 server: http://localhost:${PORT}`);
   console.log(`Editor: http://localhost:${PORT}/stageBuilder/index.html`);
+  console.log(`Tutorial: http://localhost:${PORT}/tutorial/`);
   console.log(`Files root: ${STAGEBUILDER_FILES_ROOT}`);
   if (DEV_SKIP_AUTH) console.log('DEV_SKIP_AUTH=1 — JWT bypass enabled');
 });

@@ -78,6 +78,10 @@ function mountFileMenu(host, ctx) {
   const importTitle = addOption(options, { label: '가져오기', submenu: true });
   const importSub = createSubmenu(importTitle, root);
   addOption(importSub, { label: '모션 (FBX)…', onClick: () => stub(ctx, 'file:import:fbx') });
+  addOption(importSub, {
+    label: 'v3 모션 JSON…',
+    onClick: () => stub(ctx, 'file:import:v3motion'),
+  });
   addOption(importSub, { label: '오디오…', onClick: () => stub(ctx, 'file:import:audio') });
 
   const exportTitle = addOption(options, { label: '내보내기', submenu: true });
@@ -267,11 +271,11 @@ function mountShowMenu(host, ctx) {
 function mountHelpMenu(host, ctx) {
   const { root, options } = createMenu('도움말');
   addOption(options, {
-    label: '사용자 튜토리얼',
+    label: '사용자 튜토리얼…',
     onClick: () => stub(ctx, 'help:tutorial'),
   });
   addOption(options, {
-    label: '작업 단위 테스트',
+    label: '작업 단위 테스트…',
     onClick: () => stub(ctx, 'help:qa'),
   });
   addSeparator(options);

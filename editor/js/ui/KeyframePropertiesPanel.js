@@ -6,6 +6,7 @@ import { createMotionAnimSection } from './MotionAnimSection.js';
 
 /**
  * Properties — tabs: 속성 (object/key) · 구간 (move/hold/exit, no formation).
+ * Exit is only in the 구간 tab (not 속성).
  *
  * @param {{
  *   engine: import('../domain/timeline/TimelineEngine.js').TimelineEngine,
@@ -13,7 +14,6 @@ import { createMotionAnimSection } from './MotionAnimSection.js';
  *   getMotion?: (trackId: string) => import('../domain/motion/MotionDirector.js').MotionItem | null,
  *   onChange?: () => void,
  *   onStagePick?: (motionId: string) => void,
- *   onMotionExit?: (motionId: string) => void,
  *   onObjectEdited?: (motionId: string) => void,
  *   onPickAnimPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
@@ -70,15 +70,6 @@ export function createKeyframePropertiesPanel(opts) {
           <input type="number" class="Number ec-val" data-role="opacity" min="0" max="1" step="0.01" />
         </div>
 
-        <button type="button" class="sb-stage-pick-btn sb-exit-pick-btn" data-role="exit-pick"
-          title="플레이헤드부터 퇴장 위치로 이동 후 사라짐 (빠른 퇴장)">
-          <span class="sb-stage-pick-ico" aria-hidden="true">↗</span>
-          <span>
-            <strong>빠른 퇴장 (위치 지정)</strong>
-            <small>플레이헤드 → 무대 클릭 · opacity 0</small>
-          </span>
-        </button>
-
         <div class="sb-kf-key-block" data-role="key-block" hidden>
           <div class="sb-dock-section-label">선택 키</div>
           <div class="ec-row">
@@ -114,7 +105,6 @@ export function createKeyframePropertiesPanel(opts) {
   const rotyHost = /** @type {HTMLElement} */ (root.querySelector('[data-role="roty-host"]'));
   const tintEl = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="tint"]'));
   const pickBtn = /** @type {HTMLButtonElement} */ (root.querySelector('[data-role="stage-pick"]'));
-  const exitBtn = /** @type {HTMLButtonElement} */ (root.querySelector('[data-role="exit-pick"]'));
   const animHost = root.querySelector('[data-role="anim-host"]');
   const keyBlock = root.querySelector('[data-role="key-block"]');
   const timeEl = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time"]'));
@@ -330,13 +320,6 @@ export function createKeyframePropertiesPanel(opts) {
     if (!m) return;
     if (engine.getTrack(m.trackId)?.locked) return;
     opts.onStagePick?.(m.id);
-  });
-
-  exitBtn.addEventListener('click', () => {
-    const m = currentMotion();
-    if (!m) return;
-    if (engine.getTrack(m.trackId)?.locked) return;
-    opts.onMotionExit?.(m.id);
   });
 
   const setTime = (raw) => {

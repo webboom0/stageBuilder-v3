@@ -13,6 +13,7 @@ npm run dev
 ```
 
 - 에디터: http://localhost:3000/stageBuilder/index.html
+- 사용 안내: http://localhost:3000/stageBuilder/tutorial/
 - Health: http://localhost:3000/api/health → `{ "status": "ok" }`
 - 로컬 개발 시 JWT 인증은 자동 생략됩니다 (`DEV_SKIP_AUTH` 기본 on)
 

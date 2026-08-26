@@ -1149,16 +1149,6 @@ body.full-mode #status {
   background: rgba(154, 134, 255, 0.2);
 }
 
-.sb-exit-pick-btn {
-  border-color: rgba(255, 140, 100, 0.55);
-  background: rgba(255, 120, 80, 0.08);
-  color: #ffe8dc;
-}
-
-.sb-exit-pick-btn:hover {
-  background: rgba(255, 120, 80, 0.18);
-}
-
 body.sb-picking,
 body.sb-picking #viewport,
 body.sb-picking canvas {

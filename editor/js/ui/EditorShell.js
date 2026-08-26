@@ -34,7 +34,6 @@ import {
  *   onKeyframeEdited?: () => void,
  *   getMotion?: (trackId: string) => import('../domain/motion/MotionDirector.js').MotionItem | null,
  *   onStagePick?: (motionId: string) => void,
- *   onMotionExit?: (motionId: string) => void,
  *   onPickAnimPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
  *     motionId: string,
@@ -98,7 +97,6 @@ export function mountEditorShell(root, ctx) {
       stageManager: ctx.stageManager,
       getMotion: (trackId) => ctx.getMotion?.(trackId) ?? null,
       onStagePick: (motionId) => ctx.onStagePick?.(motionId),
-      onMotionExit: (motionId) => ctx.onMotionExit?.(motionId),
       onPickAnimPoint: (pick) => ctx.onPickAnimPoint?.(pick),
       onApplyMotionAnim: (motionId) => ctx.onApplyMotionAnim?.(motionId),
       onChange: () => ctx.onKeyframeEdited?.(),
