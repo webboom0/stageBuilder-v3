@@ -2,16 +2,18 @@ import { DURATION_MODE } from '../../domain/timeline/types.js';
 
 /**
  * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
+ * Tracks come from Assets (+ Character / Stage), not from the toolbar.
  * @param {HTMLElement} host
  * @param {{
  *   engine: import('../../domain/timeline/TimelineEngine.js').TimelineEngine,
  *   getMotionKeyValue?: (trackId: string) => any,
+ *   getLightKeyValue?: (trackId: string) => any,
  *   onTrackSelect?: (trackId: string, opt?: { selectKey?: boolean }) => void,
  *   onTrackRemove?: (trackId: string) => boolean | void,
  * }} ctx
  */
 export function mountTimelineShell(host, ctx) {
-  const { engine, getMotionKeyValue, onTrackSelect, onTrackRemove } = ctx;
+  const { engine, getMotionKeyValue, getLightKeyValue, onTrackSelect, onTrackRemove } = ctx;
 
   host.classList.add('sb-tl');
   host.tabIndex = 0;
@@ -22,29 +24,23 @@ export function mountTimelineShell(host, ctx) {
       <button type="button" class="sb-tl-btn" data-act="play" title="재생/일시정지">▶</button>
       <button type="button" class="sb-tl-btn" data-act="to-end" title="끝으로">⏭</button>
       <span class="sb-tl-time" data-role="time">0.00 / ${engine.durationSec.toFixed(0)}s</span>
-      <label class="sb-tl-field">Length
+      <label class="sb-tl-field" title="쇼 총 길이(초). 키 시각은 유지되고, 길이를 줄이면 범위 밖 키만 정리됩니다.">길이
         <input type="number" data-role="duration" min="1" step="1" value="${engine.durationSec}" />
-      </label>
-      <label class="sb-tl-field">Duration mode
-        <select data-role="duration-mode">
-          <option value="${DURATION_MODE.SCALE_ALL}">Scale keys</option>
-          <option value="${DURATION_MODE.CLAMP_END}">Keep absolute / clamp</option>
-        </select>
       </label>
       <button type="button" class="sb-tl-btn" data-act="zoom-out" title="줌 아웃">−</button>
       <button type="button" class="sb-tl-btn" data-act="zoom-in" title="줌 인">+</button>
       <button type="button" class="sb-tl-btn" data-act="add-key" title="플레이헤드에 키 추가 (K)">+ Key</button>
       <button type="button" class="sb-tl-btn" data-act="del-key" title="선택 키 삭제 (D / Del)">Del</button>
-      <button type="button" class="sb-tl-btn" data-act="add-track" title="Demo 트랙 추가 (Alt+T)">+ Track</button>
       <button type="button" class="sb-tl-btn" data-act="undo" title="실행 취소">Undo</button>
       <button type="button" class="sb-tl-btn" data-act="redo" title="다시 실행">Redo</button>
       <span class="sb-tl-jumps" data-role="jumps" role="toolbar" aria-label="타임라인 섹션">
         <button type="button" class="sb-tl-jump is-on" data-section="all">All</button>
-        <button type="button" class="sb-tl-jump" data-section="motion">Motion</button>
+        <button type="button" class="sb-tl-jump" data-section="motion">Characters</button>
+        <button type="button" class="sb-tl-jump" data-section="stage">Stage</button>
         <button type="button" class="sb-tl-jump" data-section="light">Light</button>
         <button type="button" class="sb-tl-jump" data-section="audio">Audio</button>
       </span>
-      <button type="button" class="sb-tl-btn sb-tl-btn-help" data-act="shortcuts" title="단축키 안내">?</button>
+      <button type="button" class="sb-tl-btn sb-tl-btn-help" data-act="shortcuts" title="타임라인 단축키">?</button>
     </div>
     <div class="sb-tl-body">
       <div class="sb-tl-labels" data-role="labels"></div>
@@ -63,19 +59,19 @@ export function mountTimelineShell(host, ctx) {
   const wrapper = host.closest('.timelineWrapper') || host.parentElement;
   const detachHeight = attachTimelineHeightResize(wrapper);
 
-  /** @type {'all' | 'motion' | 'light' | 'audio'} */
+  /** @type {'all' | 'motion' | 'stage' | 'light' | 'audio'} */
   let sectionFilter = 'all';
 
   const SECTION_META = [
-    { id: 'motion', label: 'Motion' },
-    { id: 'light', label: 'Light', stub: 'Phase 4 — 조명 트랙' },
+    { id: 'motion', label: 'Characters' },
+    { id: 'stage', label: 'Stage' },
+    { id: 'light', label: 'Light' },
     { id: 'audio', label: 'Audio', stub: 'Phase 5 — 오디오 트랙' },
   ];
 
   const el = {
     time: host.querySelector('[data-role="time"]'),
     duration: host.querySelector('[data-role="duration"]'),
-    durationMode: host.querySelector('[data-role="duration-mode"]'),
     labels: host.querySelector('[data-role="labels"]'),
     viewport: host.querySelector('[data-role="viewport"]'),
     canvas: host.querySelector('[data-role="canvas"]'),
@@ -103,7 +99,6 @@ export function mountTimelineShell(host, ctx) {
     el.canvas.style.width = `${w}px`;
     el.time.textContent = `${engine.playheadSec.toFixed(2)} / ${engine.durationSec.toFixed(0)}s`;
     el.duration.value = String(Math.round(engine.durationSec));
-    el.durationMode.value = engine.durationMode;
     el.playBtn.textContent = engine.playing ? '⏸' : '▶';
     el.playhead.style.left = `${secToX(engine.playheadSec)}px`;
 
@@ -198,18 +193,11 @@ export function mountTimelineShell(host, ctx) {
     deleteSelectedKey();
   });
 
-  host.querySelector('[data-act="add-track"]').addEventListener('click', () => {
-    addDemoTrack();
-  });
-
   el.duration.addEventListener('change', () => {
     const v = Number(el.duration.value);
     if (!Number.isFinite(v) || v <= 0) return;
-    engine.setDuration(v, engine.durationMode);
-  });
-
-  el.durationMode.addEventListener('change', () => {
-    engine.setDurationMode(el.durationMode.value);
+    // Keep absolute key times; only clamp keys past the new end.
+    engine.setDuration(v, DURATION_MODE.CLAMP_END);
   });
 
   let dragMoved = false;
@@ -258,9 +246,8 @@ export function mountTimelineShell(host, ctx) {
         <tr><td>Shift+M</td><td>플레이헤드 → 초 입력 이동</td></tr>
         <tr><td>Space</td><td>재생 / 일시정지</td></tr>
         <tr><td>Ctrl+Z / Y</td><td>Undo / Redo</td></tr>
-        <tr><td>Alt+T</td><td>Demo 트랙 추가</td></tr>
       </table>
-      <p class="sb-tl-help-note">플레이헤드 스크럽: 룰러 위 빨간 머리·빈 트랙을 드래그. 키와 겹쳐도 키를 먼저 선택할 수 있습니다. (모션/조명 실트랙은 Phase 3~)</p>
+      <p class="sb-tl-help-note">트랙은 Assets에서 Characters / Stage를 <strong>+</strong> 로 추가합니다. 플레이헤드 스크럽: 룰러·빈 트랙 드래그.</p>
     `;
     const btn = host.querySelector('[data-act="shortcuts"]');
     const br = btn?.getBoundingClientRect?.();
@@ -360,6 +347,13 @@ export function mountTimelineShell(host, ctx) {
         scale: [1, 1, 1],
         opacity: 1,
         visible: true,
+      };
+    }
+    if (track.kind === 'light') {
+      return getLightKeyValue?.(track.id) ?? {
+        dim: 0,
+        color: '#ffffff',
+        size: 0.5,
       };
     }
     if (track.kind === 'bool') return true;
@@ -618,16 +612,10 @@ export function mountTimelineShell(host, ctx) {
       { label: '키 추가 (플레이헤드)', shortcut: 'K', action: () => addKeyAtPlayhead(trackId) },
       { sep: true },
       {
-        label: '트랙 추가 (Demo)',
-        shortcut: 'Alt+T',
-        action: () => {
-          addDemoTrack();
-        },
-      },
-      {
         label: '트랙 삭제',
+        disabled: engine.getTrack(trackId)?.kind === 'light',
         action: () => {
-          // Scene mesh disposed → do not push undoable track restore (would orphan keys without object)
+          if (engine.getTrack(trackId)?.kind === 'light') return;
           const removedScene = onTrackRemove?.(trackId) === true;
           engine.removeTrack(trackId, { history: !removedScene });
         },
@@ -793,15 +781,6 @@ export function mountTimelineShell(host, ctx) {
     drag = null;
   });
 
-  function addDemoTrack() {
-    const n = engine.listTracks().length + 1;
-    const t = engine.addTrack({ name: `Demo · track ${n}`, kind: 'scalar', group: 'demo', section: 'motion' });
-    engine.selectedTrackId = t.id;
-    engine.selectedKeyframeId = null;
-    engine.emit('selection');
-    return t;
-  }
-
   function deleteSelectedKey() {
     if (!engine.selectedTrackId || !engine.selectedKeyframeId) return false;
     if (engine.getTrack(engine.selectedTrackId)?.locked) return false;
@@ -837,11 +816,6 @@ export function mountTimelineShell(host, ctx) {
     if ((e.ctrlKey || e.metaKey) && keyLower === 'y') {
       e.preventDefault();
       engine.redo();
-      return;
-    }
-    if (e.altKey && !e.ctrlKey && !e.metaKey && keyLower === 't') {
-      e.preventDefault();
-      addDemoTrack();
       return;
     }
 
@@ -1069,6 +1043,7 @@ function trackRowHtml(tr, engine, secToX) {
 }
 
 function sectionAccent(section) {
+  if (section === 'stage') return '#a67c52';
   if (section === 'light') return '#c9a227';
   if (section === 'audio') return '#4a7ab5';
   return '#3d7a5a';

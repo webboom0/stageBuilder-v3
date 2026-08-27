@@ -88,5 +88,6 @@ function inferSection(group) {
   const g = String(group || '');
   if (g.startsWith('light')) return 'light';
   if (g.startsWith('audio')) return 'audio';
+  if (g.startsWith('stage:')) return 'stage';
   return 'motion';
 }

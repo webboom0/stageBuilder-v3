@@ -25,6 +25,8 @@ import { getStageDeckCenter, getStageWorldPerMeter } from '../domain/stage/stage
 import { getHumanFormationSpacingWorld } from '../domain/stage/HumanScale.js';
 import { createViewportInteraction } from '../domain/viewport/ViewportInteraction.js';
 import { pickMotionFbx } from '../ui/motion/MotionPicker.js';
+import { VideoBackground } from '../domain/video/VideoBackground.js';
+import { LightDirector } from '../domain/lighting/LightDirector.js';
 
 const statusEl = document.getElementById('status');
 const viewportEl = document.getElementById('viewport');
@@ -50,8 +52,7 @@ const MENU_PHASE_HINTS = {
   'scene:prev': 'Phase 6 — 멀티 씬',
   'scene:next': 'Phase 6 — 멀티 씬',
   'scene:list': 'Phase 6 — 멀티 씬',
-  'add:fixture': 'Phase 4 — 조명',
-  'add:house': 'Phase 4 — 조명',
+  'add:fixture': 'Phase 4 — Fixture / MA (후속)',
   'add:audio': 'Phase 5 — 오디오',
   'add:group': '왼쪽 그룹 패널',
   'show:panel': '왼쪽 그룹 패널 (MVP)',
@@ -61,7 +62,7 @@ const MENU_PHASE_HINTS = {
   'view:skeleton': 'Phase 3 — 모션',
   'help:tutorial': '사용자 튜토리얼 (HTML)',
   'help:qa': 'docs/04_작업단위_테스트_튜토리얼.md',
-  'help:about': 'StageBuilder v4 · Phase 3 Motion',
+  'help:about': 'StageBuilder v4 · Phase 4 HOUSE',
 };
 
 function setStatus(text) {
@@ -71,14 +72,15 @@ function setStatus(text) {
 function formatStatus(api, stageManager, extra = '') {
   const { profile, stageType } = stageManager;
   const typeLabel = STAGE_TYPES[stageType]?.label ?? stageType;
+  const hasStage = !!stageManager.background;
   const apiLine = api
-    ? `API OK (${API_BASE_URL}) | FBX ${api.fbxCount} · Audio ${api.audioCount}`
-    : `API offline — start server: cd server && npm run dev`;
+    ? `Assets API OK (local ${API_BASE_URL}) | FBX ${api.fbxCount} · Audio ${api.audioCount}`
+    : `Assets API unavailable (${API_BASE_URL}) — run: node server/server.js`;
 
   const parts = [
     apiLine,
     `${typeLabel} ${profile.widthM}×${profile.depthM}m (${Math.round(profile.widthM * profile.depthM)}㎡)`,
-    '건물+바닥 연동',
+    hasStage ? 'Stage shell OK' : 'Stage shell missing — check ../files/stage/*.fbx',
   ];
   const eff = stageManager.getEffectiveProfile?.();
   if (eff?.clamped) {
@@ -97,13 +99,19 @@ async function fetchJson(path) {
 async function checkApi() {
   try {
     const health = await fetchJson(API.health);
-    const [fbxFiles, audioFiles] = await Promise.all([
-      fetchJson(API.fbxFiles),
-      fetchJson(API.audioFiles),
-    ]);
-    return { health, fbxCount: fbxFiles.length, audioCount: audioFiles.length };
+    let fbxCount = 0;
+    let audioCount = 0;
+    try {
+      const fbxFiles = await fetchJson(API.fbxFiles);
+      fbxCount = Array.isArray(fbxFiles) ? fbxFiles.length : 0;
+    } catch { /* auth */ }
+    try {
+      const audioFiles = await fetchJson(API.audioFiles);
+      audioCount = Array.isArray(audioFiles) ? audioFiles.length : 0;
+    } catch { /* auth */ }
+    return { health, fbxCount, audioCount };
   } catch (err) {
-    console.warn('API check failed:', err);
+    console.warn('Assets API check failed:', err);
     return null;
   }
 }
@@ -112,8 +120,9 @@ async function checkApi() {
  * @param {StageManager} stageManager
  * @param {StageViewportHelpers} helpers
  * @param {{ setGridScaleLabel?: (s: any) => void }} shellRef
+ * @param {{ current: import('../domain/video/VideoBackground.js').VideoBackground | null }} videoBgRef
  */
-function initViewport(stageManager, helpers, shellRef) {
+function initViewport(stageManager, helpers, shellRef, videoBgRef) {
   const scene = stageManager.scene;
   const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 20000);
 
@@ -155,6 +164,7 @@ function initViewport(stageManager, helpers, shellRef) {
     controls.update();
     helpers.update(camera, controls.target, viewportEl.clientHeight);
     shellRef.current?.setGridScaleLabel?.(helpers.viewportGridScale);
+    videoBgRef.current?.update();
     renderer.render(scene, camera);
     if (helpers.shouldRenderOverlay()) {
       renderer.autoClear = false;
@@ -179,14 +189,22 @@ async function main() {
     stageManager,
   });
   const groupStore = new MotionGroupStore();
+  const light = new LightDirector({
+    scene: stageManager.scene,
+    engine: timeline,
+    stageManager,
+  });
 
   timeline.subscribe(() => {
     motion.apply(timeline.playheadSec);
+    light.apply(timeline.playheadSec);
   });
 
   /** @type {{ current: ReturnType<typeof mountEditorShell> | null }} */
   const shellRef = { current: null };
-  const viewport = initViewport(stageManager, helpers, shellRef);
+  /** @type {{ current: VideoBackground }} */
+  const videoBgRef = { current: new VideoBackground() };
+  const viewport = initViewport(stageManager, helpers, shellRef, videoBgRef);
 
   /** @type {ReturnType<typeof createViewportInteraction> | null} */
   let interaction = null;
@@ -195,11 +213,15 @@ async function main() {
     mountTimelineShell(timelineHost, {
       engine: timeline,
       getMotionKeyValue: (trackId) => motion.keyValueForTrack(trackId),
+      getLightKeyValue: (trackId) => light.keyValueForTrack(trackId),
       onTrackSelect: (trackId, opt) => {
         const m = motion.findByTrackId(trackId);
         if (m) interaction?.selectMotion(m.id, opt);
+        else shellRef.current?.syncKeyframeProps?.();
       },
       onTrackRemove: (trackId) => {
+        const tr = timeline.getTrack(trackId);
+        if (tr?.kind === 'light') return false; // HOUSE tracks are fixed
         const removed = motion.removeByTrackId(trackId);
         const selId = interaction?.getSelectedMotionId?.();
         if (selId && !motion.get(selId)) interaction.clearSelection();
@@ -230,11 +252,13 @@ async function main() {
   const refreshStatus = (extra = '') => setStatus(formatStatus(api, stageManager, extra));
 
   async function addMotionEntry(entry, extra = {}) {
-    refreshStatus(`모션 로딩: ${entry.name}…`);
+    const assetRole = entry.assetRole || extra.assetRole || 'character';
+    refreshStatus(`${assetRole === 'stage' ? 'Stage' : 'Character'} loading: ${entry.name}…`);
     const item = await motion.addFromUrl(entry.url, {
       name: entry.name,
       procedural: entry.procedural,
       color: entry.color,
+      assetRole,
       ...extra,
     });
     timeline.selectedTrackId = item.trackId;
@@ -405,6 +429,10 @@ async function main() {
     engine: timeline,
     groupStore,
     getMotion: (trackId) => motion.findByTrackId(trackId),
+    getLight: (trackId) => light.findByTrackId(trackId),
+    onWriteLight: (trackId, patch) => {
+      light.writeBagOnSelectedKey(trackId, patch);
+    },
     onStagePick: (motionId) => interaction?.beginStagePick(motionId),
     onPickAnimPoint: (pick) => {
       const label = pick.mode === 'from'
@@ -432,14 +460,39 @@ async function main() {
     onKeyframeEdited: () => {
       motion.apply(timeline.playheadSec);
     },
-    onAddMotion: async (entry) => {
+    onAddCharacter: async (entry) => {
       try {
-        const item = await addMotionEntry(entry);
-        refreshStatus(`모션 추가: ${item.name}`);
+        const item = await addMotionEntry({ ...entry, assetRole: 'character' });
+        refreshStatus(`Character added: ${item.name}`);
       } catch (err) {
         console.error(err);
         refreshStatus(`모션 로드 실패: ${err.message}`);
       }
+    },
+    onAddProp: async (entry) => {
+      try {
+        const item = await addMotionEntry({ ...entry, assetRole: 'stage' });
+        refreshStatus(`Stage added: ${item.name}`);
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`Stage load failed: ${err.message}`);
+      }
+    },
+    onAddVideo: async (entry) => {
+      try {
+        const vb = videoBgRef.current;
+        if (vb.isPlaying) vb.pauseVideo();
+        vb.ensureMesh(stageManager);
+        vb.loadVideo(entry.url);
+        refreshStatus(`Video: ${entry.name}`);
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`Video load failed: ${err.message}`);
+      }
+    },
+    onRemoveVideo: () => {
+      videoBgRef.current.clearFromStage();
+      refreshStatus('Video cleared');
     },
     onDeployGroup: async (groupId) => {
       try {
@@ -478,12 +531,14 @@ async function main() {
       if (action === 'edit:undo') {
         const ok = timeline.undo();
         motion.apply(timeline.playheadSec);
+        light.apply(timeline.playheadSec);
         refreshStatus(ok ? 'Undo' : 'Undo 없음');
         return;
       }
       if (action === 'edit:redo') {
         const ok = timeline.redo();
         motion.apply(timeline.playheadSec);
+        light.apply(timeline.playheadSec);
         refreshStatus(ok ? 'Redo' : 'Redo 없음');
         return;
       }
@@ -498,6 +553,12 @@ async function main() {
       }
       if (action === 'add:motion' || action === 'file:import:fbx') {
         addMotionFromPicker();
+        return;
+      }
+      if (action === 'add:house') {
+        light.ensureHouseTracks();
+        light.apply(timeline.playheadSec);
+        refreshStatus('HOUSE 채널 준비 (Fill · FOH L/C/R)');
         return;
       }
       if (action === 'add:group' || action === 'show:panel') {
@@ -535,6 +596,7 @@ async function main() {
     },
     onApplyProfile: (widthM, depthM, extras = {}) => {
       stageManager.applyProfile({ widthM, depthM, ...extras });
+      videoBgRef.current.syncToStage(stageManager);
       applyDefaultStageCamera(
         viewport.camera,
         viewport.controls,
@@ -550,6 +612,10 @@ async function main() {
       shell.setStageBusy(true);
       try {
         await stageManager.setStageType(type);
+        light.ensureHouseTracks();
+        if (videoBgRef.current.currentVideoPath) {
+          videoBgRef.current.rebuildForStage(stageManager);
+        }
         applyDefaultStageCamera(
           viewport.camera,
           viewport.controls,
@@ -580,6 +646,7 @@ async function main() {
 
   try {
     await stageManager.init();
+    light.ensureHouseTracks();
     applyDefaultStageCamera(
       viewport.camera,
       viewport.controls,

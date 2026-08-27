@@ -27,12 +27,16 @@ import {
  *   onApplyProfile: (widthM: number, depthM: number) => void,
  *   onChange?: () => void,
  *   onStageFocusChange?: (active: boolean) => void,
- *   onAddMotion?: (entry: { url: string, name: string, procedural?: string, color?: number }) => void | Promise<void>,
+ *   onAddCharacter?: (entry: { url: string, name: string, procedural?: string, color?: number }) => void | Promise<void>,
+ *   onAddProp?: (entry: { url: string, name: string, procedural?: string, color?: number }) => void | Promise<void>,
+ *   onAddVideo?: (entry: { url: string, name: string, filename?: string }) => void | Promise<void>,
+ *   onRemoveVideo?: () => void | Promise<void>,
  *   onDeployGroup?: (groupId: string) => void | Promise<void>,
  *   onGroupRename?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onGroupColor?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onKeyframeEdited?: () => void,
  *   getMotion?: (trackId: string) => import('../domain/motion/MotionDirector.js').MotionItem | null,
+ *   getLight?: (trackId: string) => { channel: string, trackId: string, name: string } | null,
  *   onStagePick?: (motionId: string) => void,
  *   onPickAnimPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
@@ -72,7 +76,10 @@ export function mountEditorShell(root, ctx) {
   let groupsUi = null;
 
   const assetsUi = createAssetsPanelBody({
-    onAddMotion: (entry) => ctx.onAddMotion?.(entry),
+    onAddCharacter: (entry) => ctx.onAddCharacter?.(entry),
+    onAddProp: (entry) => ctx.onAddProp?.(entry),
+    onAddVideo: (entry) => ctx.onAddVideo?.(entry),
+    onRemoveVideo: () => ctx.onRemoveVideo?.(),
     onCatalogChanged: () => {
       groupsUi?.refreshCatalog?.();
     },
@@ -96,6 +103,8 @@ export function mountEditorShell(root, ctx) {
       engine: ctx.engine,
       stageManager: ctx.stageManager,
       getMotion: (trackId) => ctx.getMotion?.(trackId) ?? null,
+      getLight: (trackId) => ctx.getLight?.(trackId) ?? null,
+      onWriteLight: (trackId, patch) => ctx.onWriteLight?.(trackId, patch),
       onStagePick: (motionId) => ctx.onStagePick?.(motionId),
       onPickAnimPoint: (pick) => ctx.onPickAnimPoint?.(pick),
       onApplyMotionAnim: (motionId) => ctx.onApplyMotionAnim?.(motionId),
@@ -206,6 +215,7 @@ export function mountEditorShell(root, ctx) {
     setGridScaleLabel: (scale) => controlsApi?.setScaleLabel(scale),
     syncHelperUi,
     refreshAssets: () => assetsUi.refresh(),
+    setActiveVideo: (key) => assetsUi.setActiveVideo?.(key),
     syncKeyframeProps: () => propsUi?.sync(),
     refreshGroups: () => groupsUi?.render(),
     refreshGroupsCatalog: () => groupsUi?.refreshCatalog?.(),

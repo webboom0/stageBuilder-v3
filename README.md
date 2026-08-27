@@ -17,7 +17,16 @@ npm run dev
 - Health: http://localhost:3000/api/health → `{ "status": "ok" }`
 - 로컬 개발 시 JWT 인증은 자동 생략됩니다 (`DEV_SKIP_AUTH` 기본 on)
 
-### 2. 미디어 파일 (FBX / 음원)
+### 2. Three.js runtime (v3/PIVOT과 동일 r172)
+
+```powershell
+# 프로젝트 루트에서 — pivot stageBuilder를 runtime으로 연결
+New-Item -ItemType Junction -Path "runtime" -Target "E:\SynologyDrive\pivot\nginx\html\stageBuilder" -Force
+```
+
+서버가 `/build`, `/examples`를 제공합니다. CDN Three.js는 **사용하지 않습니다**.
+
+### 3. 미디어 파일 (FBX / 음원)
 
 기본 경로: `server/files/`
 
@@ -45,17 +54,15 @@ New-Item -ItemType Junction -Path "server\files" -Target $v3Root
 
 무대 FBX: `files/stage/background.fbx` (프로시니엄), `files/stage/arena_stage.fbx` (아레나)
 
-### 3. API 주소 변경
+### 4. API 주소
 
-에디터는 **`editor/js/config/app-config.js`** 한 곳만 수정하면 됩니다.
+로컬(`localhost`)에서는 **항상 `http://localhost:3000`** — PIVOT 프로덕션(`pivot.mhsoft.co.kr`)으로 연결하지 않습니다.
 
-```javascript
-const LOCAL_DEV_DEFAULT = 'http://localhost:3000';
-```
+설정: `editor/js/config/app-config.js` (로컬에서 pivot URL override 시 **무시**)
 
-배포 시에는 `window.__STAGEBUILDER_API__` 또는 `window.location.origin`을 사용합니다.
+PIVOT에 `editor/`만 배포하면 API는 **그 사이트 origin**을 자동 사용합니다. 별도 설정 불필요.
 
-### 4. Phase 0 완료 기준
+### 5. Phase 0 완료 기준
 
 - [ ] `npm run dev` 후 `/api/health` OK
 - [ ] 에디터 페이지 WebGL 뷰포트 표시

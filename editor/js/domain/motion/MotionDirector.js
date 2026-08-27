@@ -7,6 +7,11 @@ import {
 } from '../stage/stageGridAdaptive.js';
 import { DEFAULT_HUMAN_HEIGHT_M, resolveHumanWorldHeight } from '../stage/HumanScale.js';
 import { loadMotionFbx } from './loadMotionFbx.js';
+import { loadPropAsset } from './loadPropAsset.js';
+import {
+  createStagePrimitive,
+  resolveStageProceduralId,
+} from './stageMeshPrimitives.js';
 import { sampleMotionBag } from './sampleTracks.js';
 import { motionKeyFromObject } from './motionKeyValue.js';
 import { createWalkLitePerformer, WALK_LITE_PROCEDURAL_ID, applyMotionTint } from './walkLitePerformer.js';
@@ -23,8 +28,18 @@ const TRACK_PALETTE = [
   '#68a888',
 ];
 
+const STAGE_TRACK_PALETTE = [
+  '#a67c52',
+  '#8b6914',
+  '#b8956a',
+  '#7d6544',
+  '#c4a574',
+  '#6b5344',
+];
+
 let _seq = 1;
 let _colorSeq = 0;
+let _stageColorSeq = 0;
 
 /**
  * MotionDirector — v3-aligned:
@@ -79,11 +94,12 @@ export class MotionDirector {
    *   positionOffset?: number[],
    *   procedural?: string,
    *   color?: number,
+   *   assetRole?: 'character' | 'stage',
    * }} [opts]
    */
   async addFromUrl(urlOrProcedural, opts = {}) {
-    const name = opts.name || guessName(urlOrProcedural);
-    // Stage size → world units/m → 170cm adult height on that stage
+    const assetRole = opts.assetRole === 'stage' ? 'stage' : 'character';
+    const name = opts.name || guessName(urlOrProcedural, assetRole);
     const humanM = this.stageManager?.profile?.humanHeightM ?? DEFAULT_HUMAN_HEIGHT_M;
     const worldPerM = getStageWorldPerMeter(this.stageManager);
     const targetWorldHeight = resolveHumanWorldHeight(this.stageManager, humanM);
@@ -92,7 +108,27 @@ export class MotionDirector {
     let animations = [];
     let animDuration = 2;
 
-    if (
+    if (assetRole === 'stage') {
+      const procId = opts.procedural || resolveStageProceduralId(urlOrProcedural);
+      if (procId) {
+        const loaded = createStagePrimitive(procId, {
+          name,
+          color: opts.color,
+          stageManager: this.stageManager,
+        });
+        root = loaded.root;
+        animations = loaded.animations;
+        animDuration = loaded.animDuration;
+      } else {
+        const loaded = await loadPropAsset(urlOrProcedural, {
+          name,
+          stageManager: this.stageManager,
+        });
+        root = loaded.root;
+        animations = loaded.animations;
+        animDuration = loaded.animDuration;
+      }
+    } else if (
       opts.procedural === WALK_LITE_PROCEDURAL_ID
       || String(urlOrProcedural).includes('walk-lite')
       || String(urlOrProcedural).startsWith('procedural://')
@@ -129,6 +165,7 @@ export class MotionDirector {
       folderId: opts.folderId ?? null,
       positionOffset: opts.positionOffset,
       fileUrl: urlOrProcedural,
+      assetRole,
     });
   }
 
@@ -141,12 +178,16 @@ export class MotionDirector {
    *   folderId?: string | null,
    *   positionOffset?: number[],
    *   fileUrl?: string,
+   *   assetRole?: 'character' | 'stage',
    * }} meta
    */
   _registerObject(root, meta) {
+    const assetRole = meta.assetRole === 'stage' ? 'stage' : 'character';
+    const section = assetRole === 'stage' ? 'stage' : 'motion';
     const id = `mot_${_seq++}`;
     root.userData.motionId = id;
-    root.userData.source = 'motion';
+    root.userData.source = assetRole === 'stage' ? 'stage-prop' : 'motion';
+    root.userData.assetRole = assetRole;
     root.userData.fileUrl = meta.fileUrl || '';
 
     placeOnStage(root, this.stageManager, meta.positionOffset);
@@ -163,12 +204,14 @@ export class MotionDirector {
       mixer.setTime(0);
     }
 
-    const color = TRACK_PALETTE[_colorSeq++ % TRACK_PALETTE.length];
+    const color = assetRole === 'stage'
+      ? STAGE_TRACK_PALETTE[_stageColorSeq++ % STAGE_TRACK_PALETTE.length]
+      : TRACK_PALETTE[_colorSeq++ % TRACK_PALETTE.length];
     const track = this.engine.addTrack({
       name: meta.name,
       kind: 'motion',
-      group: `motion:${id}`,
-      section: 'motion',
+      group: `${section}:${id}`,
+      section,
       folderId: meta.folderId ?? null,
       motionId: id,
       color,
@@ -193,6 +236,8 @@ export class MotionDirector {
       folderId: meta.folderId ?? null,
       fileUrl: meta.fileUrl || '',
       color,
+      assetRole,
+      section,
     };
     this.motions.set(id, item);
     this.engine.emit('tracks');
@@ -282,6 +327,8 @@ export class MotionDirector {
  *   folderId: string | null,
  *   fileUrl: string,
  *   color?: string,
+ *   assetRole?: 'character' | 'stage',
+ *   section?: 'motion' | 'stage',
  *   anim?: import('./motionAnim.js').MotionAnim,
  * }} MotionItem
  */
@@ -310,12 +357,14 @@ function placeOnStage(root, stageManager, positionOffset) {
   }
 }
 
-function guessName(url) {
+function guessName(url, assetRole = 'character') {
   try {
-    const part = decodeURIComponent(String(url).split('/').pop() || 'Motion');
-    return part.replace(/\.fbx$/i, '').replace(/^procedural:/, '') || 'Motion';
+    const part = decodeURIComponent(String(url).split('/').pop() || 'Object');
+    const base = part.replace(/\.(fbx|obj)$/i, '').replace(/^procedural:/, '');
+    if (base) return base;
+    return assetRole === 'stage' ? 'Prop' : 'Character';
   } catch {
-    return 'Motion';
+    return assetRole === 'stage' ? 'Prop' : 'Character';
   }
 }
 

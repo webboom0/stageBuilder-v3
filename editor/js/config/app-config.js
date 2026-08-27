@@ -1,31 +1,104 @@
 /**
- * StageBuilder v4 — single source for API base URL.
- * Change ONLY this file (or window.__STAGEBUILDER_API__) to switch local ↔ production.
+ * StageBuilder v4 — deployment config (PIVOT-compatible).
+ *
+ * LOCAL DEV (localhost):
+ *   - Assets API → http://localhost:3000 only (v4 server/server.js)
+ *   - Never connects to pivot.mhsoft.co.kr
+ *   - Stage shell FBX → ../files/stage/ (relative, same local server)
+ *
+ * PIVOT deploy (pivot.mhsoft.co.kr/stageBuilder/):
+ *   - Assets API → window.location.origin (same host)
+ *   - Upload editor/ only; do not change pivot server.js
+ *
+ * Optional local override (NOT production):
+ *   window.__STAGEBUILDER_API__ = 'http://127.0.0.1:3000'
  */
 
 const LOCAL_DEV_DEFAULT = 'http://localhost:3000';
 
+/** @param {string} url */
+function isProductionPivotUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host.includes('mhsoft.co.kr') || host.includes('pivot.');
+  } catch {
+    return /mhsoft\.co\.kr|pivot\./i.test(url);
+  }
+}
+
+/** @param {string} hostname */
+function isLocalDevHost(hostname) {
+  if (!hostname) return true;
+  const h = hostname.toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+}
+
 function resolveApiBaseUrl() {
-  if (typeof window !== 'undefined' && window.__STAGEBUILDER_API__) {
-    return String(window.__STAGEBUILDER_API__).replace(/\/$/, '');
+  if (typeof window === 'undefined') {
+    return LOCAL_DEV_DEFAULT;
   }
 
-  if (typeof window !== 'undefined') {
-    const { hostname } = window.location;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return LOCAL_DEV_DEFAULT;
+  const { hostname, origin, protocol } = window.location;
+
+  // file:// or unknown — treat as local dev
+  if (protocol === 'file:' || isLocalDevHost(hostname)) {
+    const override = window.__STAGEBUILDER_API__;
+    if (override) {
+      const url = String(override).replace(/\/$/, '');
+      if (isProductionPivotUrl(url)) {
+        console.warn(
+          '[StageBuilder] Local dev cannot use production PIVOT API. Using',
+          LOCAL_DEV_DEFAULT,
+        );
+        return LOCAL_DEV_DEFAULT;
+      }
+      return url;
     }
-    return window.location.origin;
+    return LOCAL_DEV_DEFAULT;
   }
 
-  return LOCAL_DEV_DEFAULT;
+  // Deployed (e.g. pivot.mhsoft.co.kr) — same-origin API only
+  return origin;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+/** True when editor runs on localhost / file:// — API locked to local server */
+export const IS_LOCAL_DEV = typeof window !== 'undefined'
+  && (window.location.protocol === 'file:' || isLocalDevHost(window.location.hostname));
+
+/** User-uploaded media — Characters / Props / Audio / Video (Assets panel only) */
+export const FILES_BASE = `${API_BASE_URL}/files`;
+
 export function apiUrl(path) {
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${p}`;
+}
+
+/**
+ * Resolve a user-asset path from API (`/files/fbx/foo.fbx`) to a fetch URL.
+ * @param {string} path
+ */
+export function filesUrl(path) {
+  if (!path) return path;
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    if (IS_LOCAL_DEV && isProductionPivotUrl(path)) {
+      console.warn('[StageBuilder] Blocked production asset URL in local dev:', path);
+      return path;
+    }
+    return path;
+  }
+  if (path.startsWith('/')) return apiUrl(path);
+  return apiUrl(`/${path}`);
+}
+
+/**
+ * Stage building shell FBX — relative path (NOT Assets API).
+ * From `/stageBuilder/index.html` → `/files/stage/*.fbx` on the same host.
+ * @param {string} filename
+ */
+export function stageShellUrl(filename) {
+  return `/files/stage/${filename}`;
 }
 
 export const API = {
@@ -36,10 +109,17 @@ export const API = {
   uploadFbx: '/api/upload-fbx',
   fbxFiles: '/api/fbx-files',
   deleteFbx: '/api/fbx-files',
+  uploadProp: '/api/upload-prop',
+  propFiles: '/api/prop-files',
+  deleteProp: '/api/prop-files',
   uploadVideo: '/api/upload-video',
   videoFiles: '/api/video-files',
   deleteVideo: '/api/video-files',
   projects: '/api/projects',
 };
 
-export const FILES_BASE = `${API_BASE_URL}/files`;
+/** pivot/nginx/server.js has no prop API — client falls back to fbx routes on deploy */
+export const PIVOT_LEGACY_ASSETS = Object.freeze({
+  characterFilesPrefix: '/files/fbx/',
+  propUploadUsesFbx: true,
+});

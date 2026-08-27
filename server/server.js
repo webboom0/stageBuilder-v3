@@ -26,6 +26,23 @@ const DOCS_ROOT = path.join(ROOT, 'docs');
 const STAGEBUILDER_FILES_ROOT = path.join(__dirname, 'files');
 const PROJECTS_ROOT = path.join(STAGEBUILDER_FILES_ROOT, 'projects');
 
+/** Three.js runtime — same bundle as PIVOT/v3 (r172), NOT CDN */
+const RUNTIME_CANDIDATES = [
+  path.join(ROOT, 'runtime'),
+  path.join(ROOT, '..', '..', 'pivot', 'nginx', 'html', 'stageBuilder'),
+  path.join(ROOT, '..', 'StageBuilder_v3'),
+];
+
+function resolveRuntimeRoot() {
+  for (const candidate of RUNTIME_CANDIDATES) {
+    const buildFile = path.join(candidate, 'build', 'three.module.js');
+    if (fs.existsSync(buildFile)) return candidate;
+  }
+  return null;
+}
+
+const RUNTIME_ROOT = resolveRuntimeRoot();
+
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
@@ -39,6 +56,8 @@ function ensureDir(dirPath) {
 
 ensureDir(STAGEBUILDER_FILES_ROOT);
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'music'));
+ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'characters'));
+ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'props'));
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'fbx'));
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'video'));
 ensureDir(PROJECTS_ROOT);
@@ -71,6 +90,8 @@ function requireAuth(req, res, next) {
 const MEDIA_EXTS = {
   music: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'],
   fbx: ['.fbx'],
+  characters: ['.fbx'],
+  props: ['.fbx', '.obj'],
   video: ['.mp4', '.webm', '.ogg', '.avi', '.mov'],
 };
 
@@ -113,9 +134,14 @@ const uploadAudio = multer({
   fileFilter: createFileFilter(MEDIA_EXTS.music),
 });
 const uploadFbx = multer({
-  storage: createStorage('fbx'),
+  storage: createStorage('characters'),
   limits: { fileSize: 100 * 1024 * 1024 },
-  fileFilter: createFileFilter(MEDIA_EXTS.fbx),
+  fileFilter: createFileFilter(MEDIA_EXTS.characters),
+});
+const uploadProp = multer({
+  storage: createStorage('props'),
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: createFileFilter(MEDIA_EXTS.props),
 });
 const uploadVideo = multer({
   storage: createStorage('video'),
@@ -193,22 +219,60 @@ app.delete('/api/audio-files/:filename', requireAuth, (req, res) => {
   return res.json({ success: true });
 });
 
-// ─── FBX ───
+// ─── Characters (등장인물 FBX) — legacy /api/*-fbx* aliases kept ───
+function listCharacterFiles() {
+  const chars = safeListFiles(
+    path.join(STAGEBUILDER_FILES_ROOT, 'characters'),
+    '/files/characters/',
+    MEDIA_EXTS.characters,
+  );
+  const legacy = safeListFiles(
+    path.join(STAGEBUILDER_FILES_ROOT, 'fbx'),
+    '/files/fbx/',
+    MEDIA_EXTS.fbx,
+  );
+  const seen = new Set(chars.map((f) => f.filename.toLowerCase()));
+  for (const f of legacy) {
+    if (!seen.has(f.filename.toLowerCase())) chars.push(f);
+  }
+  return chars.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+}
+
 app.post('/api/upload-fbx', requireAuth, uploadFbx.single('fbxFile'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'fbxFile이 필요합니다.' });
-  return res.json(buildUploadResponse(req, '/files/fbx/'));
+  return res.json(buildUploadResponse(req, '/files/characters/'));
 });
 
 app.get('/api/fbx-files', requireAuth, (_req, res) => {
-  const fbxPath = path.join(STAGEBUILDER_FILES_ROOT, 'fbx');
-  return res.json(safeListFiles(fbxPath, '/files/fbx/', MEDIA_EXTS.fbx));
+  return res.json(listCharacterFiles());
 });
 
 app.delete('/api/fbx-files/:filename', requireAuth, (req, res) => {
-  const ok = safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'fbx'), req.params.filename);
+  const name = req.params.filename;
+  const ok = safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'characters'), name)
+    || safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'fbx'), name);
   if (!ok) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
   return res.json({ success: true });
 });
+
+// ─── Stage props (무대·소품 FBX/OBJ) ───
+app.post('/api/upload-prop', requireAuth, uploadProp.single('propFile'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'propFile이 필요합니다.' });
+  return res.json(buildUploadResponse(req, '/files/props/'));
+});
+
+app.get('/api/prop-files', requireAuth, (_req, res) => {
+  const propsPath = path.join(STAGEBUILDER_FILES_ROOT, 'props');
+  return res.json(safeListFiles(propsPath, '/files/props/', MEDIA_EXTS.props));
+});
+
+app.delete('/api/prop-files/:filename', requireAuth, (req, res) => {
+  const ok = safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'props'), req.params.filename);
+  if (!ok) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+  return res.json({ success: true });
+});
+
+// ─── Video ───
 
 // ─── Video ───
 app.post('/api/upload-video', requireAuth, uploadVideo.single('video'), (req, res) => {
@@ -253,6 +317,14 @@ app.get('/api/projects', requireAuth, (_req, res) => {
 });
 
 // ─── Static (pivot-compatible paths) ───
+if (RUNTIME_ROOT) {
+  app.use('/build', express.static(path.join(RUNTIME_ROOT, 'build')));
+  app.use('/examples', express.static(path.join(RUNTIME_ROOT, 'examples')));
+} else {
+  console.warn(
+    '[StageBuilder] Three.js runtime not found. Link runtime/ → pivot html/stageBuilder or install build/',
+  );
+}
 app.use('/stageBuilder', requireAuth, express.static(EDITOR_ROOT));
 app.use('/files', requireAuth, express.static(STAGEBUILDER_FILES_ROOT));
 // Alias for older bookmarks — same files live under /stageBuilder/tutorial/

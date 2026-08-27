@@ -24,7 +24,7 @@ export class TimelineEngine {
     this.playing = false;
     this.pxPerSec = 8;
     this.scrollSec = 0;
-    this.durationMode = DURATION_MODE.SCALE_ALL;
+    this.durationMode = DURATION_MODE.CLAMP_END;
 
     /** @type {Map<string, Track>} */
     this.tracks = new Map();

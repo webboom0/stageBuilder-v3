@@ -6,9 +6,9 @@ export const INTERPOLATION = Object.freeze({
   SMOOTH: 2,
 });
 
-/** @typedef {'scalar' | 'vec3' | 'color' | 'bool' | 'clip' | 'motion'} TrackKind */
+/** @typedef {'scalar' | 'vec3' | 'color' | 'bool' | 'clip' | 'motion' | 'light'} TrackKind */
 
-/** @typedef {'motion' | 'light' | 'audio'} TimelineSection */
+/** @typedef {'motion' | 'stage' | 'light' | 'audio'} TimelineSection */
 
 /** Duration change policy (P2-6) */
 export const DURATION_MODE = Object.freeze({

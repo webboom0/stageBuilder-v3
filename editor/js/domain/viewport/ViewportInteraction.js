@@ -41,9 +41,23 @@ export function createViewportInteraction(opts) {
   /** @type {null | ((pt: { x: number, z: number }) => void)} */
   let pickPointCallback = null;
 
-  /** @type {{ motionId: string, before: object, keyId: string | null, trackId: string | null } | null} */
+  /** @type {{ motionId: string, before: object, keyId: string | null, trackId: string | null, lockY?: boolean } | null} */
   let dragSnap = null;
   let dragging = false;
+
+  /** @param {import('../motion/MotionDirector.js').MotionItem | null} m */
+  function isCharacterMotion(m) {
+    if (!m) return true;
+    if (m.section === 'stage' || m.assetRole === 'stage') return false;
+    const track = engine.getTrack(m.trackId);
+    return (track?.section || 'motion') === 'motion';
+  }
+
+  function updateTranslateYVisibility() {
+    const m = selectedMotionId ? motion.get(selectedMotionId) : null;
+    const char = isCharacterMotion(m);
+    transform.showY = mode !== 'translate' || !char;
+  }
 
   transform.addEventListener('dragging-changed', (ev) => {
     orbit.enabled = !ev.value;
@@ -71,6 +85,7 @@ export function createViewportInteraction(opts) {
         keyId,
         trackId: m.trackId,
         keyBefore,
+        lockY: isCharacterMotion(m),
       };
     } else if (dragSnap) {
       const m = motion.get(dragSnap.motionId);
@@ -87,9 +102,9 @@ export function createViewportInteraction(opts) {
     if (!selectedMotionId) return;
     const m = motion.get(selectedMotionId);
     if (!m) return;
-    // Motion translate is XZ only — lock Y to pre-drag (or current) height
-    if (mode === 'translate') {
-      const lockY = dragSnap?.before?.position?.y;
+    // Character translate is XZ only — lock Y to pre-drag height
+    if (mode === 'translate' && dragSnap?.lockY !== false) {
+      const lockY = dragSnap?.before?.position?.y ?? m.object.position.y;
       if (Number.isFinite(lockY)) m.object.position.y = lockY;
     }
     syncLiveKeyPreview(m);
@@ -98,8 +113,7 @@ export function createViewportInteraction(opts) {
   function setMode(next) {
     mode = next;
     transform.setMode(next);
-    // Hide Y arrow in translate; keep Y for rotate/scale
-    transform.showY = next !== 'translate';
+    updateTranslateYVisibility();
   }
 
   function setLocal(on) {
@@ -113,6 +127,7 @@ export function createViewportInteraction(opts) {
     pickMotionId = null;
     pickPointCallback = null;
     clearPickBanner();
+    updateTranslateYVisibility();
     onSelectionChange?.();
   }
 
@@ -125,10 +140,12 @@ export function createViewportInteraction(opts) {
     const m = motionId ? motion.get(motionId) : null;
     if (!m) {
       transform.detach();
+      updateTranslateYVisibility();
       onSelectionChange?.();
       return;
     }
     transform.attach(m.object);
+    updateTranslateYVisibility();
     engine.selectedTrackId = m.trackId;
     if (opt.selectKey !== false && !engine.selectedKeyframeId) {
       // Prefer key at playhead, else first key

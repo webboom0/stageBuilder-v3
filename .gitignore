@@ -25,6 +25,9 @@ server/files/projects/**
 # Stage assets linked from v3 (large; local junction)
 server/files/stage/
 
+# Three.js runtime junction → pivot html/stageBuilder (local dev)
+/runtime
+
 # GitHub 100MB limit / local-only large assets (if present under root files/)
 files/fbx/2.fbx
 files/fbx/1.fbx

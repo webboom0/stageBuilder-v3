@@ -1,12 +1,18 @@
-import { FILES_BASE } from '../../config/app-config.js';
+import { stageShellUrl } from '../../config/app-config.js';
 import { normalizeStageType } from './StageTypes.js';
 
 /** @typedef {import('./StageTypes.js').StageTypeId} StageTypeId */
 
-/** @type {Record<StageTypeId, string>} */
+/**
+ * Stage shell FBX — relative to editor (v3 / PIVOT pivot.mhsoft.co.kr compatible).
+ * URL from `/stageBuilder/index.html` → `/files/stage/*.fbx`
+ * Not tied to Assets upload API.
+ *
+ * @type {Record<StageTypeId, string>}
+ */
 export const STAGE_FBX_URL = Object.freeze({
-  proscenium: `${FILES_BASE}/stage/background.fbx`,
-  arena: `${FILES_BASE}/stage/arena_stage.fbx`,
+  proscenium: stageShellUrl('background.fbx'),
+  arena: stageShellUrl('arena_stage.fbx'),
 });
 
 /** v3 VideoEdit.js — building shell transform per stage type */

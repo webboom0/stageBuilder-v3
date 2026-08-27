@@ -37,15 +37,30 @@ export function disposeObject3D(root) {
   });
 }
 
+/** Resolve stage shell URL for FBXLoader (absolute same-origin). */
+function resolveShellLoadUrl(url) {
+  if (typeof window === 'undefined') return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${window.location.origin}${url}`;
+  return new URL(url, window.location.href).href;
+}
+
+/** Texture paths in background.fbx point at files/stage/*.jpg (optional). */
+function stageTextureResourcePath() {
+  if (typeof window === 'undefined') return '/files/stage/';
+  return `${window.location.origin}/files/stage/`;
+}
+
 /**
  * @param {import('./StageTypes.js').StageTypeId} stageType
  * @returns {Promise<import('three').Group>}
  */
 export function loadStageBackgroundFbx(stageType) {
   const type = normalizeStageType(stageType);
-  const url = getStageFbxUrl(type);
+  const url = resolveShellLoadUrl(getStageFbxUrl(type));
   const transform = STAGE_BACKGROUND_TRANSFORM[type];
   const loader = new FBXLoader();
+  loader.setResourcePath(stageTextureResourcePath());
 
   return new Promise((resolve, reject) => {
     loader.load(

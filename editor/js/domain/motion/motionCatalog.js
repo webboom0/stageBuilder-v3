@@ -1,4 +1,4 @@
-import { API, apiUrl } from '../../config/app-config.js';
+import { API, apiUrl, filesUrl, PIVOT_LEGACY_ASSETS } from '../../config/app-config.js';
 import { WALK_LITE_PROCEDURAL_ID } from './walkLitePerformer.js';
 
 /**
@@ -36,8 +36,8 @@ export async function loadMotionCatalog() {
         server = files.map((f) => {
           const filename = f.filename || f.name || '';
           const label = (f.displayName || f.name || filename).replace(/\.fbx$/i, '');
-          const path = f.path || `/files/fbx/${filename}`;
-          const url = path.startsWith('http') ? path : apiUrl(path);
+          const path = f.path || `${PIVOT_LEGACY_ASSETS.characterFilesPrefix}${filename}`;
+          const url = path.startsWith('http') ? path : filesUrl(path);
           return {
             url,
             name: label,

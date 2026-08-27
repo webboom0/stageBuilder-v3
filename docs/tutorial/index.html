@@ -27,10 +27,14 @@
         <a href="#timeline-duration">길이 · 실행 취소</a>
 
         <div class="nav-group">모션</div>
-        <a href="#motion-add">추가 · Assets</a>
+        <a href="#motion-add">Characters · Assets</a>
+        <a href="#stage-add">Stage</a>
         <a href="#motion-props">속성 · 구간</a>
         <a href="#motion-group">그룹</a>
         <a href="#motion-import">모션 JSON 가져오기</a>
+
+        <div class="nav-group">조명</div>
+        <a href="#house-light">HOUSE 채널</a>
 
         <div class="nav-group">더보기</div>
         <a href="#coming">곧 추가되는 기능</a>
@@ -117,6 +121,7 @@
         <h2>타임라인 — 재생 · 키프레임</h2>
         <p>하단 타임라인에서 시간을 맞추고 키를 편집합니다. 시간은 <strong>초</strong> 단위입니다.</p>
         <ul>
+          <li>상단 <strong>All · Characters · Stage · Light · Audio</strong> 로 트랙 섹션을 필터합니다</li>
           <li>▶ / <span class="kbd">Space</span> — 재생 · 일시정지</li>
           <li>룰러·빨간 플레이헤드를 드래그하면 시간을 스크럽합니다</li>
           <li>트랙을 고른 뒤 <strong>+ Key</strong> 또는 <span class="kbd">K</span> — 현재 시간에 키 추가</li>
@@ -129,37 +134,51 @@
 
       <section id="timeline-duration">
         <h2>타임라인 길이 · 실행 취소</h2>
-        <p>기본 길이는 <strong>180초</strong>입니다. Length에서 바꿉니다.</p>
-        <table>
-          <thead><tr><th>모드</th><th>의미</th></tr></thead>
-          <tbody>
-            <tr><td>Scale keys</td><td>키 시각을 비율로 늘리거나 줄입니다</td></tr>
-            <tr><td>Keep absolute</td><td>키 시각은 그대로 · 새 끝보다 뒤의 키는 정리됩니다</td></tr>
-          </tbody>
-        </table>
+        <p>기본 길이는 <strong>180초</strong>입니다. 툴바 <strong>길이</strong>에서 바꿉니다.</p>
+        <p>길이를 바꿔도 <strong>키 시각은 그대로</strong> 둡니다. 길이를 줄이면 새 끝보다 뒤에 있는 키만 정리됩니다.</p>
+        <p>트랙은 타임라인에서 만들지 않습니다. <strong>Assets</strong>에서 Characters / Stage를 <strong>+</strong> 로 올리면 트랙이 생깁니다.</p>
         <p>타임라인 윗변을 위·아래로 드래그하면 패널 높이가 바뀌며, 다음에도 기억됩니다.</p>
+        <p><strong>?</strong> 버튼은 사용자 튜토리얼이 아니라 <strong>타임라인 단축키</strong> 안내입니다. 전체 튜토리얼은 메뉴 <strong>도움말</strong>에서 엽니다.</p>
       </section>
 
       <section id="motion-add">
-        <h2>모션 추가 · Assets</h2>
+        <h2>Characters 추가 · Assets</h2>
         <ol>
-          <li>왼쪽 <strong>Assets</strong>에서 Motion / Video / Audio 탭을 고릅니다.</li>
-          <li>샘플(WalkLite) 또는 업로드한 FBX를 고른 뒤 <strong>+</strong> 로 무대에 올립니다.</li>
-          <li>모션 하나당 타임라인에 <strong>트랙 한 줄</strong>이 생깁니다.</li>
+          <li>왼쪽 <strong>Assets</strong>에서 <strong>Characters</strong> / <strong>Stage</strong> / Video / Audio 탭을 고릅니다.</li>
+          <li>Characters·Stage는 기본 항목 또는 업로드 파일에서 <strong>+</strong> 로 올립니다. Video는 <strong>+</strong> 재생 · 재생 중 <strong>−</strong> 제거합니다.</li>
+          <li>Characters 하나당 타임라인 <strong>Characters</strong> 섹션에 <strong>트랙 한 줄</strong>이 생깁니다.</li>
         </ol>
         <div class="note">
-          사람 모션은 무대 기준으로 키 약 170cm로 맞춰 배치됩니다.
+          Characters는 무대 기준 키 약 170cm로 맞춰 배치됩니다. 위치는 <strong>X/Z만</strong> 조절합니다(Y 고정).
           보였다/안 보였다는 클립 길이가 아니라 <strong>Opacity</strong>와 <strong>구간 탭의 퇴장</strong>으로 조절합니다.
+          업로드 시 탭별 허용 형식·용량이 아니면 <strong>경고창</strong>이 뜹니다.
         </div>
-        <div class="figure">Assets · 모션 배치</div>
+        <div class="figure">Assets · Characters 배치</div>
+      </section>
+
+      <section id="stage-add">
+        <h2>Stage 추가</h2>
+        <ol>
+          <li>Assets에서 <strong>Stage</strong> 탭을 고릅니다.</li>
+          <li>목록의 <strong>직육면체</strong> · <strong>원통</strong>(기본) 또는 FBX/OBJ에서 <strong>+</strong> 로 배치합니다.</li>
+          <li>Stage는 타임라인 <strong>Stage</strong> 섹션에 트랙으로 추가됩니다.</li>
+        </ol>
+        <div class="note">
+          Stage는 사람 키 스케일을 쓰지 않습니다. Properties <strong>속성</strong>에서
+          <strong>위치 · 회전 · 크기 · 색상 · Opacity</strong>를 조절할 수 있습니다.
+          Opacity 0으로 키를 두면 무대 밖·퇴장 연출에 쓸 수 있습니다.
+          그룹(앙상블)에는 Characters만 등록할 수 있습니다.
+        </div>
+        <div class="figure">Assets · Stage 배치</div>
       </section>
 
       <section id="motion-props">
         <h2>속성 · 구간</h2>
         <p>모션을 선택하면 오른쪽 <strong>Properties</strong>가 열립니다.</p>
         <ul>
-          <li><strong>속성</strong> — 위치 X/Z (Y 고정) · 좌우 회전 · 틴트 색 · Opacity · 무대에서 위치 지정 · (키 선택 시) 시간·Easing</li>
-          <li><strong>구간</strong> — 이동 · 대기 · <strong>퇴장</strong> 흐름을 만든 뒤 <strong>구간 적용</strong>으로 키프레임 생성</li>
+          <li><strong>속성 — Characters</strong> — 위치 X/Z (Y 고정) · Y 회전 칩 · 틴트 · Opacity · 무대에서 위치 지정 · (키 선택 시) 시간·Easing</li>
+          <li><strong>속성 — Stage</strong> — 위치 X/Y/Z · 회전 X/Y/Z · 크기 X/Y/Z · 색상 · Opacity · 무대에서 위치 지정 · (키 선택 시) 시간·Easing</li>
+          <li><strong>구간</strong> (Characters만) — 이동 · 대기 · <strong>퇴장</strong> 흐름을 만든 뒤 <strong>구간 적용</strong>으로 키프레임 생성</li>
         </ul>
         <h3>구간으로 움직이기 · 퇴장</h3>
         <ol>
@@ -182,7 +201,7 @@
         <h2>그룹</h2>
         <ol>
           <li><strong>+ 그룹 만들기</strong> → 탭 옆 색으로 그룹 틴트</li>
-          <li>Assets 목록에서 FBX를 골라 그룹에 등록</li>
+          <li>Assets <strong>Characters</strong> 목록에서 FBX를 골라 그룹에 등록</li>
           <li>시작 위치 · Opacity · 이동/대기/퇴장 · 포메이션 · 간격</li>
           <li><strong>그룹 GO</strong> — 무대에 배치하고 타임라인에 구간 키를 적용</li>
         </ol>
@@ -203,9 +222,24 @@
         </div>
       </section>
 
+      <section id="house-light">
+        <h2>HOUSE 조명</h2>
+        <p>무대 기본 조명(Fill · FOH 좌/중/우)을 타임라인 <strong>Light</strong> 섹션에서 조절합니다. 키 추가·이동·삭제는 Characters와 같습니다.</p>
+        <ol>
+          <li>타임라인에서 <strong>Light</strong>로 점프하거나, 메뉴 <strong>추가 → 조명 → HOUSE 채널</strong>로 트랙을 준비합니다.</li>
+          <li><strong>HOUSE · Fill</strong> · <strong>FOH L / C / R</strong> 네 줄이 보입니다.</li>
+          <li>트랙을 고르고 키를 추가한 뒤, 오른쪽 <strong>Properties</strong>에서 <strong>Dim · 색상 · Size</strong>를 편집합니다. (Fill은 Size 없음)</li>
+          <li>플레이헤드를 스크럽하면 무대 조명이 키에 맞춰 바뀝니다.</li>
+        </ol>
+        <div class="note">
+          Fixture·MA Console은 아직 준비 중입니다. HOUSE만 먼저 사용할 수 있습니다.
+        </div>
+        <div class="figure">타임라인 Light · HOUSE 속성</div>
+      </section>
+
       <section id="coming">
         <h2>곧 추가되는 기능</h2>
-        <p>조명 · 오디오 편집 · 멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다. 메뉴에 보이더라도 아직 안내만 뜨는 항목이 있을 수 있습니다.</p>
+        <p>Fixture·MA Console · 오디오 편집 · 멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다. 메뉴에 보이더라도 아직 안내만 뜨는 항목이 있을 수 있습니다.</p>
       </section>
 
       <p class="footer-meta">

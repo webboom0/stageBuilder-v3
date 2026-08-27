@@ -338,6 +338,20 @@ body.premiere-workspace {
   color: #fff;
 }
 
+.sb-assets-add.is-remove {
+  color: #f0a8a8;
+}
+
+.sb-assets-add.is-remove:hover {
+  border-color: #e07070;
+  color: #fff;
+  background: #5a3030;
+}
+
+.sb-assets-item.is-active-video .sb-assets-item-name {
+  color: #c9b8ff;
+}
+
 .sb-assets-empty {
   padding: 10px 4px;
   color: var(--ink-dim);
@@ -931,6 +945,47 @@ body.full-mode #status {
   font-size: 10px;
   color: var(--ink-dim);
   line-height: 1.45;
+}
+
+/* Stage dock panel — inset rows; avoid clipped number inputs */
+.sb-stage-panel {
+  padding: 6px 12px 12px;
+}
+
+.sb-stage-panel .ec-row {
+  margin: 4px 0;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.sb-stage-panel .ec-row label {
+  width: 56px;
+  min-width: 56px;
+  padding-left: 2px;
+}
+
+.sb-stage-panel .ec-row select,
+.sb-stage-panel .ec-row input[type="number"] {
+  height: 26px;
+  line-height: 1.25;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.sb-stage-panel .ec-row input[type="number"].ec-val {
+  flex: 0 0 58px;
+  width: 58px;
+  min-width: 58px;
+}
+
+.sb-stage-panel .ec-row-actions {
+  margin: 8px 0 4px;
+}
+
+.sb-stage-panel .sb-stage-warning,
+.sb-stage-panel .sb-stage-hint {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .sb-panel-placeholder {
