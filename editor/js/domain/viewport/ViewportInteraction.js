@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { getStageDeckWorldY } from '../stage/stageGridAdaptive.js';
-import { motionKeyFromObject, asMotionKeyValue } from '../motion/motionKeyValue.js';
+import { asMotionKeyValue } from '../motion/motionKeyValue.js';
 import { cloneKeyframeValue } from '../timeline/cloneValue.js';
+import { keyframeTimeEps } from '../timeline/KeyframeStore.js';
 
 /**
  * Viewport picking + TransformControls (v3 Viewport.js pattern).
@@ -41,7 +42,7 @@ export function createViewportInteraction(opts) {
   /** @type {null | ((pt: { x: number, z: number }) => void)} */
   let pickPointCallback = null;
 
-  /** @type {{ motionId: string, before: object, keyId: string | null, trackId: string | null, lockY?: boolean } | null} */
+  /** @type {{ motionId: string, before: object, keyId: string | null, trackId: string | null, keyBefore: any, lockY?: boolean, canCommit: boolean } | null} */
   let dragSnap = null;
   let dragging = false;
 
@@ -59,6 +60,18 @@ export function createViewportInteraction(opts) {
     transform.showY = mode !== 'translate' || !char;
   }
 
+  /** @param {import('../timeline/Track.js').Track | null | undefined} track @param {string | null} explicitKeyId */
+  function resolveWritableKeyframe(track, explicitKeyId) {
+    if (!track?.keys) return null;
+    if (explicitKeyId && engine.selectedTrackId === track.id) {
+      const selected = track.keys.get(explicitKeyId);
+      if (selected) return selected;
+    }
+    return track.keys.findAtTime(engine.playheadSec, {
+      eps: keyframeTimeEps(engine.fps),
+    }) ?? null;
+  }
+
   transform.addEventListener('dragging-changed', (ev) => {
     orbit.enabled = !ev.value;
     if (ev.value) {
@@ -73,24 +86,27 @@ export function createViewportInteraction(opts) {
         return;
       }
       dragging = true;
-      let keyId = engine.selectedTrackId === m.trackId ? engine.selectedKeyframeId : null;
-      let keyBefore = null;
-      if (keyId && track) {
-        const kf = track.keys.get(keyId);
-        keyBefore = kf ? cloneKeyframeValue(kf.value) : null;
-      }
+      const explicitKeyId = engine.selectedTrackId === m.trackId
+        ? engine.selectedKeyframeId
+        : null;
+      const writable = resolveWritableKeyframe(track, explicitKeyId);
       dragSnap = {
         motionId: m.id,
         before: snapshotObject(m.object),
-        keyId,
+        keyId: writable?.id ?? null,
         trackId: m.trackId,
-        keyBefore,
+        keyBefore: writable ? cloneKeyframeValue(writable.value) : null,
         lockY: isCharacterMotion(m),
+        canCommit: !!writable,
       };
     } else if (dragSnap) {
       const m = motion.get(dragSnap.motionId);
       if (m) {
-        commitTransform(m, dragSnap.before, dragSnap.trackId, dragSnap.keyId, dragSnap.keyBefore);
+        if (dragSnap.canCommit) {
+          commitTransform(m, dragSnap.before, dragSnap.trackId, dragSnap.keyId, dragSnap.keyBefore);
+        } else {
+          motion.apply(engine.playheadSec);
+        }
       }
       dragSnap = null;
       dragging = false;
@@ -121,13 +137,14 @@ export function createViewportInteraction(opts) {
     transform.setSpace(localSpace ? 'local' : 'world');
   }
 
-  function clearSelection() {
+  function clearSelection(opt = {}) {
     selectedMotionId = null;
     transform.detach();
     pickMotionId = null;
     pickPointCallback = null;
     clearPickBanner();
     updateTranslateYVisibility();
+    if (!opt.skipEngine) engine.clearSelection();
     onSelectionChange?.();
   }
 
@@ -148,15 +165,16 @@ export function createViewportInteraction(opts) {
     updateTranslateYVisibility();
     engine.selectedTrackId = m.trackId;
     if (opt.selectKey !== false && !engine.selectedKeyframeId) {
-      // Prefer key at playhead, else first key
       const track = engine.getTrack(m.trackId);
       const keys = track?.keys.list() || [];
-      const at = keys.find((k) => Math.abs(k.timeSec - engine.playheadSec) < 1e-3)
-        || keys[0]
-        || null;
+      const at = keys.find(
+        (k) => Math.abs(k.timeSec - engine.playheadSec) <= keyframeTimeEps(engine.fps),
+      ) || null;
       if (at) engine.selectKeyframe(m.trackId, at.id);
       else {
+        engine.selectedTrackId = m.trackId;
         engine.selectedKeyframeId = null;
+        engine.selectedKeys = [];
         engine.emit('selection');
       }
     } else {
@@ -261,77 +279,42 @@ export function createViewportInteraction(opts) {
    */
   function commitTransform(m, before, trackId, keyId, keyBeforeSnap) {
     const after = snapshotObject(m.object);
-    let ensuredKeyId = keyId;
-    let keyBefore = keyBeforeSnap;
-    let keyAfter = null;
-    let createdKey = null;
+    const track = trackId ? engine.getTrack(trackId) : null;
+    const target = track ? resolveWritableKeyframe(track, keyId) : null;
+    if (!target) {
+      motion.apply(engine.playheadSec);
+      return;
+    }
 
-    if (trackId) {
-      const track = engine.getTrack(trackId);
-      if (track) {
-        if (!ensuredKeyId) {
-          const existing = track.keys.list().find((k) => Math.abs(k.timeSec - engine.playheadSec) < 1e-3);
-          if (existing) {
-            ensuredKeyId = existing.id;
-            keyBefore = cloneKeyframeValue(existing.value);
-          } else {
-            const bag = motionKeyFromObject(m.object);
-            createdKey = track.keys.add({ timeSec: engine.playheadSec, value: bag });
-            ensuredKeyId = createdKey.id;
-            keyBefore = null;
-            keyAfter = cloneKeyframeValue(bag);
-            engine.selectKeyframe(trackId, ensuredKeyId);
-          }
-        }
-        if (ensuredKeyId && !createdKey) {
-          const kf = track.keys.get(ensuredKeyId);
-          if (kf) {
-            if (keyBefore == null) keyBefore = cloneKeyframeValue(kf.value);
-            const bag = asMotionKeyValue(kf.value);
-            bag.position = [after.position.x, after.position.y, after.position.z];
-            bag.rotation = [after.rotation.x, after.rotation.y, after.rotation.z];
-            bag.scale = [after.scale.x, after.scale.y, after.scale.z];
-            keyAfter = bag;
-            track.keys.update(ensuredKeyId, { value: bag });
-            engine.selectKeyframe(trackId, ensuredKeyId);
-          }
-        }
-      }
+    const ensuredKeyId = target.id;
+    let keyBefore = keyBeforeSnap ?? cloneKeyframeValue(target.value);
+    const bag = asMotionKeyValue(target.value);
+    bag.position = [after.position.x, after.position.y, after.position.z];
+    bag.rotation = [after.rotation.x, after.rotation.y, after.rotation.z];
+    bag.scale = [after.scale.x, after.scale.y, after.scale.z];
+    const keyAfter = bag;
+    track.keys.update(ensuredKeyId, { value: bag });
+    if (engine.selectedTrackId === trackId) {
+      engine.selectKeyframe(trackId, ensuredKeyId);
     }
 
     engine.commands.push({
       label: 'Transform motion',
       undo: () => {
         applySnapshot(m.object, before);
-        const track = trackId ? engine.getTrack(trackId) : null;
-        if (createdKey && track) {
-          track.keys.remove(createdKey.id);
-          if (engine.selectedKeyframeId === createdKey.id) engine.clearSelection();
-        } else if (track && ensuredKeyId && keyBefore != null) {
-          track.keys.update(ensuredKeyId, { value: cloneKeyframeValue(keyBefore) });
-        }
+        track.keys.update(ensuredKeyId, { value: cloneKeyframeValue(keyBefore) });
         engine.emit('keys');
         motion.apply(engine.playheadSec);
       },
       redo: () => {
         applySnapshot(m.object, after);
-        const track = trackId ? engine.getTrack(trackId) : null;
-        if (createdKey && track) {
-          track.keys.add({
-            id: createdKey.id,
-            timeSec: createdKey.timeSec,
-            value: cloneKeyframeValue(keyAfter ?? createdKey.value),
-            interpolation: createdKey.interpolation,
-          });
-          engine.selectKeyframe(trackId, createdKey.id);
-        } else if (track && ensuredKeyId && keyAfter != null) {
-          track.keys.update(ensuredKeyId, { value: cloneKeyframeValue(keyAfter) });
-        }
+        track.keys.update(ensuredKeyId, { value: cloneKeyframeValue(keyAfter) });
         engine.emit('keys');
         motion.apply(engine.playheadSec);
       },
     });
     engine.emit('keys');
+    motion.apply(engine.playheadSec);
   }
 
   function syncLiveKeyPreview(m) {

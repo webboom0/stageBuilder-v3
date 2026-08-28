@@ -28,9 +28,11 @@ import {
  *   onApplyProfile: (widthM: number, depthM: number) => void,
  *   onChange?: () => void,
  *   onStageFocusChange?: (active: boolean) => void,
+ *   onBuildingLockToggle?: () => boolean,
  *   onAddCharacter?: (entry: { url: string, name: string, procedural?: string, color?: number }) => void | Promise<void>,
  *   onAddProp?: (entry: { url: string, name: string, procedural?: string, color?: number }) => void | Promise<void>,
  *   onAddVideo?: (entry: { url: string, name: string, filename?: string }) => void | Promise<void>,
+ *   onAddAudio?: (entry: { url: string, path: string, name: string, filename?: string }) => void | Promise<void>,
  *   onRemoveVideo?: () => void | Promise<void>,
  *   onDeployGroup?: (groupId: string) => void | Promise<void>,
  *   onGroupRename?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
@@ -89,6 +91,7 @@ export function mountEditorShell(root, ctx) {
     onAddCharacter: (entry) => ctx.onAddCharacter?.(entry),
     onAddProp: (entry) => ctx.onAddProp?.(entry),
     onAddVideo: (entry) => ctx.onAddVideo?.(entry),
+    onAddAudio: (entry) => ctx.onAddAudio?.(entry),
     onRemoveVideo: () => ctx.onRemoveVideo?.(),
     onCatalogChanged: () => {
       groupsUi?.refreshCatalog?.();
@@ -230,6 +233,7 @@ export function mountEditorShell(root, ctx) {
       onCameraPreset: ctx.onCameraPreset,
       onZoom: ctx.onZoom,
       onStageFocusToggle: handleStageFocusToggle,
+      onBuildingLockToggle: ctx.onBuildingLockToggle,
       onTransformMode: (mode) => ctx.onTransformMode?.(mode),
     });
     const localCb = toolbarEl.querySelector('#sb-toolbar-local');

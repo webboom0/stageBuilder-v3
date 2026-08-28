@@ -1,0 +1,24 @@
+/* Floating tooltips — native title breaks on dark UI; ::after clips inside overflow panels. */
+
+#sb-tooltip-float {
+  position: fixed;
+  z-index: 100000;
+  padding: 4px 9px;
+  max-width: 320px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-family: var(--ui);
+  font-weight: 400;
+  color: #ececec;
+  background: #1a1a1a;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+}
+
+#sb-tooltip-float[hidden] {
+  display: none !important;
+}

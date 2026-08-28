@@ -83,6 +83,10 @@ export function sampleMotionBag(store, timeSec, fallback = emptyMotionKeyValue()
   const fb = asMotionKeyValue(fallback);
   if (!keys.length) return fb;
 
+  if (timeSec < keys[0].timeSec - 1e-6) {
+    return { ...fb, visible: false, opacity: 0 };
+  }
+
   if (timeSec <= keys[0].timeSec) {
     return asMotionKeyValue(keys[0].value, fb);
   }

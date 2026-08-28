@@ -4,9 +4,25 @@
     .map((a) => document.querySelector(a.getAttribute('href')))
     .filter(Boolean);
 
+  /** 3차 섹션 → 2차 개요 섹션 */
+  const CHILD_TO_PARENT = {
+    'char-track': 'timeline-characters',
+    'char-props': 'timeline-characters',
+    'char-segments': 'timeline-characters',
+    'char-group': 'timeline-characters',
+    'stage-track': 'timeline-stage',
+    'stage-props': 'timeline-stage',
+    'light-track': 'timeline-light',
+    'light-props': 'timeline-light',
+    'audio-track': 'timeline-audio',
+  };
+
   function setActive(id) {
+    const parentId = CHILD_TO_PARENT[id];
     links.forEach((a) => {
-      a.classList.toggle('is-on', a.getAttribute('href') === `#${id}`);
+      const href = (a.getAttribute('href') || '').slice(1);
+      a.classList.toggle('is-on', href === id);
+      a.classList.toggle('is-parent', !!parentId && href === parentId && href !== id);
     });
   }
 

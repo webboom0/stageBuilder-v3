@@ -6,7 +6,7 @@ export const INTERPOLATION = Object.freeze({
   SMOOTH: 2,
 });
 
-/** @typedef {'scalar' | 'vec3' | 'color' | 'bool' | 'clip' | 'motion' | 'light'} TrackKind */
+/** @typedef {'scalar' | 'vec3' | 'color' | 'bool' | 'clip' | 'motion' | 'light' | 'audio'} TrackKind */
 
 /** @typedef {'motion' | 'stage' | 'light' | 'audio'} TimelineSection */
 

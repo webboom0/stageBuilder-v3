@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { INTERPOLATION } from '../timeline/types.js';
+import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
 import {
   getStageDeckCenter,
   getStageDeckWorldY,
@@ -218,7 +219,8 @@ export class MotionDirector {
     });
 
     const keyValue = motionKeyFromObject(root);
-    this.engine.addKeyframe(track.id, 0, keyValue, INTERPOLATION.LINEAR);
+    const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
+    this.engine.addKeyframe(track.id, ph, keyValue, INTERPOLATION.LINEAR);
 
     ensureMaterialsForOpacity(root);
     disableMotionFrustumCull(root);

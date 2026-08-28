@@ -15,30 +15,44 @@
       </div>
       <nav id="side-nav">
         <div class="nav-group">시작</div>
-        <a href="#intro">안내</a>
-        <a href="#layout">화면 구성</a>
+        <a href="#intro" class="nav-l2">안내</a>
+        <a href="#layout" class="nav-l2">화면 구성</a>
 
         <div class="nav-group">무대</div>
-        <a href="#stage-type">타입 · 규격</a>
-        <a href="#stage-camera">카메라 · 그리드</a>
+        <a href="#stage-type" class="nav-l2">타입 · 규격</a>
+        <a href="#stage-camera" class="nav-l2">카메라 · 툴바 · 그리드</a>
+
+        <div class="nav-group">Assets</div>
+        <a href="#assets-common" class="nav-l2">공통</a>
+
+        <a href="#assets-characters" class="nav-l2">Characters</a>
+        <a href="#assets-stage" class="nav-l2">Stage</a>
+        <a href="#assets-video" class="nav-l2">Video</a>
+        <a href="#assets-audio" class="nav-l2">Audio</a>
 
         <div class="nav-group">타임라인</div>
-        <a href="#timeline-play">재생 · 키프레임</a>
-        <a href="#timeline-duration">길이 · 실행 취소</a>
+        <a href="#timeline-common" class="nav-l2">공통 (재생 · 길이)</a>
 
-        <div class="nav-group">모션</div>
-        <a href="#motion-add">Characters · Assets</a>
-        <a href="#stage-add">Stage</a>
-        <a href="#motion-props">속성 · 구간</a>
-        <a href="#motion-group">그룹</a>
-        <a href="#motion-import">모션 JSON 가져오기</a>
+        <a href="#timeline-characters" class="nav-l2">Characters</a>
+        <a href="#char-track" class="nav-l3">트랙</a>
+        <a href="#char-props" class="nav-l3">속성</a>
+        <a href="#char-segments" class="nav-l3">구간</a>
+        <a href="#char-group" class="nav-l3">그룹</a>
 
-        <div class="nav-group">조명</div>
-        <a href="#house-light">HOUSE 채널</a>
-        <a href="#fixture-light">Fixture</a>
+        <a href="#timeline-stage" class="nav-l2">Stage</a>
+        <a href="#stage-track" class="nav-l3">트랙</a>
+        <a href="#stage-props" class="nav-l3">속성</a>
+
+        <a href="#timeline-light" class="nav-l2">Light · 조명</a>
+        <a href="#light-track" class="nav-l3">트랙</a>
+        <a href="#light-props" class="nav-l3">속성 (패널)</a>
+
+        <a href="#timeline-audio" class="nav-l2">Audio</a>
+        <a href="#audio-track" class="nav-l3">트랙 · 클립</a>
 
         <div class="nav-group">더보기</div>
-        <a href="#coming">곧 추가되는 기능</a>
+        <a href="#motion-import" class="nav-l2">모션 JSON 가져오기</a>
+        <a href="#coming" class="nav-l2">곧 추가되는 기능</a>
       </nav>
     </aside>
 
@@ -48,8 +62,8 @@
         <h1>StageBuilder 에디터</h1>
         <p>
           무대·모션·타임라인으로 공연 연출을 구성하는 에디터입니다.
-          왼쪽 메뉴에서 기능별로 확인하세요.
-          에디터에서는 <strong>도움말 → 사용자 튜토리얼…</strong> 로 이 안내를 열 수 있습니다.
+          왼쪽 메뉴는 <strong>Assets → 트랙 → 속성</strong> 순으로 연결됩니다.
+          에디터에서는 <strong>도움말 → 사용자 튜토리얼…</strong> 로 이 안내를 엽니다.
         </p>
       </header>
 
@@ -59,11 +73,11 @@
           <thead><tr><th>영역</th><th>역할</th></tr></thead>
           <tbody>
             <tr><td>상단 메뉴</td><td>파일 · 편집 · 씬 · 추가 · 보기 · 연출 · 도움말 · 그리드</td></tr>
+            <tr><td>메뉴 바로 아래</td><td>연결 상태 · 무대 크기 · 안내 메시지 (상태 표시줄)</td></tr>
             <tr><td>왼쪽</td><td>무대 · Assets · 그룹 패널</td></tr>
-            <tr><td>가운데</td><td>3D 무대 뷰</td></tr>
-            <tr><td>오른쪽</td><td>Properties (속성 / 구간)</td></tr>
-            <tr><td>하단</td><td>타임라인 · 이동/회전 · 카메라 툴바</td></tr>
-            <tr><td>좌하단</td><td>연결 상태 · 무대 크기 · 안내 메시지</td></tr>
+            <tr><td>가운데</td><td>3D 무대 뷰 · 하단 <strong>뷰포트 툴바</strong> (이동/카메라/빌딩고정)</td></tr>
+            <tr><td>오른쪽</td><td>Properties — Characters(속성·구간) / Stage(속성) / 조명</td></tr>
+            <tr><td>하단</td><td>타임라인</td></tr>
           </tbody>
         </table>
         <div class="figure">메뉴 · 패널 · 뷰 · 타임라인 전체 화면</div>
@@ -100,114 +114,446 @@
       </section>
 
       <section id="stage-camera">
-        <h2>카메라 · 그리드</h2>
-        <p>하단 툴바 또는 <strong>보기 → 카메라</strong>에서 시점을 바꿉니다.</p>
+        <h2>카메라 · 그리드 · 뷰포트 툴바</h2>
+        <p>뷰포트 <strong>하단 툴바</strong> 또는 <strong>보기 → 카메라</strong>에서 시점·기즈모를 바꿉니다. 버튼에 마우스를 올리면 한글 툴팁이 표시됩니다.</p>
+        <h3>변형 · 시점</h3>
         <table>
-          <thead><tr><th>버튼</th><th>시점</th></tr></thead>
+          <thead><tr><th>버튼</th><th>기능</th></tr></thead>
           <tbody>
-            <tr><td>P</td><td>원근</td></tr>
-            <tr><td>AUD</td><td>객석</td></tr>
-            <tr><td>F / R / L / T</td><td>정면 · 우측 · 좌측 · 위</td></tr>
+            <tr><td>이동 · 회전 · 스케일</td><td>선택 모션 기즈모 모드</td></tr>
+            <tr><td>원근 · 객석 · 정면 · 우측 · 좌측 · 상단</td><td>카메라 프리셋 (객석은 무대 전체가 보이도록 맞춤)</td></tr>
+            <tr><td>확대 · 축소</td><td>줌</td></tr>
+            <tr><td>무대 전체 보기</td><td>뷰 확대 · 더블클릭 · <span class="kbd">Esc</span>로 종료</td></tr>
+            <tr><td>빌딩고정</td><td>건물 배경 고정 — 궤도 <strong>이동·회전 끔</strong> (다시 누르면 해제)</td></tr>
+            <tr><td>로컬</td><td>기즈모 로컬 / 월드 축 전환</td></tr>
           </tbody>
         </table>
         <ul>
-          <li>드래그로 회전 · 휠로 줌</li>
-          <li><strong>무대 전체 보기</strong> — 툴바, 보기 메뉴, 또는 뷰 더블클릭 · <span class="kbd">Esc</span>로 종료</li>
+          <li>드래그로 회전 · 휠로 줌 (빌딩고정 꺼져 있을 때)</li>
           <li>메뉴 오른쪽 <strong>그리드</strong> — 표시 On/Off · 자동 · 1m 고정 · GridHelper</li>
         </ul>
-        <div class="figure">카메라 툴바 · 그리드</div>
+        <div class="figure">카메라 툴바 · 그리드 · 빌딩고정</div>
       </section>
 
-      <section id="timeline-play">
-        <h2>타임라인 — 재생 · 키프레임</h2>
-        <p>하단 타임라인에서 시간을 맞추고 키를 편집합니다. 시간은 <strong>초</strong> 단위입니다.</p>
+      <section id="timeline-common">
+        <h2>타임라인 — 공통</h2>
+        <p>하단 타임라인에서 시간을 맞추고, 섹션별 트랙·키·클립을 편집합니다. 시간은 <strong>초</strong> 단위입니다.</p>
+        <h3>재생 · 스크럽</h3>
         <ul>
-          <li>상단 <strong>All · Characters · Stage · Light · Audio</strong> 로 트랙 섹션을 필터합니다</li>
+          <li>상단 <strong>All · Characters · Stage · Light · Audio</strong> — 섹션 필터</li>
           <li>▶ / <span class="kbd">Space</span> — 재생 · 일시정지</li>
-          <li>룰러·빨간 플레이헤드를 드래그하면 시간을 스크럽합니다</li>
-          <li>트랙을 고른 뒤 <strong>+ Key</strong> 또는 <span class="kbd">K</span> — 현재 시간에 키 추가</li>
-          <li>키를 클릭하면 무대에서 해당 모션이 선택되고, 플레이헤드가 그 시각으로 이동합니다</li>
-          <li><span class="kbd">Del</span> — 키 삭제 · <span class="kbd">Ctrl+Z</span> / <span class="kbd">Ctrl+Y</span> — 실행 취소 · 다시 실행</li>
-          <li><span class="kbd">M</span> — 선택 키를 초 단위로 이동 · <span class="kbd">Shift+M</span> — 플레이헤드 이동</li>
+          <li>룰러·빨간 플레이헤드 드래그 — 시간 스크럽</li>
+          <li>타임라인 윗변 드래그 — 패널 높이 (다음에도 기억)</li>
+          <li><strong>?</strong> — 타임라인 단축키 (전체 튜토리얼은 메뉴 <strong>도움말</strong>)</li>
         </ul>
-        <div class="figure">타임라인 · 플레이헤드 · 키</div>
-      </section>
-
-      <section id="timeline-duration">
-        <h2>타임라인 길이 · 실행 취소</h2>
-        <p>기본 길이는 <strong>180초</strong>입니다. 툴바 <strong>길이</strong>에서 바꿉니다.</p>
-        <p>길이를 바꿔도 <strong>키 시각은 그대로</strong> 둡니다. 길이를 줄이면 새 끝보다 뒤에 있는 키만 정리됩니다.</p>
-        <p>트랙은 타임라인에서 만들지 않습니다. <strong>Assets</strong>에서 Characters / Stage를 <strong>+</strong> 로 올리면 트랙이 생깁니다.</p>
-        <p>타임라인 윗변을 위·아래로 드래그하면 패널 높이가 바뀌며, 다음에도 기억됩니다.</p>
-        <p><strong>?</strong> 버튼은 사용자 튜토리얼이 아니라 <strong>타임라인 단축키</strong> 안내입니다. 전체 튜토리얼은 메뉴 <strong>도움말</strong>에서 엽니다.</p>
-      </section>
-
-      <section id="motion-add">
-        <h2>Characters 추가 · Assets</h2>
-        <ol>
-          <li>왼쪽 <strong>Assets</strong>에서 <strong>Characters</strong> / <strong>Stage</strong> / Video / Audio 탭을 고릅니다.</li>
-          <li>Characters·Stage는 기본 항목 또는 업로드 파일에서 <strong>+</strong> 로 올립니다. Video는 <strong>+</strong> 재생 · 재생 중 <strong>−</strong> 제거합니다.</li>
-          <li>Characters 하나당 타임라인 <strong>Characters</strong> 섹션에 <strong>트랙 한 줄</strong>이 생깁니다.</li>
-        </ol>
-        <div class="note">
-          Characters는 무대 기준 키 약 170cm로 맞춰 배치됩니다. 위치는 <strong>X/Z만</strong> 조절합니다(Y 고정).
-          보였다/안 보였다는 클립 길이가 아니라 <strong>Opacity</strong>와 <strong>구간 탭의 퇴장</strong>으로 조절합니다.
-          업로드 시 탭별 허용 형식·용량이 아니면 <strong>경고창</strong>이 뜹니다.
-        </div>
-        <div class="figure">Assets · Characters 배치</div>
-      </section>
-
-      <section id="stage-add">
-        <h2>Stage 추가</h2>
-        <ol>
-          <li>Assets에서 <strong>Stage</strong> 탭을 고릅니다.</li>
-          <li>목록의 <strong>직육면체</strong> · <strong>원통</strong>(기본) 또는 FBX/OBJ에서 <strong>+</strong> 로 배치합니다.</li>
-          <li>Stage는 타임라인 <strong>Stage</strong> 섹션에 트랙으로 추가됩니다.</li>
-        </ol>
-        <div class="note">
-          Stage는 사람 키 스케일을 쓰지 않습니다. Properties <strong>속성</strong>에서
-          <strong>위치 · 회전 · 크기 · 색상 · Opacity</strong>를 조절할 수 있습니다.
-          Opacity 0으로 키를 두면 무대 밖·퇴장 연출에 쓸 수 있습니다.
-          그룹(앙상블)에는 Characters만 등록할 수 있습니다.
-        </div>
-        <div class="figure">Assets · Stage 배치</div>
-      </section>
-
-      <section id="motion-props">
-        <h2>속성 · 구간</h2>
-        <p>모션을 선택하면 오른쪽 <strong>Properties</strong>가 열립니다.</p>
+        <h3>길이 · 실행 취소</h3>
         <ul>
-          <li><strong>속성 — Characters</strong> — 위치 X/Z (Y 고정) · Y 회전 칩 · 틴트 · Opacity · 무대에서 위치 지정 · (키 선택 시) 시간·Easing</li>
-          <li><strong>속성 — Stage</strong> — 위치 X/Y/Z · 회전 X/Y/Z · 크기 X/Y/Z · 색상 · Opacity · 무대에서 위치 지정 · (키 선택 시) 시간·Easing</li>
-          <li><strong>구간</strong> (Characters만) — 이동 · 대기 · <strong>퇴장</strong> 흐름을 만든 뒤 <strong>구간 적용</strong>으로 키프레임 생성</li>
+          <li>기본 <strong>180초</strong> · 툴바 <strong>길이</strong>에서 변경</li>
+          <li>길이를 줄여도 <strong>키 시각은 유지</strong> — 새 끝보다 뒤 키만 정리</li>
+          <li><span class="kbd">Ctrl+Z</span> / <span class="kbd">Ctrl+Y</span> — 실행 취소 · 다시 실행</li>
         </ul>
-        <h3>구간으로 움직이기 · 퇴장</h3>
-        <ol>
-          <li>모션 선택 → <strong>구간</strong> 탭</li>
-          <li>시작 위치(무대 클릭) · +이동 / +대기 / +퇴장 · 시간(Duration)</li>
-          <li><strong>구간 적용 (키프레임)</strong> 후 플레이헤드로 확인</li>
-          <li>필요하면 속성 탭이나 타임라인에서 다듬기</li>
-        </ol>
         <div class="note">
-          퇴장은 <strong>구간</strong> 탭에서만 만듭니다. (+퇴장 → 위치·시간 설정 → 구간 적용)
+          트랙 추가 방법은 종류마다 다릅니다 — 아래 <strong>Characters / Stage / Light / Audio</strong> 각 「트랙」 항목을 참고하세요.
         </div>
-        <p>
-          Easing: <strong>Linear</strong>는 등속, <strong>Smooth</strong>는 부드러운 가속·감속입니다.
-          새 이동/퇴장 구간은 바로 앞 구간의 Easing을 이어받습니다.
-        </p>
-        <div class="figure">Properties — 속성 / 구간</div>
+        <div class="figure">타임라인 · 섹션 필터 · 플레이헤드</div>
       </section>
 
-      <section id="motion-group">
-        <h2>그룹</h2>
+      <section id="assets-common">
+        <h2>Assets — 공통</h2>
+        <p>왼쪽 레일 <strong>Assets</strong>에서 Characters·Stage·Video·Audio 파일을 관리합니다. 탭·툴바·업로드 규칙은 모든 탭에 공통입니다.</p>
+        <div class="note">탭별 <strong>+</strong> 동작·배치 방법은 아래 <strong>Characters · Stage · Video · Audio</strong> 항목을 참고하세요.</div>
+        <h3>공통 UI</h3>
+        <table>
+          <thead><tr><th>요소</th><th>기능</th></tr></thead>
+          <tbody>
+            <tr><td>탭</td><td><strong>Characters</strong> · <strong>Stage</strong> · <strong>Video</strong> · <strong>Audio</strong></td></tr>
+            <tr><td>↻</td><td>목록 새로고침 (무대·타임라인은 유지)</td></tr>
+            <tr><td>⬆</td><td>선택 탭 형식으로 파일 업로드</td></tr>
+            <tr><td>🗑</td><td>목록에서 <strong>선택한 파일</strong> 서버에서 삭제</td></tr>
+            <tr><td>목록 행</td><td>클릭 — 선택 · 오른쪽 <strong>+</strong> — 무대/타임라인에 추가</td></tr>
+          </tbody>
+        </table>
+        <h3>탭별 업로드 · + 동작</h3>
+        <table>
+          <thead><tr><th>탭</th><th>업로드 형식</th><th>+ 버튼</th><th>타임라인</th></tr></thead>
+          <tbody>
+            <tr><td>Characters</td><td>.fbx (최대 100MB)</td><td>무대에 배치 · 트랙 1개 생성</td><td><a href="#assets-characters">Assets</a> · <a href="#timeline-characters">타임라인</a></td></tr>
+            <tr><td>Stage</td><td>.fbx · .obj (최대 100MB)</td><td>무대에 배치 · 트랙 1개 생성</td><td><a href="#assets-stage">Assets</a> · <a href="#timeline-stage">타임라인</a></td></tr>
+            <tr><td>Video</td><td>.mp4 · .webm · .mov 등 (최대 500MB)</td><td><strong>+</strong> 배경 재생 · 재생 중 <strong>−</strong> 제거</td><td><a href="#assets-video">Assets</a> (타임라인 트랙 없음)</td></tr>
+            <tr><td>Audio</td><td>.mp3 · .wav · .ogg 등 (최대 50MB)</td><td><strong>+</strong> 클릭마다 새 트랙 + 클립</td><td><a href="#assets-audio">Assets</a> · <a href="#timeline-audio">타임라인</a></td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          Characters·Stage는 <strong>+</strong> 할 때 <strong>현재 플레이헤드</strong>에 첫 키가 생깁니다.
+          Audio는 <strong>+</strong> 할 때마다 새 트랙·클립이 생깁니다. 서버 <code>/files/music/</code> 경로만 사용합니다.
+          첫 키 <strong>이전</strong>(Characters·Stage)은 비표시. 형식·용량이 맞지 않으면 경고창이 뜹니다.
+        </div>
+        <div class="figure">Assets — 공통 · 탭 · 툴바 · 목록</div>
+      </section>
+
+      <section id="assets-characters" class="section-overview">
+        <h2>Characters</h2>
+        <p>Assets <strong>Characters</strong> 탭 — WalkLite(기본)·FBX 업로드 · <strong>+</strong> 로 무대·타임라인에 올립니다.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Characters 탭 <strong>+</strong> → <a href="#timeline-characters">타임라인 Characters</a></p>
+        <ul class="section-toc">
+          <li>WalkLite · FBX · 170cm · X/Z · 틴트 · 그룹 등록</li>
+        </ul>
+        <table>
+          <thead><tr><th>항목</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>배치 높이</td><td>무대 바닥 기준 약 <strong>170cm</strong> (사람 스케일)</td></tr>
+            <tr><td>위치 편집</td><td>Properties·기즈모는 <strong>X/Z만</strong> (Y는 바닥 높이 고정)</td></tr>
+            <tr><td>색</td><td>Properties <strong>속성</strong> 탭 · 틴트 색상</td></tr>
+            <tr><td>등장·퇴장</td><td>클립 길이가 아니라 <strong>Opacity 키</strong>와 <strong>구간 탭</strong>으로 연출</td></tr>
+            <tr><td>그룹</td><td>왼쪽 <strong>그룹</strong> 패널에 FBX 등록 가능 (Stage는 불가)</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 Properties <strong>구간</strong> 탭 또는 <strong>그룹</strong> 패널에서 만듭니다.
+        </div>
+        <div class="figure">Assets · Characters · + 배치</div>
+      </section>
+
+      <section id="assets-stage" class="section-overview">
+        <h2>Stage</h2>
+        <p>Assets <strong>Stage</strong> 탭 — 직육면체·원통(기본)·FBX/OBJ · <strong>+</strong> 로 무대·타임라인에 올립니다.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Stage 탭 <strong>+</strong> → <a href="#timeline-stage">타임라인 Stage</a></p>
+        <ul class="section-toc">
+          <li>직육면체 0.5m · 원통 R0.25 · XYZ 속성 · 그룹 불가</li>
+        </ul>
         <ol>
-          <li><strong>+ 그룹 만들기</strong> → 탭 옆 색으로 그룹 틴트</li>
-          <li>Assets <strong>Characters</strong> 목록에서 FBX를 골라 그룹에 등록</li>
-          <li>시작 위치 · Opacity · 이동/대기/퇴장 · 포메이션 · 간격</li>
-          <li><strong>그룹 GO</strong> — 무대에 배치하고 타임라인에 구간 키를 적용</li>
+          <li><strong>Stage</strong> 탭을 고릅니다.</li>
+          <li>목록에서 <strong>+</strong> — 트랙 1줄 · 플레이헤드 첫 키</li>
         </ol>
-        <p>플레이헤드를 움직이며 멤버가 함께 움직이는지 확인합니다.</p>
-        <div class="figure">그룹 패널 · GO</div>
+        <h3>기본 오브젝트</h3>
+        <table>
+          <thead><tr><th>항목</th><th>크기</th></tr></thead>
+          <tbody>
+            <tr><td>직육면체</td><td>0.5 × 0.5 × 0.5 m</td></tr>
+            <tr><td>원통</td><td>반경 0.25 m · 높이 0.5 m</td></tr>
+          </tbody>
+        </table>
+        <p>업로드 <strong>FBX/OBJ</strong>도 같은 방식으로 <strong>+</strong> 합니다. 사람 키 스케일을 쓰지 않습니다.</p>
+        <table>
+          <thead><tr><th>Characters와 다른 점</th><th>Stage</th></tr></thead>
+          <tbody>
+            <tr><td>Properties 탭</td><td><strong>속성만</strong> (구간 탭 없음)</td></tr>
+            <tr><td>위치·회전·크기</td><td><strong>X/Y/Z</strong> 전부 편집</td></tr>
+            <tr><td>퇴장 연출</td><td>Opacity 0 키 · 크기/위치 키로 수동 연출</td></tr>
+            <tr><td>그룹</td><td>등록 불가 (Characters만)</td></tr>
+          </tbody>
+        </table>
+        <div class="figure">Assets · Stage · + 배치</div>
+      </section>
+
+      <section id="assets-video" class="section-overview">
+        <h2>Video</h2>
+        <p>Assets <strong>Video</strong> 탭 — mp4/webm/mov 등 업로드 · 무대 <strong>배경 스크린</strong> 재생. 타임라인 트랙은 없습니다.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Video 탭 <strong>+</strong> 재생 · 재생 중 <strong>−</strong> 제거</p>
+        <ol>
+          <li><strong>Video</strong> 탭에서 파일을 고릅니다.</li>
+          <li><strong>+</strong> — 관객 정면 배경 스크린에서 재생</li>
+          <li>재생 중 같은 행 <strong>−</strong> — 무대에서만 제거 (파일은 유지)</li>
+          <li><strong>🗑</strong> — 서버에서 파일 삭제 (목록 툴바 · 선택 후)</li>
+        </ol>
+        <table>
+          <thead><tr><th>항목</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>업로드</td><td>.mp4 · .webm · .ogg · .avi · .mov (최대 500MB)</td></tr>
+            <tr><td>타임라인</td><td>없음 — 재생/제거만 Assets에서</td></tr>
+            <tr><td>↻ · ⬆</td><td><a href="#assets-common">공통</a> 툴바와 동일</td></tr>
+          </tbody>
+        </table>
+        <div class="figure">Assets · Video · + / −</div>
+      </section>
+
+      <section id="assets-audio" class="section-overview">
+        <h2>Audio</h2>
+        <p>Assets <strong>Audio</strong> 탭 — mp3/wav/ogg 등 업로드 · <strong>+</strong> 로 타임라인에 클립 배치.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Audio 탭 <strong>+</strong> → <a href="#timeline-audio">타임라인 Audio</a> · <a href="#audio-track">트랙 · 클립</a></p>
+        <ol>
+          <li><strong>Audio</strong> 탭에서 음원을 고릅니다.</li>
+          <li><strong>+</strong> — 클릭할 때마다 <strong>새 오디오 트랙</strong> + 현재 플레이헤드에 클립</li>
+          <li>클립 trim · Split · 볼륨 등은 <a href="#audio-track">타임라인 Audio</a>에서 편집</li>
+          <li><strong>🗑</strong> — 서버 파일 삭제 (트랙·클립과 별도)</li>
+        </ol>
+        <table>
+          <thead><tr><th>항목</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>업로드</td><td>.mp3 · .wav · .ogg · .m4a · .aac · .flac (최대 50MB)</td></tr>
+            <tr><td>경로</td><td>서버 <code>/files/music/</code> 만 (blob URL 저장 안 함)</td></tr>
+            <tr><td>↻ · ⬆</td><td><a href="#assets-common">공통</a> 툴바와 동일</td></tr>
+          </tbody>
+        </table>
+        <div class="figure">Assets · Audio · +</div>
+      </section>
+
+      <section id="timeline-characters" class="section-overview">
+        <h2>Characters</h2>
+        <p>타임라인 <strong>Characters</strong> 섹션 — WalkLite·FBX 등 <strong>사람 모션</strong>. 1객체=1트랙, compound 키(위치·회전·Opacity 등).</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-characters">Assets +</a> → <strong>트랙</strong> → Properties <strong>속성 · 구간</strong> · <strong>그룹</strong> 패널</p>
+        <ul class="section-toc">
+          <li><a href="#char-track">트랙</a> — 추가 · 키 · 삭제 · 이동 · 잠금</li>
+          <li><a href="#char-props">속성</a> — X/Z · Y회전 · 틴트 · Opacity (퇴장 없음)</li>
+          <li><a href="#char-segments">구간</a> — 이동 · 대기 · 퇴장 · 구간 적용</li>
+          <li><a href="#char-group">그룹</a> — Ensemble · 포메이션 · GO</li>
+        </ul>
+      </section>
+
+      <section id="char-track">
+        <h2>Characters — 트랙</h2>
+        <p class="flow-hint"><strong>흐름</strong> Assets Characters <strong>+</strong> → 타임라인 <strong>Characters</strong> 트랙 → <a href="#char-props">속성</a> · <a href="#char-segments">구간</a> · <a href="#char-group">그룹</a></p>
+
+        <h3>트랙 추가</h3>
+        <ol>
+          <li><a href="#assets-characters">Assets → Characters</a>에서 WalkLite 또는 FBX <strong>+</strong></li>
+          <li>1 객체 = 타임라인 <strong>Characters</strong> 섹션 <strong>트랙 1줄</strong></li>
+          <li><strong>현재 플레이헤드</strong>에 첫 키 생성 · 첫 키 <strong>이전</strong>은 비표시</li>
+        </ol>
+
+        <h3>트랙 헤더</h3>
+        <table>
+          <thead><tr><th>버튼</th><th>기능</th></tr></thead>
+          <tbody>
+            <tr><td>👁</td><td>트랙 숨기기 / 보이기 (스크럽·재생 반영)</td></tr>
+            <tr><td>◆</td><td>플레이헤드에 키 추가 (<span class="kbd">K</span>와 동일)</td></tr>
+            <tr><td>🔒</td><td>잠금 — 키·기즈모·속성 편집 불가</td></tr>
+          </tbody>
+        </table>
+
+        <h3>키 추가 · 삭제 · 이동 · 수정</h3>
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>키 추가</td><td>트랙 선택 → ◆ 또는 <span class="kbd">K</span> · 같은 시각 키 있으면 <strong>선택만</strong></td></tr>
+            <tr><td>키 선택</td><td>다이아몬드 클릭 → 무대 객체 선택 · 플레이헤드 이동</td></tr>
+            <tr><td>키 삭제</td><td>키 선택 → <span class="kbd">Del</span> / <span class="kbd">D</span></td></tr>
+            <tr><td>키 이동</td><td>키 드래그 · <span class="kbd">←/→</span> 1프레임 · Shift 1초 · Alt 0.1초 · <span class="kbd">M</span> 초 입력</td></tr>
+            <tr><td>키 수정</td><td>키 선택 → <a href="#char-props">속성</a> 또는 기즈모 (플레이헤드 키 또는 선택 키 필요)</td></tr>
+            <tr><td>트랙 삭제</td><td>라벨 <strong>우클릭 → 트랙 삭제</strong> — 무대 객체 함께 제거</td></tr>
+          </tbody>
+        </table>
+        <div class="note">기즈모 편집은 플레이헤드에 키가 있거나 키를 선택한 경우만 기록됩니다. 없으면 드래그 후 원위치.</div>
+        <div class="figure">Characters 트랙 · 키 · 헤더 버튼</div>
+      </section>
+
+      <section id="char-props">
+        <h2>Characters — 속성</h2>
+        <p>Character 선택 시 오른쪽 Properties <strong>속성</strong> 탭. 단일 객체의 기본 상태·선택 키를 편집합니다. <strong>퇴장·이동 시퀀스는 구간 탭</strong>에서 만듭니다.</p>
+        <table>
+          <thead><tr><th>필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>타입 · 이름</td><td>객체 종류 · 표시 이름</td></tr>
+            <tr><td>위치 X / Z</td><td>슬라이더·숫자 · <strong>Y 고정</strong> (바닥 높이)</td></tr>
+            <tr><td>무대에서 위치 지정</td><td>버튼 → 무대 클릭 · <span class="kbd">Esc</span> 취소</td></tr>
+            <tr><td>회전</td><td><strong>Y축 칩</strong> (시계 / 반시계)</td></tr>
+            <tr><td>틴트 색상</td><td>캐릭터 색조</td></tr>
+            <tr><td>Opacity</td><td>0~1 · 등장·페이드</td></tr>
+            <tr><td>선택 키</td><td>키 선택 시 — <strong>시간</strong> · <strong>Easing</strong> (Linear / Step / Smooth)</td></tr>
+          </tbody>
+        </table>
+        <div class="figure">Properties — Characters 속성</div>
+      </section>
+
+      <section id="char-segments">
+        <h2>Characters — 구간</h2>
+        <p>Properties <strong>구간</strong> 탭 — 단일 Character의 이동·대기·퇴장 설계 (포메이션 없음). <a href="#char-group">그룹</a>과 같은 블록 구조입니다.</p>
+        <table>
+          <thead><tr><th>영역 · 버튼</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>시작 위치</td><td>시작 시각 · From X/Z · Opacity · Y 회전 · 무대 픽</td></tr>
+            <tr><td>+ 이동</td><td>Duration · 끝 X/Z · 무대 픽 · Y 회전 · Easing</td></tr>
+            <tr><td>+ 대기</td><td>Duration (자세 유지)</td></tr>
+            <tr><td>+ 퇴장</td><td>Duration · 퇴장 X/Z · Y 회전 · Easing · 끝 Opacity 0</td></tr>
+            <tr><td>현재 위치 → 시작</td><td>기즈모 위치를 시작점으로</td></tr>
+            <tr><td>구간 적용 (키프레임)</td><td>설계 → 타임라인 compound 키 생성</td></tr>
+          </tbody>
+        </table>
+        <p>Easing: <strong>Linear</strong> 등속 · <strong>Smooth</strong> 가감속 · 새 구간은 앞 구간 Easing 상속.</p>
+        <div class="figure">Properties — Characters 구간</div>
+      </section>
+
+      <section id="char-group">
+        <h2>Characters — 그룹</h2>
+        <p>왼쪽 <strong>그룹</strong> 패널 — 여러 Characters를 묶어 포메이션·구간·GO로 한 번에 배치. Stage는 등록 불가.</p>
+        <table>
+          <thead><tr><th>단계</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td>그룹 관리</td><td>+ 그룹 만들기 · 이름 변경 · 삭제 · 탭 색상(멤버 틴트)</td></tr>
+            <tr><td>1 · 객체 등록</td><td>FBX 선택 → <strong>그룹에 등록</strong> / 선택 해제</td></tr>
+            <tr><td>2 · 구간</td><td>시작(시각·From·Opacity·포메이션) · +이동·대기·퇴장 · 간격 · Y회전 · Easing</td></tr>
+            <tr><td>3 · 배치</td><td><strong>그룹 GO</strong> — 멤버 무대 배치 + 타임라인 키</td></tr>
+          </tbody>
+        </table>
+        <p>포메이션: grid · line · lineZ · circle · scatter</p>
+        <div class="note">단일 Character는 <a href="#char-segments">구간</a> 탭(포메이션 없음). 퇴장은 속성이 아니라 구간·그룹의 <strong>+ 퇴장</strong>.</div>
+        <div class="figure">그룹 패널 · 등록 · GO</div>
+      </section>
+
+      <section id="timeline-stage" class="section-overview">
+        <h2>Stage</h2>
+        <p>타임라인 <strong>Stage</strong> 섹션 — 직육면체·원통·FBX/OBJ <strong>무대 소품</strong>. 사람 스케일 없음, XYZ 전체 편집.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-stage">Assets +</a> → <strong>트랙</strong> → Properties <strong>속성</strong> (구간·그룹 없음)</p>
+        <ul class="section-toc">
+          <li><a href="#stage-track">트랙</a> — 추가 · 키 조작 · 삭제</li>
+          <li><a href="#stage-props">속성</a> — XYZ 위치·회전·크기 · 색 · Opacity</li>
+        </ul>
+      </section>
+
+      <section id="stage-track">
+        <h2>Stage — 트랙</h2>
+        <p class="flow-hint"><strong>흐름</strong> Assets Stage <strong>+</strong> → 타임라인 <strong>Stage</strong> 트랙 → <a href="#stage-props">속성</a> (구간·그룹 없음)</p>
+
+        <h3>트랙 추가</h3>
+        <ol>
+          <li><a href="#assets-stage">Assets → Stage</a> — 직육면체·원통·FBX/OBJ <strong>+</strong></li>
+          <li>1 객체 = <strong>Stage</strong> 섹션 트랙 1줄 · 플레이헤드에 첫 키</li>
+        </ol>
+
+        <h3>트랙 헤더 · 키 조작</h3>
+        <p>Characters와 동일: 👁 숨기기 · ◆/<span class="kbd">K</span> 키 추가 · 🔒 잠금.</p>
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>키 추가/삭제/이동</td><td>Characters와 동일 (<span class="kbd">K</span> · Del · 드래그 · 화살표 · M)</td></tr>
+            <tr><td>키 수정</td><td><a href="#stage-props">속성</a> 또는 기즈모 (XYZ 위치·회전·크기)</td></tr>
+            <tr><td>트랙 삭제</td><td>라벨 우클릭 → 트랙 삭제 — 무대 메시 제거</td></tr>
+          </tbody>
+        </table>
+        <div class="figure">Stage 트랙 · 키</div>
+      </section>
+
+      <section id="stage-props">
+        <h2>Stage — 속성</h2>
+        <p>Stage 선택 시 Properties <strong>속성 탭만</strong> (구간 탭 없음).</p>
+        <table>
+          <thead><tr><th>필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>타입 · 이름</td><td>메시 종류 · 이름</td></tr>
+            <tr><td>위치 X / Y / Z</td><td>전 축 (Characters와 달리 Y 편집)</td></tr>
+            <tr><td>무대에서 위치 지정</td><td>무대 클릭 픽</td></tr>
+            <tr><td>회전 X / Y / Z</td><td>도(°) 슬라이더</td></tr>
+            <tr><td>크기 X / Y / Z</td><td>스케일</td></tr>
+            <tr><td>색상 · Opacity</td><td>틴트 · 0=숨김/퇴장 연출</td></tr>
+            <tr><td>선택 키</td><td>시간 · Easing</td></tr>
+          </tbody>
+        </table>
+        <div class="note">퇴장·이동 연출은 여러 키로 직접 잡거나 타임라인에서 키를 추가·드래그하세요.</div>
+        <div class="figure">Properties — Stage 속성</div>
+      </section>
+
+      <section id="timeline-light" class="section-overview">
+        <h2>Light · 조명</h2>
+        <p>타임라인 <strong>Light</strong> 섹션 — HOUSE(Fill·FOH)와 Fixture 18대. 트랙은 <strong>+ 키</strong>로 필요할 때만 생성.</p>
+        <p class="flow-hint"><strong>흐름</strong> 조명 패널 라이브 조절 · <strong>+ 키</strong> → <strong>트랙</strong> → Properties / 패널 <strong>속성</strong></p>
+        <ul class="section-toc">
+          <li><a href="#light-track">트랙</a> — HOUSE/Fixture · 키 · 덮어쓰기 · 삭제</li>
+          <li><a href="#light-props">속성 (패널)</a> — WORK · Dim · 색 · Pan/Tilt · Fixture Bus</li>
+        </ul>
+      </section>
+
+      <section id="light-track">
+        <h2>Light · 조명 — 트랙</h2>
+        <p class="flow-hint"><strong>흐름</strong> 조명 패널에서 채널 선택 · 라이브 조절 · <strong>+ 키</strong> → 타임라인 <strong>Light</strong> 트랙 → <a href="#light-props">속성</a></p>
+        <p>시작 시 HOUSE/Fixture 트랙이 <strong>자동 생성되지 않습니다</strong>. 필요할 때 <strong>+ 키</strong>로 트랙·키를 만듭니다.</p>
+
+        <h3>트랙 추가</h3>
+        <table>
+          <thead><tr><th>종류</th><th>추가 방법</th><th>트랙 이름 예</th></tr></thead>
+          <tbody>
+            <tr><td>HOUSE</td><td>조명 패널 <strong>HOUSE</strong> 탭 · Fill/FOH 선택 → <strong>+ 키</strong></td><td>Fill · FOH L/C/R</td></tr>
+            <tr><td>Fixture</td><td><strong>Fixture</strong> 탭 · 픽스처 선택 → <strong>+ 키</strong> (다중 선택 가능)</td><td>fx_11 … fx_36</td></tr>
+          </tbody>
+        </table>
+        <p>메뉴 <strong>추가 → 조명</strong>에서도 HOUSE 채널·Fixture를 고를 수 있습니다.</p>
+
+        <h3>키 · 트랙 조작</h3>
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>키 추가/갱신</td><td>패널 <strong>+ 키</strong> — 같은 시간 키 있으면 <strong>덮어쓰기</strong> (기본 Smooth)</td></tr>
+            <tr><td>키 이동</td><td>◀ ▶ · 타임라인 다이아몬드 드래그</td></tr>
+            <tr><td>키 삭제</td><td>휴지통 · <span class="kbd">Del</span></td></tr>
+            <tr><td>트랙 삭제</td><td>패널 <strong>트랙 삭제</strong> · 라벨 <strong>우클릭 → 트랙 삭제</strong> — HOUSE는 스테이지 조명 꺼짐</td></tr>
+            <tr><td>Undo</td><td>WORK·슬라이더·키·트랙 — <span class="kbd">Ctrl+Z</span> / <span class="kbd">Y</span></td></tr>
+          </tbody>
+        </table>
+        <div class="figure">Light 트랙 · HOUSE / Fixture</div>
+      </section>
+
+      <section id="light-props">
+        <h2>Light · 조명 — 속성 (패널)</h2>
+        <p>오른쪽 레일 <strong>조명</strong> 패널 + 트랙 선택 시 <strong>Properties</strong>. 슬라이더는 <strong>라이브</strong> · 기록은 <strong>+ 키</strong>.</p>
+
+        <h3>공통 · WORK</h3>
+        <ul>
+          <li>시작 시 <strong>WORK ON</strong> + 작업등 밝기 슬라이더</li>
+          <li><strong>HOUSE / Fixture</strong> 탭 전환</li>
+        </ul>
+
+        <h3>HOUSE (Fill · FOH L/C/R)</h3>
+        <table>
+          <thead><tr><th>필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>Dim</td><td>밝기 0–100%</td></tr>
+            <tr><td>색상</td><td>조명 색</td></tr>
+            <tr><td>Size</td><td>빔 각 (Fill은 숨김)</td></tr>
+            <tr><td>패널 버튼</td><td>+ 키 · ◀ ▶ · 삭제 · 트랙 삭제</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Fixture (18대 · 11~36)</h3>
+        <table>
+          <thead><tr><th>필드 · UI</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>선택</td><td>타일 클릭 · Shift/Ctrl 다중 · GROUPS(All/Odd/Even) — 트랙 없어도 전체 선택</td></tr>
+            <tr><td>Dim · Pan · Tilt · Zoom · Focus · Color</td><td>Properties 또는 패널 Dimmer/Position/Beam/Color</td></tr>
+            <tr><td>Fixture Bus</td><td>화면 전체 밝기만 (키 값 유지)</td></tr>
+            <tr><td>트랙 표시</td><td>타일 <strong>·T</strong> / 초록 = 트랙 있음 · 회색 = +키로 생성</td></tr>
+          </tbody>
+        </table>
+        <div class="figure">조명 패널 · Properties HOUSE/Fixture</div>
+      </section>
+
+      <section id="timeline-audio" class="section-overview">
+        <h2>Audio</h2>
+        <p>타임라인 <strong>Audio</strong> 섹션 — 키가 아닌 <strong>클립</strong>(파형) 편집. 멀티 트랙 · Master 볼륨.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-audio">Assets Audio +</a> → <strong>트랙 · 클립</strong></p>
+        <ul class="section-toc">
+          <li><a href="#audio-track">트랙 · 클립</a> — Master · Split · trim · 재생 동기</li>
+        </ul>
+      </section>
+
+      <section id="audio-track">
+        <h2>Audio — 트랙 · 클립</h2>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-audio">Assets → Audio</a> <strong>+</strong> → 타임라인 <strong>Audio</strong> 트랙 · 클립 편집</p>
+        <p>타임라인 <strong>Audio</strong> 섹션 — 키가 아니라 <strong>클립</strong>(파형 막대)을 편집합니다. 음원 업로드·목록은 <a href="#assets-audio">Assets Audio</a> 탭을 사용합니다.</p>
+
+        <h3>섹션 · 트랙 헤더</h3>
+        <table>
+          <thead><tr><th>요소</th><th>기능</th></tr></thead>
+          <tbody>
+            <tr><td>Master</td><td>전체 볼륨 · 스피커 아이콘 (0=음소거)</td></tr>
+            <tr><td>Split · Delete</td><td>선택 클립 분할 · 삭제 (<span class="kbd">S</span> · <span class="kbd">Del</span>)</td></tr>
+            <tr><td>트랙 볼륨</td><td>헤더 슬라이더 · 0=음소거 아이콘</td></tr>
+            <tr><td>🔒</td><td>트랙 잠금</td></tr>
+          </tbody>
+        </table>
+
+        <h3>클립 편집</h3>
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>클립 추가</td><td><a href="#assets-audio">Assets Audio +</a> (새 트랙)</td></tr>
+            <tr><td>이동</td><td>클립 드래그</td></tr>
+            <tr><td>Trim</td><td>좌·우 핸들 드래그</td></tr>
+            <tr><td>Split</td><td>클립 선택 · 플레이헤드 · Split 또는 <span class="kbd">S</span></td></tr>
+            <tr><td>삭제</td><td>Delete · <span class="kbd">Del</span></td></tr>
+            <tr><td>재생</td><td><span class="kbd">Space</span> — 타임라인과 동기</td></tr>
+          </tbody>
+        </table>
+        <div class="note">서버 <code>/files/music/</code> 경로만 사용 (blob URL 저장 안 함). 프로젝트 저장은 이후 버전.</div>
+        <div class="figure">Audio 트랙 · 클립 · 파형</div>
       </section>
 
       <section id="motion-import">
@@ -223,38 +569,9 @@
         </div>
       </section>
 
-      <section id="house-light">
-        <h2>HOUSE 조명</h2>
-        <p>무대 기본 조명(Fill · FOH 좌/중/우)은 오른쪽 레일 <strong>조명</strong> 패널에서 조절합니다. 타임라인 Light 트랙은 <strong>필요할 때만</strong> 추가합니다.</p>
-        <p>시작 시 <strong>WORK</strong>가 켜져 있습니다. 옆 슬라이더로 작업등 밝기를 조절합니다. 그 아래 <strong>HOUSE / Fixture</strong> 탭에서 작업할 조명을 고릅니다.</p>
-        <ol>
-          <li>오른쪽 <strong>조명</strong> 패널(전구 아이콘)을 엽니다.</li>
-          <li><strong>HOUSE</strong> 탭에서 Fill · FOH L/C/R을 선택합니다.</li>
-          <li>Dim · 색상 · Size는 라이브로 바뀝니다. 탭 안의 <strong>+ 키 · ◀▶ · 삭제 · 트랙 삭제</strong>로 기록·정리합니다.</li>
-          <li>같은 시간에 다시 <strong>+ 키</strong>하면 새 키가 겹치지 않고 <strong>덮어씁니다</strong>.</li>
-          <li>트랙 삭제: 패널 <strong>트랙 삭제</strong> 또는 타임라인 Light 라벨 <strong>우클릭 → 트랙 삭제</strong> — 스테이지 조명도 함께 꺼집니다.</li>
-        </ol>
-        <div class="note">조명 슬라이더·WORK·+키·트랙 삭제는 <strong>실행 취소(Ctrl+Z)</strong>로 되돌릴 수 있습니다. 새 키는 <strong>Smooth</strong> 전환으로 저장됩니다.</div>
-        <div class="figure">조명 패널 · HOUSE</div>
-      </section>
-
-      <section id="fixture-light">
-        <h2>Fixture 조명</h2>
-        <p>머리 위 18대는 <strong>Fixture</strong> 탭에서 고릅니다. 처음부터 트랙이 생기지 않습니다.</p>
-        <p><strong>키프레임</strong>: 선택 → 라이브 → Fixture 탭의 <strong>+ 키 · ◀ ▶ · 삭제</strong>.</p>
-        <ol>
-          <li>번호(11~36) 클릭 · <strong>Shift/Ctrl</strong>로 다중 선택 · <strong>GROUPS</strong>(G1~G6, All/Odd/Even)은 트랙 없어도 전체 선택</li>
-          <li>Dimmer / Position / Beam / Color로 조절 · <strong>+ 키</strong>로 기록 (이미 키 있으면 속성만 갱신)</li>
-          <li>◀ ▶ · 휴지통 · <strong>트랙 삭제</strong> · 타임라인 키 드래그/Delete · 라벨 우클릭 삭제</li>
-          <li>전체 밝기(Fixture Bus) 슬라이더는 키 값은 유지한 채 화면만 밝기 조절</li>
-        </ol>
-        <div class="note">타일 <strong>·T</strong> / 초록 = 트랙 있음 · 없으면 회색(선택 후 +키로 트랙 자동 생성). 패널·타임라인 조명 작업은 <strong>Ctrl+Z / Ctrl+Y</strong> 지원.</div>
-        <div class="figure">조명 패널 · Fixture</div>
-      </section>
-
       <section id="coming">
         <h2>곧 추가되는 기능</h2>
-        <p>오디오 편집 · 멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다. 메뉴에 보이더라도 아직 안내만 뜨는 항목이 있을 수 있습니다.</p>
+        <p>멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다.</p>
       </section>
 
       <p class="footer-meta">

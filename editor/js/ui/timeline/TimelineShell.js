@@ -1,5 +1,14 @@
 import { DURATION_MODE } from '../../domain/timeline/types.js';
 import { keyframeTimeEps, snapKeyframeTimeSec } from '../../domain/timeline/KeyframeStore.js';
+import {
+  audioTrackLabelHtml,
+  audioTrackRowHtml,
+  audioVolumeIconClass,
+  bindAudioClipInteractions,
+  scheduleAudioWaveforms,
+  syncAudioClipDom,
+  syncAudioClipSelection,
+} from './audioClipView.js';
 
 /**
  * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
@@ -9,12 +18,20 @@ import { keyframeTimeEps, snapKeyframeTimeSec } from '../../domain/timeline/Keyf
  *   engine: import('../../domain/timeline/TimelineEngine.js').TimelineEngine,
  *   getMotionKeyValue?: (trackId: string) => any,
  *   getLightKeyValue?: (trackId: string) => any,
+ *   audio?: import('../../domain/audio/AudioDirector.js').AudioDirector,
  *   onTrackSelect?: (trackId: string, opt?: { selectKey?: boolean }) => void,
  *   onTrackRemove?: (trackId: string) => boolean | void,
  * }} ctx
  */
 export function mountTimelineShell(host, ctx) {
-  const { engine, getMotionKeyValue, getLightKeyValue, onTrackSelect, onTrackRemove } = ctx;
+  const {
+    engine,
+    getMotionKeyValue,
+    getLightKeyValue,
+    audio,
+    onTrackSelect,
+    onTrackRemove,
+  } = ctx;
 
   host.classList.add('sb-tl');
   host.tabIndex = 0;
@@ -31,7 +48,7 @@ export function mountTimelineShell(host, ctx) {
       <button type="button" class="sb-tl-btn" data-act="zoom-out" title="줌 아웃">−</button>
       <button type="button" class="sb-tl-btn" data-act="zoom-in" title="줌 인">+</button>
       <button type="button" class="sb-tl-btn" data-act="add-key" title="플레이헤드에 키 추가 (K)">+ Key</button>
-      <button type="button" class="sb-tl-btn" data-act="del-key" title="선택 키 삭제 (D / Del)">Del</button>
+      <button type="button" class="sb-tl-btn" data-act="del-key" title="선택 키/클립 삭제 (D / Del)">Del</button>
       <button type="button" class="sb-tl-btn" data-act="undo" title="실행 취소">Undo</button>
       <button type="button" class="sb-tl-btn" data-act="redo" title="다시 실행">Redo</button>
       <span class="sb-tl-jumps" data-role="jumps" role="toolbar" aria-label="타임라인 섹션">
@@ -67,7 +84,7 @@ export function mountTimelineShell(host, ctx) {
     { id: 'motion', label: 'Characters' },
     { id: 'stage', label: 'Stage' },
     { id: 'light', label: 'Light' },
-    { id: 'audio', label: 'Audio', stub: 'Phase 5 — 오디오 트랙' },
+    { id: 'audio', label: 'Audio' },
   ];
 
   const el = {
@@ -85,6 +102,20 @@ export function mountTimelineShell(host, ctx) {
 
   /** Prevent scroll event feedback loops while locking labels ↔ viewport */
   let syncingScroll = false;
+  /** @type {string | null} */
+  let audioDragClipId = null;
+
+  function refreshAudioSelection() {
+    if (!audio) return;
+    syncAudioClipSelection(el.viewport, audio.selectedClipId);
+    updateAudioBar();
+  }
+
+  function syncPlayheadUi() {
+    el.time.textContent = `${engine.playheadSec.toFixed(2)} / ${engine.durationSec.toFixed(0)}s`;
+    el.playhead.style.left = `${secToX(engine.playheadSec)}px`;
+    el.playBtn.textContent = engine.playing ? '⏸' : '▶';
+  }
 
   function timelineWidthPx() {
     return Math.max(engine.durationSec * engine.pxPerSec, el.viewport.clientWidth || 400);
@@ -126,8 +157,22 @@ export function mountTimelineShell(host, ctx) {
     for (const sec of SECTION_META) {
       if (sectionFilter !== 'all' && sectionFilter !== sec.id) continue;
       const rows = trackList.filter((tr) => (tr.section || 'motion') === sec.id);
-      labelsHtml += `<div class="sb-tl-sec-label" data-section="${sec.id}">${escapeHtml(sec.label)}</div>`;
-      tracksHtml += `<div class="sb-tl-sec-lane" data-section="${sec.id}"></div>`;
+      const secLabelClass = sec.id === 'audio' ? ' sb-tl-sec-label-audio' : '';
+      labelsHtml += `<div class="sb-tl-sec-label${secLabelClass}" data-section="${sec.id}">${escapeHtml(sec.label)}</div>`;
+      if (sec.id === 'audio') {
+        tracksHtml += audioSectionToolbarHtml(audio);
+      } else {
+        tracksHtml += `<div class="sb-tl-sec-lane" data-section="${sec.id}"></div>`;
+      }
+
+      if (!rows.length && sec.id !== 'audio') {
+        continue;
+      }
+      if (!rows.length && sec.id === 'audio') {
+        labelsHtml += `<div class="sb-tl-label sb-tl-label-stub" data-section="audio">—</div>`;
+        tracksHtml += `<div class="sb-tl-track sb-tl-track-stub sb-tl-track-audio-empty" data-section="audio"><span class="sb-tl-stub">+ 트랙 또는 Assets Audio +</span></div>`;
+        continue;
+      }
 
       if (!rows.length && sec.stub) {
         labelsHtml += `<div class="sb-tl-label sb-tl-label-stub" data-section="${sec.id}">—</div>`;
@@ -145,18 +190,54 @@ export function mountTimelineShell(host, ctx) {
         tracksHtml += `<div class="sb-tl-folder-lane" data-folder="${folder.id}"></div>`;
         if (collapsed) continue;
         for (const tr of folder.tracks) {
-          labelsHtml += trackLabelHtml(tr, engine, true);
-          tracksHtml += trackRowHtml(tr, engine, secToX);
+          labelsHtml += trackLabelHtml(tr, engine, true, audio);
+          tracksHtml += trackRowHtml(tr, engine, secToX, audio);
         }
       }
       for (const tr of loose) {
-        labelsHtml += trackLabelHtml(tr, engine, false);
-        tracksHtml += trackRowHtml(tr, engine, secToX);
+        labelsHtml += trackLabelHtml(tr, engine, false, audio);
+        tracksHtml += trackRowHtml(tr, engine, secToX, audio);
       }
     }
 
     el.labels.innerHTML = labelsHtml;
     el.tracks.innerHTML = tracksHtml;
+
+    bindAudioClipInteractions(el.viewport, {
+      engine,
+      audio: audio || null,
+      secToX,
+      onLiveUpdate: (clipId) => syncAudioClipDom(el.viewport, clipId, engine, secToX),
+      onDragStart: (clipId) => {
+        audioDragClipId = clipId;
+      },
+      onDragEnd: () => {
+        audioDragClipId = null;
+      },
+      onCommit: () => render(),
+      onSelect: () => refreshAudioSelection(),
+      onContextMenu: (clientX, clientY, clipId, playheadSec) => {
+        if (!audio) return;
+        openCtx(clientX, clientY, [
+          {
+            label: '플레이헤드에서 분할',
+            shortcut: 'S',
+            action: () => {
+              engine.setPlayhead(playheadSec);
+              audio.splitClipAt(clipId, playheadSec);
+            },
+          },
+          { sep: true },
+          {
+            label: '클립 삭제',
+            shortcut: 'Del',
+            action: () => audio.removeClip(clipId),
+          },
+        ]);
+      },
+    });
+    scheduleAudioWaveforms(el.tracks, engine, secToX);
+    updateAudioBar();
 
     syncingScroll = true;
     el.viewport.scrollLeft = keepX;
@@ -174,7 +255,9 @@ export function mountTimelineShell(host, ctx) {
     engine.pause();
     engine.setPlayhead(engine.durationSec);
   });
-  el.playBtn.addEventListener('click', () => engine.togglePlay());
+  el.playBtn.addEventListener('click', () => {
+    engine.togglePlay();
+  });
   host.querySelector('[data-act="zoom-in"]').addEventListener('click', () => {
     engine.setZoom(engine.pxPerSec * 1.25);
   });
@@ -206,6 +289,76 @@ export function mountTimelineShell(host, ctx) {
   host.querySelector('[data-act="del-key"]').addEventListener('click', () => {
     deleteSelectedKey();
   });
+
+  host.addEventListener('click', (e) => {
+    if (e.target.closest?.('[data-act="audio-split"]')) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (audio?.splitSelectedAtPlayhead()) {
+        render();
+      }
+      return;
+    }
+    if (e.target.closest?.('[data-act="audio-delete"]')) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (audio?.selectedClipId && audio.removeClip(audio.selectedClipId)) {
+        render();
+      }
+    }
+  }, true);
+
+  host.addEventListener('pointerdown', (e) => {
+    if (e.target.closest?.('[data-role="audio-bar"]')) {
+      e.stopPropagation();
+    }
+  }, true);
+
+  host.addEventListener('input', (e) => {
+    const master = e.target.closest?.('[data-role="audio-master"]');
+    if (master && audio) {
+      audio.setMasterVolume(Number(master.value) / 100);
+      audio.apply(engine.playheadSec);
+      syncMasterVolumeIcon(Number(master.value));
+      return;
+    }
+  });
+
+  function syncMasterVolumeIcon(pct = Math.round((audio?.masterVolume ?? 1) * 100)) {
+    const bar = el.tracks.querySelector('[data-role="audio-bar"]');
+    const icon = bar?.querySelector('[data-role="audio-master-icon"]');
+    const btn = icon?.closest?.('.sb-tl-audio-master-label');
+    if (!icon) return;
+    icon.className = audioVolumeIconClass(pct / 100, false);
+    btn?.classList.toggle('is-muted', pct <= 0);
+  }
+
+  function syncTrackVolumeIcon(trackId, pct) {
+    const label = el.labels.querySelector(`.sb-tl-label-audio[data-track="${trackId}"]`);
+    if (!label) return;
+    const track = engine.getTrack(trackId);
+    const icon = label.querySelector('[data-role="track-vol-icon"]');
+    const muteBtn = label.querySelector('[data-tl-act="mute"]');
+    if (icon) {
+      icon.className = audioVolumeIconClass(pct / 100, !!track?.hidden);
+    }
+    muteBtn?.classList.toggle('is-on', !!track?.hidden || pct <= 0);
+  }
+
+  function updateAudioBar() {
+    if (!audio) return;
+    const bar = el.tracks.querySelector('[data-role="audio-bar"]');
+    if (!bar) return;
+    const canSplit = audio.canSplitAtPlayhead();
+    const hasClip = !!audio.selectedClipId;
+    bar.querySelector('[data-act="audio-split"]')
+      ?.classList.toggle('is-off', !canSplit);
+    bar.querySelector('[data-act="audio-delete"]')
+      ?.classList.toggle('is-off', !hasClip);
+    const master = bar.querySelector('[data-role="audio-master"]');
+    if (master) master.value = String(Math.round(audio.masterVolume * 100));
+    syncMasterVolumeIcon();
+  }
 
   el.duration.addEventListener('change', () => {
     const v = Number(el.duration.value);
@@ -259,9 +412,10 @@ export function mountTimelineShell(host, ctx) {
         <tr><td>M</td><td>선택 키 → 초 입력 이동</td></tr>
         <tr><td>Shift+M</td><td>플레이헤드 → 초 입력 이동</td></tr>
         <tr><td>Space</td><td>재생 / 일시정지</td></tr>
+        <tr><td>S</td><td>선택 오디오 클립 분할 (플레이헤드)</td></tr>
         <tr><td>Ctrl+Z / Y</td><td>Undo / Redo</td></tr>
       </table>
-      <p class="sb-tl-help-note">트랙은 Assets에서 Characters / Stage를 <strong>+</strong> 로 추가합니다. 플레이헤드 스크럽: 룰러·빈 트랙 드래그.</p>
+      <p class="sb-tl-help-note">트랙은 Assets에서 Characters / Stage를 <strong>+</strong> 로 추가합니다. 오디오는 Audio 바에서 <strong>+ 트랙</strong> · 볼륨 · Split · Delete. 플레이헤드 스크럽: 룰러·빈 트랙 드래그.</p>
     `;
     const btn = host.querySelector('[data-act="shortcuts"]');
     const br = btn?.getBoundingClientRect?.();
@@ -346,9 +500,15 @@ export function mountTimelineShell(host, ctx) {
   }
 
   function resolveTrackId(preferred) {
-    return preferred
-      ?? engine.selectedTrackId
-      ?? engine.listTracks().find((t) => t.kind === 'motion')?.id
+    if (preferred) return preferred;
+    if (engine.selectedTrackId) return engine.selectedTrackId;
+    if (sectionFilter !== 'all') {
+      const inSection = engine.listTracks().find(
+        (t) => t.kind === 'motion' && (t.section || 'motion') === sectionFilter,
+      );
+      if (inSection) return inSection.id;
+    }
+    return engine.listTracks().find((t) => t.kind === 'motion')?.id
       ?? engine.listTracks().find((t) => t.kind !== 'clip')?.id
       ?? null;
   }
@@ -392,10 +552,12 @@ export function mountTimelineShell(host, ctx) {
     const value = defaultKeyValue(track);
     if (existing) {
       engine.editKeyframe(trackId, existing.id, { value });
-      selectTimelineKey(trackId, existing.id);
+      selectTimelineKey(trackId, existing.id, { scrub: false });
       return existing;
     }
-    return engine.addKeyframe(trackId, ph, value);
+    const added = engine.addKeyframe(trackId, ph, value);
+    if (added) selectTimelineKey(trackId, added.id, { scrub: false });
+    return added;
   }
 
   function addKeyAtTime(trackId, timeSec) {
@@ -410,10 +572,12 @@ export function mountTimelineShell(host, ctx) {
     const value = defaultKeyValue(track);
     if (existing) {
       engine.editKeyframe(resolved, existing.id, { value });
-      selectTimelineKey(resolved, existing.id);
+      selectTimelineKey(resolved, existing.id, { scrub: false });
       return existing;
     }
-    return engine.addKeyframe(resolved, ph, value);
+    const added = engine.addKeyframe(resolved, ph, value);
+    if (added) selectTimelineKey(resolved, added.id, { scrub: false });
+    return added;
   }
 
   function nudgeSelectedKey(deltaSec) {
@@ -615,7 +779,26 @@ export function mountTimelineShell(host, ctx) {
   }
 
   // track label select + folder toggle + header controls + context
+  el.labels.addEventListener('pointerdown', (e) => {
+    if (e.target.closest?.('[data-tl-act="track-vol"]')) {
+      e.stopPropagation();
+    }
+  });
+
+  el.labels.addEventListener('input', (e) => {
+    const vol = /** @type {HTMLInputElement | null} */ (e.target.closest?.('[data-tl-act="track-vol"]'));
+    if (!vol || e.target !== vol) return;
+    e.stopPropagation();
+    const trackId = vol.closest('.sb-tl-label')?.dataset?.track;
+    if (!trackId || !audio) return;
+    const pct = Number(vol.value);
+    audio.setTrackVolume(trackId, pct / 100);
+    audio.apply(engine.playheadSec);
+    syncTrackVolumeIcon(trackId, pct);
+  });
+
   el.labels.addEventListener('click', (e) => {
+    if (e.target.closest?.('[data-tl-act="track-vol"]')) return;
     focusTimeline();
     closeCtx();
     const toggle = e.target.closest?.('.sb-tl-folder-toggle');
@@ -631,21 +814,23 @@ export function mountTimelineShell(host, ctx) {
       if (!trackId) return;
       const act = ctrl.dataset.tlAct;
       if (act === 'vis') toggleTrackHidden(trackId);
+      else if (act === 'mute') toggleTrackHidden(trackId);
       else if (act === 'key') {
-        engine.selectedTrackId = trackId;
-        engine.selectedKeyframeId = null;
         addKeyAtPlayhead(trackId);
-        engine.emit('selection');
-        onTrackSelect?.(trackId);
       } else if (act === 'lock') toggleTrackLocked(trackId);
       return;
     }
     const label = e.target.closest?.('.sb-tl-label');
     if (!label) return;
-    engine.selectedTrackId = label.dataset.track;
+    const trackId = label.dataset.track;
+    const track = trackId ? engine.getTrack(trackId) : null;
+    engine.selectedTrackId = trackId;
     engine.selectedKeyframeId = null;
     engine.emit('selection');
-    if (label.dataset.track) onTrackSelect?.(label.dataset.track);
+    if (track?.kind === 'audio') {
+      audio?.selectTrackTarget(trackId);
+    }
+    if (trackId) onTrackSelect?.(trackId);
   });
 
   el.labels.addEventListener('contextmenu', (e) => {
@@ -653,9 +838,21 @@ export function mountTimelineShell(host, ctx) {
     if (!label) return;
     e.preventDefault();
     const trackId = label.dataset.track;
+    const track = engine.getTrack(trackId);
     engine.selectedTrackId = trackId;
     engine.selectedKeyframeId = null;
     engine.emit('selection');
+    if (track?.kind === 'audio') {
+      openCtx(e.clientX, e.clientY, [
+        {
+          label: '트랙 삭제',
+          action: () => {
+            if (onTrackRemove?.(trackId) !== true) engine.removeTrack(trackId, { history: true });
+          },
+        },
+      ]);
+      return;
+    }
     openCtx(e.clientX, e.clientY, [
       { label: '키 추가 (플레이헤드)', shortcut: 'K', action: () => addKeyAtPlayhead(trackId) },
       { sep: true },
@@ -737,6 +934,7 @@ export function mountTimelineShell(host, ctx) {
   });
 
   el.viewport.addEventListener('click', (e) => {
+    if (e.target.closest?.('[data-role="audio-bar"]')) return;
     if (dragMoved) {
       dragMoved = false;
       return;
@@ -747,6 +945,10 @@ export function mountTimelineShell(host, ctx) {
       selectTimelineKey(keyBtn.dataset.track, keyBtn.dataset.key);
       return;
     }
+    const audioRow = e.target.closest?.('.sb-tl-track-audio[data-track]');
+    if (audioRow && !e.target.closest?.('.sb-audio-clip')) {
+      audio?.selectTrackTarget(audioRow.dataset.track);
+    }
     engine.pause();
     engine.setPlayhead(secFromClientX(e.clientX));
   });
@@ -754,6 +956,8 @@ export function mountTimelineShell(host, ctx) {
   // pointer: key drag or playhead scrub (no clip resize — unify with lights)
   el.viewport.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    if (e.target.closest?.('.sb-audio-clip')) return;
+    if (e.target.closest?.('[data-role="audio-bar"]')) return;
     focusTimeline();
     closeCtx();
     const keyBtn = e.target.closest?.('.sb-tl-key');
@@ -857,6 +1061,9 @@ export function mountTimelineShell(host, ctx) {
   });
 
   function deleteSelectedKey() {
+    if (audio?.selectedClipId) {
+      return audio.removeClip(audio.selectedClipId);
+    }
     const refs = engine.listSelectedKeys?.() || [];
     const list = refs.length
       ? refs
@@ -927,6 +1134,12 @@ export function mountTimelineShell(host, ctx) {
       return;
     }
 
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && keyLower === 's' && audio?.canSplitAtPlayhead()) {
+      e.preventDefault();
+      if (audio.splitSelectedAtPlayhead()) render();
+      return;
+    }
+
     // 키프레임 시간 이동 — 선택된 키 필요
     if (engine.selectedKeyframeId) {
       let delta = 0;
@@ -955,7 +1168,19 @@ export function mountTimelineShell(host, ctx) {
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('pointerdown', onDocPointerDown, true);
 
-  const unsub = engine.subscribe(() => render());
+  const unsub = engine.subscribe((ev) => {
+    if (audioDragClipId) {
+      if (ev.type === 'playhead') syncPlayheadUi();
+      else if (ev.type === 'selection') refreshAudioSelection();
+      return;
+    }
+    if (ev.type === 'playhead') {
+      syncPlayheadUi();
+      if (audio) updateAudioBar();
+      return;
+    }
+    render();
+  });
 
   /** Viewport is scroll source; labels mirror Y (render also restores both). */
   const lockVerticalScroll = (y) => {
@@ -1085,6 +1310,31 @@ function niceStep(pxPerSec) {
 }
 
 /**
+ * Audio section toolbar — rendered inside Audio group (hidden with section filter).
+ * @param {import('../../domain/audio/AudioDirector.js').AudioDirector | null | undefined} audio
+ */
+function audioSectionToolbarHtml(audio) {
+  const masterVal = audio ? Math.round(audio.masterVolume * 100) : 100;
+  const masterIcon = audioVolumeIconClass((audio?.masterVolume ?? 1), false);
+  const splitOff = !audio?.canSplitAtPlayhead();
+  const deleteOff = !audio?.selectedClipId;
+  return `<div class="sb-tl-audio-bar sb-tl-sec-audio-toolbar" data-role="audio-bar" data-section="audio" aria-label="Audio editing">
+    <label class="sb-tl-audio-field" title="Master volume">
+      <span class="sb-tl-audio-master-label${masterVal <= 0 ? ' is-muted' : ''}">
+        <i class="${masterIcon}" data-role="audio-master-icon" aria-hidden="true"></i>
+        <span>Master</span>
+      </span>
+      <input type="range" data-role="audio-master" min="0" max="100" value="${masterVal}" aria-label="Master volume" />
+    </label>
+    <span class="sb-tl-audio-clip-tools" data-role="audio-clip-tools">
+      <button type="button" class="sb-tl-btn sb-tl-btn-sm${splitOff ? ' is-off' : ''}" data-act="audio-split" title="Split at playhead (S)">Split</button>
+      <button type="button" class="sb-tl-btn sb-tl-btn-sm${deleteOff ? ' is-off' : ''}" data-act="audio-delete" title="Delete selected clip (Del)">Delete</button>
+    </span>
+    <span class="sb-tl-audio-hint" data-role="audio-hint">Assets Audio + → 새 트랙</span>
+  </div>`;
+}
+
+/**
  * @param {import('../../domain/timeline/Track.js').Track[]} rows
  * @param {import('../../domain/timeline/TimelineEngine.js').TimelineEngine} engine
  */
@@ -1114,7 +1364,16 @@ function partitionByFolder(rows, engine) {
 }
 
 /** @param {import('../../domain/timeline/Track.js').Track} tr */
-function trackLabelHtml(tr, engine, nested) {
+function trackLabelHtml(tr, engine, nested, audio) {
+  if (tr.kind === 'audio') {
+    return audioTrackLabelHtml(
+      tr,
+      engine,
+      nested,
+      audio?.selectedClipId ?? null,
+      audio?.insertTrackId ?? null,
+    );
+  }
   const nest = nested ? ' sb-tl-label-nested' : '';
   const accent = tr.color || sectionAccent(tr.section);
   const sel = engine.isTrackSelected?.(tr.id) || engine.selectedTrackId === tr.id ? ' is-selected' : '';
@@ -1140,7 +1399,10 @@ function trackLabelHtml(tr, engine, nested) {
 }
 
 /** @param {import('../../domain/timeline/Track.js').Track} tr */
-function trackRowHtml(tr, engine, secToX) {
+function trackRowHtml(tr, engine, secToX, audio) {
+  if (tr.kind === 'audio') {
+    return audioTrackRowHtml(tr, secToX, audio?.selectedClipId ?? null);
+  }
   const accent = tr.color || sectionAccent(tr.section);
   const keys = tr.keys.list().map((kf) => {
     const sel = engine.isKeySelected?.(tr.id, kf.id) || engine.selectedKeyframeId === kf.id ? ' is-selected' : '';

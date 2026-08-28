@@ -11,6 +11,11 @@ export const STAGE_CYLINDER_PROCEDURAL_ID = 'stage-cylinder';
 
 export const STAGE_PRIMITIVE_DEFAULT_COLOR = 0xaaaaaa;
 
+/** Default primitive sizes on stage (meters). */
+export const STAGE_BOX_SIZE_M = 0.5;
+export const STAGE_CYLINDER_RADIUS_M = 0.25;
+export const STAGE_CYLINDER_HEIGHT_M = 0.5;
+
 /** @type {ReadonlyArray<{
  *   path: string,
  *   name: string,
@@ -67,7 +72,7 @@ export function createStagePrimitive(proceduralId, opts = {}) {
  * }} opts
  */
 function buildBox(opts) {
-  const sizeM = 2;
+  const sizeM = STAGE_BOX_SIZE_M;
   const s = sizeM * opts.worldPerMeter;
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshStandardMaterial({ color: STAGE_PRIMITIVE_DEFAULT_COLOR });
@@ -93,8 +98,8 @@ function buildBox(opts) {
  * }} opts
  */
 function buildCylinder(opts) {
-  const radiusM = 1;
-  const heightM = 2;
+  const radiusM = STAGE_CYLINDER_RADIUS_M;
+  const heightM = STAGE_CYLINDER_HEIGHT_M;
   const wpm = opts.worldPerMeter;
   const geometry = new THREE.CylinderGeometry(1, 1, 1, 32, 1, false);
   const material = new THREE.MeshStandardMaterial({ color: STAGE_PRIMITIVE_DEFAULT_COLOR });

@@ -1,4 +1,5 @@
 import { KeyframeStore } from './KeyframeStore.js';
+import { AudioClipStore } from '../audio/AudioClipStore.js';
 
 let _trackSeq = 1;
 
@@ -30,6 +31,8 @@ export class Track {
     this.group = opts.group ?? 'demo';
     this.section = opts.section ?? inferSection(this.group);
     this.keys = new KeyframeStore();
+    /** Audio clips when kind === 'audio' */
+    this.clips = opts.kind === 'audio' ? new AudioClipStore() : null;
     /** @deprecated clip schedule — not used for visibility; kept for snapshot compat */
     this.clipStartSec = opts.clipStartSec ?? 0;
     this.clipDurationSec = opts.clipDurationSec ?? 10;
@@ -42,6 +45,8 @@ export class Track {
     this.hidden = opts.hidden === true;
     /** Track-head lock: block key/gizmo edits */
     this.locked = opts.locked === true;
+    /** Audio track mix level (kind === 'audio') */
+    this.audioVolume = Number.isFinite(opts.audioVolume) ? clamp01(opts.audioVolume) : 1;
   }
 
   snapshot() {
@@ -52,6 +57,7 @@ export class Track {
       group: this.group,
       section: this.section,
       keys: this.keys.snapshot(),
+      clips: this.clips ? this.clips.snapshot() : [],
       clipStartSec: this.clipStartSec,
       clipDurationSec: this.clipDurationSec,
       folderId: this.folderId,
@@ -59,6 +65,7 @@ export class Track {
       color: this.color,
       hidden: this.hidden,
       locked: this.locked,
+      audioVolume: this.audioVolume,
     };
   }
 
@@ -77,8 +84,13 @@ export class Track {
       color: data.color,
       hidden: data.hidden,
       locked: data.locked,
+      audioVolume: data.audioVolume,
     });
     t.keys.restore(data.keys);
+    if (data.kind === 'audio' || (data.clips && data.clips.length)) {
+      if (!t.clips) t.clips = new AudioClipStore();
+      t.clips.restore(data.clips || []);
+    }
     return t;
   }
 }
@@ -90,4 +102,10 @@ function inferSection(group) {
   if (g.startsWith('audio')) return 'audio';
   if (g.startsWith('stage:')) return 'stage';
   return 'motion';
+}
+
+function clamp01(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(0, Math.min(1, n));
 }

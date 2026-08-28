@@ -75,6 +75,32 @@ function resolveLookAtWorld(stageManager, lookAtAuthored, factors, pivot) {
   return new THREE.Vector3(mapped[0], mapped[1], mapped[2]);
 }
 
+/** Partial pull-back when stage is smaller than V3 reference (0 = linear only, 1 = full). */
+const AUDIENCE_FRAMING_BLEND = 0.32;
+const AUDIENCE_FRAMING_MAX = 1.22;
+
+/**
+ * Smaller stages scale camera distance down linearly — nudge back (not full opera distance)
+ * so framing stays similar without zooming past the building shell.
+ * @param {THREE.PerspectiveCamera} camera
+ * @param {import('three/addons/controls/OrbitControls.js').OrbitControls} controls
+ * @param {{ widthFactor: number, depthFactor: number, heightFactor?: number }} factors
+ */
+function applyAudienceFraming(camera, controls, factors) {
+  const wf = Math.max(factors.widthFactor, 1e-6);
+  const df = Math.max(factors.depthFactor, 1e-6);
+  const fullFit = Math.max(1 / wf, 1 / df);
+  if (fullFit <= 1.001) return;
+  const fit = Math.min(
+    AUDIENCE_FRAMING_MAX,
+    1 + (fullFit - 1) * AUDIENCE_FRAMING_BLEND,
+  );
+  const target = controls.target;
+  const offset = camera.position.clone().sub(target);
+  if (offset.lengthSq() < 1e-6) return;
+  camera.position.copy(target).addScaledVector(offset, fit);
+}
+
 /**
  * @param {THREE.PerspectiveCamera} camera
  * @param {import('three/addons/controls/OrbitControls.js').OrbitControls} controls
@@ -101,6 +127,10 @@ function applyV3CameraPreset(camera, controls, preset, factors, pivot, stageMana
     );
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     controls.target.copy(camera.position).addScaledVector(forward, span);
+  }
+
+  if (presetId === 'audience') {
+    applyAudienceFraming(camera, controls, factors);
   }
 
   if (presetId === 'top') {

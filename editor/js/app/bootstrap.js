@@ -28,8 +28,10 @@ import { pickMotionFbx } from '../ui/motion/MotionPicker.js';
 import { VideoBackground } from '../domain/video/VideoBackground.js';
 import { LightDirector } from '../domain/lighting/LightDirector.js';
 import { FixtureDirector } from '../domain/lighting/FixtureDirector.js';
+import { AudioDirector } from '../domain/audio/AudioDirector.js';
 import { ensureWorkLights } from '../domain/lighting/workLights.js';
 import { setWorkLightActive } from '../domain/lighting/houseStageLights.js';
+import { initTooltips } from '../ui/initTooltips.js';
 
 const statusEl = document.getElementById('status');
 const viewportEl = document.getElementById('viewport');
@@ -64,7 +66,7 @@ const MENU_PHASE_HINTS = {
   'view:skeleton': 'Phase 3 — 모션',
   'help:tutorial': '사용자 튜토리얼 (HTML)',
   'help:qa': 'docs/04_작업단위_테스트_튜토리얼.md',
-  'help:about': 'StageBuilder v4 · Phase 4 HOUSE+Fixture',
+  'help:about': 'StageBuilder v4 · Phase 5 Audio',
 };
 
 function setStatus(text) {
@@ -180,6 +182,7 @@ function initViewport(stageManager, helpers, shellRef, videoBgRef) {
 }
 
 async function main() {
+  initTooltips(document.body);
   setStatus('Loading stage…');
   const api = await checkApi();
   const stageManager = new StageManager(DEFAULT_STAGE_PROFILE);
@@ -201,11 +204,39 @@ async function main() {
     engine: timeline,
     stageManager,
   });
+  const audio = new AudioDirector({ engine: timeline });
 
-  timeline.subscribe(() => {
+  function syncStageFromTimelineSelection() {
+    if (!interaction) return;
+    const trackId = timeline.selectedTrackId;
+    const motionItem = trackId ? motion.findByTrackId(trackId) : null;
+    if (motionItem) {
+      if (interaction.getSelectedMotionId?.() !== motionItem.id) {
+        interaction.selectMotion(motionItem.id, { selectKey: false });
+      }
+      return;
+    }
+    if (interaction.getSelectedMotionId?.()) {
+      interaction.clearSelection({ skipEngine: true });
+    }
+  }
+
+  timeline.subscribe((ev) => {
+    if (ev.type === 'selection') {
+      syncStageFromTimelineSelection();
+    }
+    if (ev.type === 'play' && timeline.playing) {
+      audio.preloadAllClips();
+    }
+    if (timeline.playing) {
+      audio.apply(timeline.playheadSec);
+    }
     motion.apply(timeline.playheadSec);
     light.apply(timeline.playheadSec);
     fixtures.apply(timeline.playheadSec);
+    if (!timeline.playing) {
+      audio.apply(timeline.playheadSec);
+    }
   });
 
   /** @type {{ current: ReturnType<typeof mountEditorShell> | null }} */
@@ -213,6 +244,14 @@ async function main() {
   /** @type {{ current: VideoBackground }} */
   const videoBgRef = { current: new VideoBackground() };
   const viewport = initViewport(stageManager, helpers, shellRef, videoBgRef);
+
+  let buildingLocked = false;
+  function setBuildingLocked(locked) {
+    buildingLocked = !!locked;
+    viewport.controls.enableRotate = !buildingLocked;
+    viewport.controls.enablePan = !buildingLocked;
+    return buildingLocked;
+  }
 
   /** @type {ReturnType<typeof createViewportInteraction> | null} */
   let interaction = null;
@@ -223,6 +262,7 @@ async function main() {
       getMotionKeyValue: (trackId) => motion.keyValueForTrack(trackId),
       getLightKeyValue: (trackId) =>
         light.keyValueForTrack(trackId) ?? fixtures.keyValueForTrack(trackId),
+      audio,
       onTrackSelect: (trackId, opt) => {
         const m = motion.findByTrackId(trackId);
         if (m) interaction?.selectMotion(m.id, opt);
@@ -238,6 +278,9 @@ async function main() {
             light.removeTrackById(trackId) || fixtures.removeTrackById(trackId);
           if (ok) shellRef.current?.syncLightingPanel?.();
           return ok;
+        }
+        if (tr?.kind === 'audio') {
+          return audio.removeTrack(trackId);
         }
         const removed = motion.removeByTrackId(trackId);
         const selId = interaction?.getSelectedMotionId?.();
@@ -281,13 +324,15 @@ async function main() {
     timeline.selectedTrackId = item.trackId;
     const track = timeline.getTrack(item.trackId);
     const firstKey = track?.keys.list()[0];
-    if (firstKey) timeline.selectKeyframe(item.trackId, firstKey.id);
-    else {
+    if (firstKey) {
+      timeline.selectKeyframe(item.trackId, firstKey.id);
+      interaction?.selectMotion(item.id, { selectKey: false });
+    } else {
       timeline.selectedKeyframeId = null;
       timeline.emit('selection');
+      interaction?.selectMotion(item.id, { selectKey: false });
     }
     motion.apply(timeline.playheadSec);
-    interaction?.selectMotion(item.id);
     return item;
   }
 
@@ -480,6 +525,11 @@ async function main() {
     onZoom: (delta) => {
       zoomCamera(viewport.camera, viewport.controls, delta);
     },
+    onBuildingLockToggle: () => {
+      const on = setBuildingLocked(!buildingLocked);
+      refreshStatus(on ? '빌딩고정 — 궤도 이동/회전 끔' : '빌딩고정 해제');
+      return on;
+    },
     onKeyframeEdited: () => {
       motion.apply(timeline.playheadSec);
     },
@@ -516,6 +566,21 @@ async function main() {
     onRemoveVideo: () => {
       videoBgRef.current.clearFromStage();
       refreshStatus('Video cleared');
+    },
+    onAddAudio: async (entry) => {
+      try {
+        const { track, clip } = await audio.addFromAsset({
+          name: entry.name,
+          path: entry.path,
+          filename: entry.filename,
+          atSec: timeline.playheadSec,
+        });
+        audio.apply(timeline.playheadSec);
+        refreshStatus(`Audio: ${track.name} · ${clip.durationSec.toFixed(1)}s`);
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`Audio 실패: ${err.message}`);
+      }
     },
     onDeployGroup: async (groupId) => {
       try {
@@ -556,6 +621,7 @@ async function main() {
         motion.apply(timeline.playheadSec);
         light.apply(timeline.playheadSec);
         fixtures.apply(timeline.playheadSec);
+        audio.apply(timeline.playheadSec);
         shellRef.current?.syncLightingPanel?.();
         refreshStatus(ok ? 'Undo' : 'Undo 없음');
         return;
@@ -565,6 +631,7 @@ async function main() {
         motion.apply(timeline.playheadSec);
         light.apply(timeline.playheadSec);
         fixtures.apply(timeline.playheadSec);
+        audio.apply(timeline.playheadSec);
         shellRef.current?.syncLightingPanel?.();
         refreshStatus(ok ? 'Redo' : 'Redo 없음');
         return;

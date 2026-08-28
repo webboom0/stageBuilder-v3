@@ -10,6 +10,7 @@ import { TRANSFORM_ICONS, VIEWPORT_VIEW_ICONS } from './viewportToolbarIcons.js'
  *   onZoom?: (delta: number) => void,
  *   onTransformMode?: (mode: 'translate' | 'rotate' | 'scale') => void,
  *   onStageFocusToggle?: () => void,
+ *   onBuildingLockToggle?: () => boolean,
  * }} ctx
  */
 export function mountViewportToolbar(container, ctx) {
@@ -53,6 +54,9 @@ export function mountViewportToolbar(container, ctx) {
     <button type="button" class="toolbar-btn toolbar-btn--view" data-stage-focus="1" title="무대 전체 보기" aria-label="무대 전체 보기">
       <span class="toolbar-svg-icon" aria-hidden="true">${VIEWPORT_VIEW_ICONS.stageFocus}</span>
     </button>
+    <button type="button" class="toolbar-btn toolbar-btn--view" data-building-lock="1" title="빌딩고정" aria-label="빌딩고정">
+      <span class="toolbar-svg-icon" aria-hidden="true">${VIEWPORT_VIEW_ICONS.lockBuilding}</span>
+    </button>
     <span class="toolbar-divider" aria-hidden="true"></span>
     <label class="toolbar-local-switch" title="로컬">
       <input type="checkbox" id="sb-toolbar-local" />
@@ -88,12 +92,24 @@ export function mountViewportToolbar(container, ctx) {
     ctx.onStageFocusToggle?.();
   });
 
+  const lockBuildingBtn = container.querySelector('[data-building-lock]');
+  lockBuildingBtn?.addEventListener('click', () => {
+    const on = ctx.onBuildingLockToggle?.();
+    if (typeof on === 'boolean') {
+      lockBuildingBtn.classList.toggle('selected', on);
+    }
+  });
+
   enableToolbarDrag(container);
 
   return {
     /** @param {boolean} on */
     setStageFocusActive(on) {
       focusBtn?.classList.toggle('selected', on);
+    },
+    /** @param {boolean} on */
+    setBuildingLockActive(on) {
+      lockBuildingBtn?.classList.toggle('selected', on);
     },
   };
 }

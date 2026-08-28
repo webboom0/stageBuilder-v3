@@ -52,6 +52,7 @@ const UPLOAD_RULES = Object.freeze({
  *     color?: number,
  *   }) => void | Promise<void>,
  *   onAddVideo?: (entry: { url: string, name: string, filename?: string }) => void | Promise<void>,
+ *   onAddAudio?: (entry: { url: string, path: string, name: string, filename?: string }) => void | Promise<void>,
  *   onRemoveVideo?: () => void | Promise<void>,
  *   onCatalogChanged?: () => void | Promise<void>,
  * }} [opts]
@@ -145,7 +146,7 @@ export function createAssetsPanelBody(opts = {}) {
     } else if (tab === 'video') {
       hintEl.textContent = 'Video · + 재생 · 재생 중 − 로 제거 · 🗑 는 파일 삭제';
     } else {
-      hintEl.textContent = 'Audio 업로드/삭제 · + 는 Phase 5 오디오 타임라인';
+      hintEl.textContent = 'Audio · + 클릭마다 새 트랙 · 트랙 헤더 볼륨 · 🗑 파일 삭제';
     }
     refresh({ quiet: false });
   }
@@ -167,6 +168,8 @@ export function createAssetsPanelBody(opts = {}) {
         addBtn = on
           ? `<button type="button" class="sb-assets-add is-remove" data-act="remove-video" data-i="${i}" title="무대에서 비디오 제거">−</button>`
           : `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="무대 배경 재생">+</button>`;
+      } else if (tab === 'audio') {
+        addBtn = `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="오디오 타임라인에 추가">+</button>`;
       }
       return `
         <div class="sb-assets-item ${selectedKey === key ? 'is-selected' : ''}${tab === 'video' && isActiveVideo(it) ? ' is-active-video' : ''}"
@@ -248,7 +251,7 @@ export function createAssetsPanelBody(opts = {}) {
       }
       return;
     }
-    if (addBtn && (tab === 'character' || tab === 'stage' || tab === 'video')) {
+    if (addBtn && (tab === 'character' || tab === 'stage' || tab === 'video' || tab === 'audio')) {
       e.stopPropagation();
       addBtn.disabled = true;
       try {
@@ -266,7 +269,7 @@ export function createAssetsPanelBody(opts = {}) {
             procedural: entry.procedural,
             color: entry.color,
           });
-        } else {
+        } else if (tab === 'video') {
           await opts.onAddVideo?.({
             url: entry.url,
             name: entry.displayName || entry.name,
@@ -274,6 +277,13 @@ export function createAssetsPanelBody(opts = {}) {
           });
           activeVideoKey = videoItemKey(entry);
           renderList();
+        } else {
+          await opts.onAddAudio?.({
+            url: entry.url,
+            path: entry.path || `/files/music/${entry.filename}`,
+            name: entry.displayName || entry.name,
+            filename: entry.filename,
+          });
         }
       } finally {
         addBtn.disabled = false;
@@ -433,6 +443,7 @@ async function loadMediaList(listPath, kind) {
     const url = path.startsWith('http') ? path : filesUrl(path);
     return {
       url,
+      path,
       name: (f.name || filename).replace(/\.[^.]+$/, ''),
       displayName: f.displayName || f.name || filename,
       filename,
