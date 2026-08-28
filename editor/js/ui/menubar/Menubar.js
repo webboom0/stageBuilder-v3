@@ -129,11 +129,6 @@ function mountAddMenu(host, ctx) {
   const { root, options } = createMenu('추가');
   addOption(options, { label: '모션 (FBX)…', onClick: () => stub(ctx, 'add:motion') });
 
-  const lightTitle = addOption(options, { label: '조명', submenu: true });
-  const lightSub = createSubmenu(lightTitle, root);
-  addOption(lightSub, { label: 'Fixture…', onClick: () => stub(ctx, 'add:fixture') });
-  addOption(lightSub, { label: 'HOUSE 채널', onClick: () => stub(ctx, 'add:house') });
-
   addOption(options, { label: '오디오…', onClick: () => stub(ctx, 'add:audio') });
   addSeparator(options);
   addOption(options, { label: '그룹', onClick: () => stub(ctx, 'add:group') });

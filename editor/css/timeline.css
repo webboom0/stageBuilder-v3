@@ -132,11 +132,18 @@ body.sb-tl-resize-active * {
 }
 
 .sb-tl-labels {
+  overflow-x: hidden;
   overflow-y: auto;
   border-right: 1px solid var(--line);
   background: #1a1a1a;
   /* sticky ruler 높이만큼 내려서 첫 라벨 = 첫 키 행 */
   padding-top: var(--sb-tl-ruler-h);
+  /* viewport 쪽 세로 스크롤만 보이게 — 헤더는 휠/스크롤 동기화 */
+  scrollbar-width: none;
+}
+.sb-tl-labels::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .sb-tl-label {

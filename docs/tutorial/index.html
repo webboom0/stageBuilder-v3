@@ -35,6 +35,7 @@
 
         <div class="nav-group">조명</div>
         <a href="#house-light">HOUSE 채널</a>
+        <a href="#fixture-light">Fixture</a>
 
         <div class="nav-group">더보기</div>
         <a href="#coming">곧 추가되는 기능</a>
@@ -224,22 +225,36 @@
 
       <section id="house-light">
         <h2>HOUSE 조명</h2>
-        <p>무대 기본 조명(Fill · FOH 좌/중/우)을 타임라인 <strong>Light</strong> 섹션에서 조절합니다. 키 추가·이동·삭제는 Characters와 같습니다.</p>
+        <p>무대 기본 조명(Fill · FOH 좌/중/우)은 오른쪽 레일 <strong>조명</strong> 패널에서 조절합니다. 타임라인 Light 트랙은 <strong>필요할 때만</strong> 추가합니다.</p>
+        <p>시작 시 <strong>WORK</strong>가 켜져 있습니다. 옆 슬라이더로 작업등 밝기를 조절합니다. 그 아래 <strong>HOUSE / Fixture</strong> 탭에서 작업할 조명을 고릅니다.</p>
         <ol>
-          <li>타임라인에서 <strong>Light</strong>로 점프하거나, 메뉴 <strong>추가 → 조명 → HOUSE 채널</strong>로 트랙을 준비합니다.</li>
-          <li><strong>HOUSE · Fill</strong> · <strong>FOH L / C / R</strong> 네 줄이 보입니다.</li>
-          <li>트랙을 고르고 키를 추가한 뒤, 오른쪽 <strong>Properties</strong>에서 <strong>Dim · 색상 · Size</strong>를 편집합니다. (Fill은 Size 없음)</li>
-          <li>플레이헤드를 스크럽하면 무대 조명이 키에 맞춰 바뀝니다.</li>
+          <li>오른쪽 <strong>조명</strong> 패널(전구 아이콘)을 엽니다.</li>
+          <li><strong>HOUSE</strong> 탭에서 Fill · FOH L/C/R을 선택합니다.</li>
+          <li>Dim · 색상 · Size는 라이브로 바뀝니다. 탭 안의 <strong>+ 키 · ◀▶ · 삭제 · 트랙 삭제</strong>로 기록·정리합니다.</li>
+          <li>같은 시간에 다시 <strong>+ 키</strong>하면 새 키가 겹치지 않고 <strong>덮어씁니다</strong>.</li>
+          <li>트랙 삭제: 패널 <strong>트랙 삭제</strong> 또는 타임라인 Light 라벨 <strong>우클릭 → 트랙 삭제</strong> — 스테이지 조명도 함께 꺼집니다.</li>
         </ol>
-        <div class="note">
-          Fixture·MA Console은 아직 준비 중입니다. HOUSE만 먼저 사용할 수 있습니다.
-        </div>
-        <div class="figure">타임라인 Light · HOUSE 속성</div>
+        <div class="note">조명 슬라이더·WORK·+키·트랙 삭제는 <strong>실행 취소(Ctrl+Z)</strong>로 되돌릴 수 있습니다. 새 키는 <strong>Smooth</strong> 전환으로 저장됩니다.</div>
+        <div class="figure">조명 패널 · HOUSE</div>
+      </section>
+
+      <section id="fixture-light">
+        <h2>Fixture 조명</h2>
+        <p>머리 위 18대는 <strong>Fixture</strong> 탭에서 고릅니다. 처음부터 트랙이 생기지 않습니다.</p>
+        <p><strong>키프레임</strong>: 선택 → 라이브 → Fixture 탭의 <strong>+ 키 · ◀ ▶ · 삭제</strong>.</p>
+        <ol>
+          <li>번호(11~36) 클릭 · <strong>Shift/Ctrl</strong>로 다중 선택 · <strong>GROUPS</strong>(G1~G6, All/Odd/Even)은 트랙 없어도 전체 선택</li>
+          <li>Dimmer / Position / Beam / Color로 조절 · <strong>+ 키</strong>로 기록 (이미 키 있으면 속성만 갱신)</li>
+          <li>◀ ▶ · 휴지통 · <strong>트랙 삭제</strong> · 타임라인 키 드래그/Delete · 라벨 우클릭 삭제</li>
+          <li>전체 밝기(Fixture Bus) 슬라이더는 키 값은 유지한 채 화면만 밝기 조절</li>
+        </ol>
+        <div class="note">타일 <strong>·T</strong> / 초록 = 트랙 있음 · 없으면 회색(선택 후 +키로 트랙 자동 생성). 패널·타임라인 조명 작업은 <strong>Ctrl+Z / Ctrl+Y</strong> 지원.</div>
+        <div class="figure">조명 패널 · Fixture</div>
       </section>
 
       <section id="coming">
         <h2>곧 추가되는 기능</h2>
-        <p>Fixture·MA Console · 오디오 편집 · 멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다. 메뉴에 보이더라도 아직 안내만 뜨는 항목이 있을 수 있습니다.</p>
+        <p>MA Console · 오디오 편집 · 멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다. 메뉴에 보이더라도 아직 안내만 뜨는 항목이 있을 수 있습니다.</p>
       </section>
 
       <p class="footer-meta">

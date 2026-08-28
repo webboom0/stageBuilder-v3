@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { asMotionKeyValue } from '../domain/motion/motionKeyValue.js';
 import { asLightKeyValue } from '../domain/lighting/lightKeyValue.js';
+import { asFixtureKeyValue } from '../domain/lighting/fixtureKeyValue.js';
 import { applyMotionTint } from '../domain/motion/walkLitePerformer.js';
 import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
@@ -13,8 +14,14 @@ import { createMotionAnimSection } from './MotionAnimSection.js';
  *   engine: import('../domain/timeline/TimelineEngine.js').TimelineEngine,
  *   stageManager?: import('../domain/stage/StageManager.js').StageManager | null,
  *   getMotion?: (trackId: string) => import('../domain/motion/MotionDirector.js').MotionItem | null,
- *   getLight?: (trackId: string) => { channel: string, trackId: string, name: string } | null,
- *   onWriteLight?: (trackId: string, patch: { dim?: number, color?: string, size?: number }) => void,
+ *   getLight?: (trackId: string) => {
+ *     kind?: 'house' | 'fixture',
+ *     channel?: string,
+ *     fid?: number,
+ *     trackId: string,
+ *     name: string,
+ *   } | null,
+ *   onWriteLight?: (trackId: string, patch: Record<string, number | string>) => void,
  *   onChange?: () => void,
  *   onStagePick?: (motionId: string) => void,
  *   onObjectEdited?: (motionId: string) => void,
@@ -39,7 +46,7 @@ export function createKeyframePropertiesPanel(opts) {
         title="이동·대기·퇴장 구간 → 키프레임 적용">구간</button>
     </div>
     <div class="sb-kf-props-empty" data-role="empty">
-      씬에서 <strong>모션</strong>을 선택하거나, 타임라인에서 <strong>HOUSE</strong> 트랙을 선택하세요.
+      씬에서 <strong>모션</strong>을 선택하거나, 타임라인에서 <strong>HOUSE / Fixture</strong> 트랙을 선택하세요.
     </div>
     <div class="sb-kf-props-form" data-role="form" hidden>
       <div class="sb-props-pane is-on" data-pane="props">
@@ -63,6 +70,28 @@ export function createKeyframePropertiesPanel(opts) {
             <label>Size</label>
             <input type="range" data-role="light-size-range" min="0" max="1" step="0.01" class="acc" />
             <input type="number" class="Number ec-val" data-role="light-size" min="0" max="100" step="1" title="빔 각도 0–100%" />
+          </div>
+          <div data-role="fixture-extra" hidden>
+            <div class="ec-row">
+              <label>Pan</label>
+              <input type="range" data-role="fx-pan-range" min="-180" max="180" step="1" class="acc" />
+              <input type="number" class="Number ec-val" data-role="fx-pan" min="-270" max="270" step="1" />
+            </div>
+            <div class="ec-row">
+              <label>Tilt</label>
+              <input type="range" data-role="fx-tilt-range" min="-90" max="90" step="1" class="acc" />
+              <input type="number" class="Number ec-val" data-role="fx-tilt" min="-120" max="120" step="1" />
+            </div>
+            <div class="ec-row">
+              <label>Zoom</label>
+              <input type="range" data-role="fx-zoom-range" min="5" max="50" step="1" class="acc" />
+              <input type="number" class="Number ec-val" data-role="fx-zoom" min="5" max="50" step="1" />
+            </div>
+            <div class="ec-row">
+              <label>Focus</label>
+              <input type="range" data-role="fx-focus-range" min="0" max="100" step="1" class="acc" />
+              <input type="number" class="Number ec-val" data-role="fx-focus" min="0" max="100" step="1" />
+            </div>
           </div>
         </div>
 
@@ -160,11 +189,20 @@ export function createKeyframePropertiesPanel(opts) {
   const stageProps = root.querySelector('[data-role="stage-props"]');
   const lightProps = root.querySelector('[data-role="light-props"]');
   const lightSizeRow = root.querySelector('[data-role="light-size-row"]');
+  const fixtureExtra = root.querySelector('[data-role="fixture-extra"]');
   const lightDimRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="light-dim-range"]'));
   const lightDim = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="light-dim"]'));
   const lightColor = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="light-color"]'));
   const lightSizeRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="light-size-range"]'));
   const lightSize = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="light-size"]'));
+  const fxPanRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-pan-range"]'));
+  const fxPan = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-pan"]'));
+  const fxTiltRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-tilt-range"]'));
+  const fxTilt = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-tilt"]'));
+  const fxZoomRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-zoom-range"]'));
+  const fxZoom = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-zoom"]'));
+  const fxFocusRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-focus-range"]'));
+  const fxFocus = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-focus"]'));
   const posGroup = root.querySelector('[data-role="pos-group"]');
   const rotyHost = /** @type {HTMLElement} */ (root.querySelector('[data-role="roty-host"]'));
   const stagePosGroup = root.querySelector('[data-role="stage-pos-group"]');
@@ -271,12 +309,24 @@ export function createKeyframePropertiesPanel(opts) {
       return;
     }
     const dimPct = Number(lightDim.value);
-    const sizePct = Number(lightSize.value);
-    opts.onWriteLight?.(ch.trackId, {
-      dim: Number.isFinite(dimPct) ? dimPct / 100 : Number(lightDimRange.value) || 0,
-      color: lightColor.value,
-      size: Number.isFinite(sizePct) ? sizePct / 100 : Number(lightSizeRange.value) || 0.5,
-    });
+    const isFx = ch.kind === 'fixture';
+    if (isFx) {
+      opts.onWriteLight?.(ch.trackId, {
+        dim: Number.isFinite(dimPct) ? dimPct / 100 : Number(lightDimRange.value) || 0,
+        color: lightColor.value,
+        pan: Number(fxPan.value),
+        tilt: Number(fxTilt.value),
+        zoom: Number(fxZoom.value),
+        focus: Number(fxFocus.value),
+      });
+    } else {
+      const sizePct = Number(lightSize.value);
+      opts.onWriteLight?.(ch.trackId, {
+        dim: Number.isFinite(dimPct) ? dimPct / 100 : Number(lightDimRange.value) || 0,
+        color: lightColor.value,
+        size: Number.isFinite(sizePct) ? sizePct / 100 : Number(lightSizeRange.value) || 0.5,
+      });
+    }
     opts.onChange?.();
     sync();
   }
@@ -420,24 +470,44 @@ export function createKeyframePropertiesPanel(opts) {
       boundAnimMotionId = null;
       animSection.clear();
 
-      typeEl.textContent = 'HOUSE';
+      const isFx = lightCh.kind === 'fixture';
+      typeEl.textContent = isFx ? 'Fixture' : 'HOUSE';
       nameEl.value = lightCh.name;
       nameEl.readOnly = true;
 
-      let live = asLightKeyValue({ dim: 0, color: '#ffffff', size: 0.5 });
-      if (kf) live = asLightKeyValue(kf.value);
-      else {
-        const keys = track.keys.list();
-        if (keys.length) live = asLightKeyValue(keys[0].value);
-      }
+      if (fixtureExtra) /** @type {HTMLElement} */ (fixtureExtra).hidden = !isFx;
+      if (lightSizeRow) /** @type {HTMLElement} */ (lightSizeRow).hidden = isFx || lightCh.channel === 'fill';
 
-      lightDimRange.value = String(live.dim);
-      lightDim.value = String(Math.round(live.dim * 100));
-      lightColor.value = live.color.startsWith('#') ? live.color : '#ffffff';
-      lightSizeRange.value = String(live.size);
-      lightSize.value = String(Math.round(live.size * 100));
-      if (lightSizeRow) {
-        /** @type {HTMLElement} */ (lightSizeRow).hidden = lightCh.channel === 'fill';
+      if (isFx) {
+        let live = asFixtureKeyValue({ dim: 0, color: '#ffffff', pan: 0, tilt: 35, zoom: 16, focus: 35 });
+        if (kf) live = asFixtureKeyValue(kf.value);
+        else {
+          const keys = track.keys.list();
+          if (keys.length) live = asFixtureKeyValue(keys[0].value);
+        }
+        lightDimRange.value = String(live.dim);
+        lightDim.value = String(Math.round(live.dim * 100));
+        lightColor.value = live.color.startsWith('#') ? live.color : '#ffffff';
+        fxPanRange.value = String(Math.max(-180, Math.min(180, live.pan)));
+        fxPan.value = String(Math.round(live.pan));
+        fxTiltRange.value = String(Math.max(-90, Math.min(90, live.tilt)));
+        fxTilt.value = String(Math.round(live.tilt));
+        fxZoomRange.value = String(live.zoom);
+        fxZoom.value = String(Math.round(live.zoom));
+        fxFocusRange.value = String(live.focus);
+        fxFocus.value = String(Math.round(live.focus));
+      } else {
+        let live = asLightKeyValue({ dim: 0, color: '#ffffff', size: 0.5 });
+        if (kf) live = asLightKeyValue(kf.value);
+        else {
+          const keys = track.keys.list();
+          if (keys.length) live = asLightKeyValue(keys[0].value);
+        }
+        lightDimRange.value = String(live.dim);
+        lightDim.value = String(Math.round(live.dim * 100));
+        lightColor.value = live.color.startsWith('#') ? live.color : '#ffffff';
+        lightSizeRange.value = String(live.size);
+        lightSize.value = String(Math.round(live.size * 100));
       }
 
       const locked = !!track.locked;
@@ -606,6 +676,28 @@ export function createKeyframePropertiesPanel(opts) {
     lightSizeRange.value = String(pct / 100);
     commitLightFromUi();
   });
+
+  function bindFxNumPair(rangeEl, numEl) {
+    rangeEl.addEventListener('input', () => {
+      if (syncing) return;
+      numEl.value = String(Number(rangeEl.value));
+      commitLightFromUi();
+    });
+    numEl.addEventListener('change', () => {
+      if (syncing) return;
+      const n = Number(numEl.value);
+      if (!Number.isFinite(n)) return;
+      numEl.value = String(n);
+      const min = Number(rangeEl.min);
+      const max = Number(rangeEl.max);
+      rangeEl.value = String(Math.max(min, Math.min(max, n)));
+      commitLightFromUi();
+    });
+  }
+  bindFxNumPair(fxPanRange, fxPan);
+  bindFxNumPair(fxTiltRange, fxTilt);
+  bindFxNumPair(fxZoomRange, fxZoom);
+  bindFxNumPair(fxFocusRange, fxFocus);
 
   nameEl.addEventListener('change', () => {
     const m = currentMotion();

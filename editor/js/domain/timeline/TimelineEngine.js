@@ -25,6 +25,8 @@ export class TimelineEngine {
     this.pxPerSec = 8;
     this.scrollSec = 0;
     this.durationMode = DURATION_MODE.CLAMP_END;
+    /** Skip per-keyframe undo steps while lighting panel gesture batches edits */
+    this._suspendHistory = false;
 
     /** @type {Map<string, Track>} */
     this.tracks = new Map();
@@ -33,6 +35,10 @@ export class TimelineEngine {
     this.commands = new CommandStack();
     this.selectedKeyframeId = null;
     this.selectedTrackId = null;
+    /** @type {Array<{ trackId: string, keyId: string }>} */
+    this.selectedKeys = [];
+    /** @type {Set<string>} */
+    this.selectedTrackIds = new Set();
 
     /** @type {Set<(ev: { type: string }) => void>} */
     this._listeners = new Set();
@@ -130,7 +136,7 @@ export class TimelineEngine {
     if (!track) return false;
     const snap = track.snapshot();
     this.tracks.delete(id);
-    if (this.selectedTrackId === id) this.clearSelection();
+    this._pruneSelectionForMissing();
     if (opt.history !== false) {
       this.commands.push({
         label: 'Remove track',
@@ -139,7 +145,7 @@ export class TimelineEngine {
         },
         redo: () => {
           this.tracks.delete(id);
-          if (this.selectedTrackId === id) this.clearSelection();
+          this._pruneSelectionForMissing();
         },
       });
     }
@@ -204,26 +210,129 @@ export class TimelineEngine {
   }
 
   selectKeyframe(trackId, keyframeId) {
-    this.selectedTrackId = trackId;
-    this.selectedKeyframeId = keyframeId;
+    this.selectedTrackId = trackId || null;
+    this.selectedKeyframeId = keyframeId || null;
+    this.selectedKeys = trackId && keyframeId
+      ? [{ trackId, keyId: keyframeId }]
+      : [];
+    this.selectedTrackIds = new Set(trackId ? [trackId] : []);
     this.emit('selection');
+  }
+
+  /**
+   * Multi key selection. Primary = refs[0] (panels / properties).
+   * @param {Array<{ trackId: string, keyId: string }>} refs
+   */
+  selectKeyframes(refs) {
+    const cleaned = [];
+    const seen = new Set();
+    for (const r of refs || []) {
+      if (!r?.trackId || !r?.keyId) continue;
+      const track = this.getTrack(r.trackId);
+      if (!track?.keys.get(r.keyId)) continue;
+      const k = `${r.trackId}\0${r.keyId}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      cleaned.push({ trackId: r.trackId, keyId: r.keyId });
+    }
+    this.selectedKeys = cleaned;
+    const primary = cleaned[0] || null;
+    this.selectedTrackId = primary?.trackId ?? null;
+    this.selectedKeyframeId = primary?.keyId ?? null;
+    this.selectedTrackIds = new Set(cleaned.map((r) => r.trackId));
+    this.emit('selection');
+  }
+
+  /**
+   * Highlight tracks (e.g. fixture panel multi-select) without requiring keys.
+   * @param {Iterable<string>} trackIds
+   * @param {{ keepKeys?: boolean }} [opt]
+   */
+  selectTracks(trackIds, opt = {}) {
+    const ids = [...new Set([...(trackIds || [])].filter(Boolean))];
+    this.selectedTrackIds = new Set(ids.filter((id) => this.getTrack(id)));
+    this.selectedTrackId = ids.find((id) => this.selectedTrackIds.has(id)) ?? null;
+    if (!opt.keepKeys) {
+      this.selectedKeyframeId = null;
+      this.selectedKeys = [];
+    } else {
+      this.selectedKeys = this.selectedKeys.filter((r) => this.selectedTrackIds.has(r.trackId));
+      if (this.selectedKeyframeId && !this.selectedKeys.some((r) => r.keyId === this.selectedKeyframeId)) {
+        const p = this.selectedKeys[0];
+        this.selectedTrackId = p?.trackId ?? this.selectedTrackId;
+        this.selectedKeyframeId = p?.keyId ?? null;
+      }
+    }
+    this.emit('selection');
+  }
+
+  /** @param {string} trackId @param {string} keyId */
+  isKeySelected(trackId, keyId) {
+    if (this.selectedTrackId === trackId && this.selectedKeyframeId === keyId) return true;
+    return this.selectedKeys.some((r) => r.trackId === trackId && r.keyId === keyId);
+  }
+
+  /** @param {string} trackId */
+  isTrackSelected(trackId) {
+    return this.selectedTrackId === trackId || this.selectedTrackIds.has(trackId);
+  }
+
+  listSelectedKeys() {
+    return this.selectedKeys.slice();
   }
 
   clearSelection() {
     this.selectedTrackId = null;
     this.selectedKeyframeId = null;
+    this.selectedKeys = [];
+    this.selectedTrackIds.clear();
     this.emit('selection');
+  }
+
+  /** Drop selection refs that no longer exist. */
+  _pruneSelectionForMissing() {
+    this.selectedKeys = this.selectedKeys.filter((r) => {
+      const t = this.getTrack(r.trackId);
+      return t && t.keys.get(r.keyId);
+    });
+    for (const id of [...this.selectedTrackIds]) {
+      if (!this.getTrack(id)) this.selectedTrackIds.delete(id);
+    }
+    if (this.selectedTrackId && !this.getTrack(this.selectedTrackId)) {
+      this.selectedTrackId = null;
+      this.selectedKeyframeId = null;
+    }
+    if (this.selectedKeyframeId && this.selectedTrackId) {
+      const t = this.getTrack(this.selectedTrackId);
+      if (!t?.keys.get(this.selectedKeyframeId)) {
+        this.selectedKeyframeId = null;
+      }
+    }
+    if (!this.selectedKeyframeId && this.selectedKeys.length) {
+      this.selectedTrackId = this.selectedKeys[0].trackId;
+      this.selectedKeyframeId = this.selectedKeys[0].keyId;
+    } else if (!this.selectedTrackId && this.selectedTrackIds.size) {
+      this.selectedTrackId = [...this.selectedTrackIds][0];
+    }
   }
 
   undo() {
     const ok = this.commands.undo();
-    if (ok) this.emit('keys');
+    if (ok) {
+      this.emit('keys');
+      this.emit('tracks');
+      this.emit('selection');
+    }
     return ok;
   }
 
   redo() {
     const ok = this.commands.redo();
-    if (ok) this.emit('keys');
+    if (ok) {
+      this.emit('keys');
+      this.emit('tracks');
+      this.emit('selection');
+    }
     return ok;
   }
 

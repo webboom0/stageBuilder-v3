@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { setWorkLightLevel, readWorkLightLevel } from './workLights.js';
 
 const STORAGE_KEY = 'houseStageLights';
 
@@ -99,7 +100,7 @@ export function getFohSpot(scene, suffix) {
 
 export function defaultHouseLightLevels() {
   return {
-    fill: 0.12,
+    fill: 0,
     fohL: 0,
     fohC: 0,
     fohR: 0,
@@ -270,4 +271,147 @@ export function captureHouseChannelBag(scene, channel) {
     color: levels[`color${channel}`] || '#ffffff',
     size: levels[`size${channel}`] ?? 0.5,
   };
+}
+
+/**
+ * Timeline track removed — drop cue levels and revert to live baseline.
+ * FOH → off. Fill → WORK baseline when active, else off.
+ * @param {THREE.Scene} scene
+ * @param {'fill' | 'L' | 'C' | 'R'} channel
+ */
+export function resetHouseChannelLive(scene, channel) {
+  if (!scene) return;
+  if (channel === 'fill' && isWorkLightActive(scene)) {
+    const v = readWorkLightLevel(scene);
+    const levels = readHouseLightLevels(scene);
+    levels.fill = Math.max(0, Math.min(0.35, 0.08 + v * 0.25));
+    applyHouseLightLevels(scene, levels);
+    return;
+  }
+  const bag = channel === 'fill'
+    ? { dim: 0, color: '#ffffff', size: 0.5 }
+    : { dim: 0, color: '#ffffff', size: defaultSizeForSuffix(channel) };
+  applyHouseChannelBag(scene, channel, bag);
+}
+
+/**
+ * GRAND — stage-wide ambience (work ×0.65 + fill ×0.35). FOH pins stay in HOUSE panel.
+ * WORK off일 때는 stageGrand만 저장하고 조명은 바꾸지 않음 (암전 유지).
+ * @param {THREE.Scene} scene
+ * @param {number} level01
+ */
+export function applyStageGrand(scene, level01) {
+  const v = Math.max(0, Math.min(1, Number(level01) || 0));
+  if (!scene) return v;
+  if (!scene.userData) scene.userData = {};
+  scene.userData.stageGrand = v;
+
+  if (!isWorkLightActive(scene)) {
+    return v;
+  }
+
+  setWorkLightLevel(scene, v * 0.65);
+
+  const levels = readHouseLightLevels(scene);
+  levels.fill = Math.max(0, Math.min(1, v * 0.35));
+  applyHouseLightLevels(scene, levels);
+  return v;
+}
+
+export const WORK_BUTTON_LEVEL = 0.62;
+
+/** WORK ON — any non-trivial work light level (slider may be below 50%) */
+export function isWorkLightActive(scene) {
+  return readWorkLightLevel(scene) > 0.02;
+}
+
+/**
+ * WORK 토글 — OFF면 작업등·에디터 기본광·Fill 0(암전).
+ * FOH·Fixture는 쇼 조명이라 건드리지 않음 (재생 확인용).
+ * @param {THREE.Scene} scene
+ * @param {boolean} active
+ */
+export function setWorkLightActive(scene, active) {
+  if (!scene) return false;
+  if (!scene.userData) scene.userData = {};
+  const levels = readHouseLightLevels(scene);
+  if (active) {
+    const prev = Number(scene.userData.workLightLevelLast);
+    const level = Number.isFinite(prev) && prev > 0.02 ? prev : WORK_BUTTON_LEVEL;
+    setWorkLightLevel(scene, level);
+    const g = readStageGrand(scene);
+    levels.fill = Math.max(0.12, Math.min(1, Math.max(g * 0.35, 0.12)));
+  } else {
+    const cur = readWorkLightLevel(scene);
+    if (cur > 0.02) scene.userData.workLightLevelLast = cur;
+    setWorkLightLevel(scene, 0);
+    levels.fill = 0;
+  }
+  applyHouseLightLevels(scene, levels);
+  return active;
+}
+
+/**
+ * WORK 밝기 슬라이더 (0=암전, >0=작업등 ON).
+ * @param {THREE.Scene} scene
+ * @param {number} level01
+ */
+export function setWorkLightSlider(scene, level01) {
+  if (!scene) return 0;
+  if (!scene.userData) scene.userData = {};
+  const v = Math.max(0, Math.min(1, Number(level01) || 0));
+  const levels = readHouseLightLevels(scene);
+  if (v <= 0.02) {
+    const cur = readWorkLightLevel(scene);
+    if (cur > 0.02) scene.userData.workLightLevelLast = cur;
+    setWorkLightLevel(scene, 0);
+    levels.fill = 0;
+  } else {
+    setWorkLightLevel(scene, v);
+    scene.userData.workLightLevelLast = v;
+    levels.fill = Math.max(levels.fill, Math.min(0.35, 0.08 + v * 0.25));
+  }
+  applyHouseLightLevels(scene, levels);
+  return v;
+}
+
+export const DEFAULT_STARTUP_GRAND = 0.05;
+
+/**
+ * New session default — dim house FOH, low grand fill, fixtures off.
+ * @param {THREE.Scene} scene
+ * @param {import('./FixtureEngine.js').FixtureEngine | null | undefined} [fxEngine]
+ */
+export function applyStartupBlackout(scene, fxEngine) {
+  if (!scene) return;
+  // WORK off + FOH/fixture 0 — Fill도 0 (작업 전에는 암전)
+  applyHouseLightLevels(scene, defaultHouseLightLevels());
+  if (!scene.userData) scene.userData = {};
+  scene.userData.stageGrand = DEFAULT_STARTUP_GRAND;
+  setWorkLightLevel(scene, 0);
+
+  const levels = readHouseLightLevels(scene);
+  levels.fill = 0;
+  levels.fohL = 0;
+  levels.fohC = 0;
+  levels.fohR = 0;
+  applyHouseLightLevels(scene, levels);
+
+  if (fxEngine?.built) {
+    fxEngine.fixtures?.forEach((f) => {
+      f.attr.dim = 0;
+      f.prog = {};
+      f.tl = null;
+    });
+    fxEngine.fixtureBus = 1;
+    fxEngine.blackout = false;
+    fxEngine.update();
+  }
+}
+
+export { readWorkLightLevel };
+
+/** @param {THREE.Scene | null | undefined} scene */
+export function readStageGrand(scene) {
+  return scene?.userData?.stageGrand ?? 0;
 }

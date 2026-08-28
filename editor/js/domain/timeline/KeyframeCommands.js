@@ -1,5 +1,11 @@
 import { DURATION_MODE } from './types.js';
 import { cloneKeyframeValue } from './cloneValue.js';
+import { keyframeTimeEps, snapKeyframeTimeSec } from './KeyframeStore.js';
+
+/** @param {import('./TimelineEngine.js').TimelineEngine} engine */
+function recordHistory(engine, cmd) {
+  if (!engine._suspendHistory) engine.commands.push(cmd);
+}
 
 /**
  * @param {import('./TimelineEngine.js').TimelineEngine} engine
@@ -9,20 +15,33 @@ export function cmdAddKeyframe(engine, args) {
   const track = engine.getTrack(args.trackId);
   if (!track) throw new Error(`Track not found: ${args.trackId}`);
 
-  const existing = track.keys.findAtTime(args.timeSec);
+  const timeSec = snapKeyframeTimeSec(args.timeSec, engine.fps);
+  const eps = keyframeTimeEps(engine.fps);
+  const existing = track.keys.findAtTime(timeSec, { eps });
   if (existing) {
-    // Same time — do not stack; select existing key
+    if (args.value !== undefined) {
+      cmdEditKeyframe(engine, {
+        trackId: track.id,
+        keyframeId: existing.id,
+        patch: {
+          value: cloneKeyframeValue(args.value),
+          ...(args.interpolation !== undefined ? { interpolation: args.interpolation } : {}),
+        },
+      });
+      engine.selectKeyframe(track.id, existing.id);
+      return track.keys.get(existing.id);
+    }
     engine.selectKeyframe(track.id, existing.id);
     return existing;
   }
 
   const added = track.keys.add({
-    timeSec: args.timeSec,
+    timeSec,
     value: cloneKeyframeValue(args.value),
     interpolation: args.interpolation,
   });
 
-  engine.commands.push({
+  recordHistory(engine, {
     label: 'Add keyframe',
     undo: () => {
       track.keys.remove(added.id);
@@ -52,7 +71,7 @@ export function cmdRemoveKeyframe(engine, args) {
   const removed = track.keys.remove(args.keyframeId);
   if (!removed) return null;
 
-  engine.commands.push({
+  recordHistory(engine, {
     label: 'Delete keyframe',
     undo: () => {
       track.keys.add({
@@ -64,11 +83,11 @@ export function cmdRemoveKeyframe(engine, args) {
     },
     redo: () => {
       track.keys.remove(removed.id);
-      if (engine.selectedKeyframeId === removed.id) engine.clearSelection();
+      engine._pruneSelectionForMissing?.();
     },
   });
 
-  if (engine.selectedKeyframeId === removed.id) engine.clearSelection();
+  engine._pruneSelectionForMissing?.();
   return removed;
 }
 
@@ -93,7 +112,7 @@ export function cmdMoveKeyframe(engine, args) {
 
   track.keys.update(args.keyframeId, { timeSec: after });
 
-  engine.commands.push({
+  recordHistory(engine, {
     label: 'Move keyframe',
     undo: () => track.keys.update(args.keyframeId, { timeSec: before }),
     redo: () => track.keys.update(args.keyframeId, { timeSec: after }),
@@ -132,7 +151,7 @@ export function cmdEditKeyframe(engine, args) {
     interpolation: after.interpolation,
   };
 
-  engine.commands.push({
+  recordHistory(engine, {
     label: 'Edit keyframe',
     undo: () => track.keys.update(args.keyframeId, before),
     redo: () => track.keys.update(args.keyframeId, afterSnap),
@@ -170,7 +189,7 @@ export function cmdSetDuration(engine, args) {
     keys: t.keys.snapshot(),
   }));
 
-  engine.commands.push({
+  recordHistory(engine, {
     label: `Duration ${oldDuration}→${newDuration} (${mode})`,
     undo: () => {
       engine.durationSec = oldDuration;

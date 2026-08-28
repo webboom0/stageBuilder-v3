@@ -5,8 +5,20 @@ export function newKeyframeId() {
   return `kf_${_nextId++}`;
 }
 
-/** Same-time key collision epsilon (seconds) */
-export const KEYFRAME_TIME_EPS = 1e-3;
+/** Same-time key collision epsilon (seconds) — half frame @ 30fps */
+export const KEYFRAME_TIME_EPS = 1 / 60;
+
+/** Snap to timeline frame grid so +키 / playhead agree on "same time". */
+export function snapKeyframeTimeSec(timeSec, fps = 30) {
+  if (!Number.isFinite(timeSec)) return 0;
+  const f = Math.max(1, Number(fps) || 30);
+  const step = 1 / f;
+  return Math.round(timeSec / step) * step;
+}
+
+export function keyframeTimeEps(fps = 30) {
+  return Math.max(KEYFRAME_TIME_EPS, 0.5 / Math.max(1, Number(fps) || 30));
+}
 
 /**
  * Ordered keyframe list for one track. Times are absolute seconds.

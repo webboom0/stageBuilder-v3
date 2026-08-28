@@ -45,15 +45,39 @@ export class StageManager {
 
     this.background = null;
     this.floor = null;
+    /** Optional editor base lights — intensity driven by WORK (see workLights.js). */
+    this._baseAmb = null;
+    this._baseDir = null;
 
     this._buildLights();
   }
 
+  /**
+   * Named base lights start at 0. WORK button raises them for rehearsal;
+   * without this they used to stay at 0.45/0.85 and blocked true blackout.
+   */
   _buildLights() {
-    const amb = new THREE.AmbientLight(0xffffff, 0.45);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    const amb = new THREE.AmbientLight(0xffffff, 0);
+    amb.name = '_EditorBaseAmb';
+    amb.userData.excludeFromTimeline = true;
+    amb.userData.notSelectable = true;
+    const dir = new THREE.DirectionalLight(0xffffff, 0);
+    dir.name = '_EditorBaseDir';
     dir.position.set(5, 15, 10);
+    dir.userData.excludeFromTimeline = true;
+    dir.userData.notSelectable = true;
     this.scene.add(amb, dir);
+    this._baseAmb = amb;
+    this._baseDir = dir;
+  }
+
+  /**
+   * @param {number} level01 0 = blackout base, 1 = full editor fill
+   */
+  setBaseLightLevel(level01) {
+    const v = Math.max(0, Math.min(1, Number(level01) || 0));
+    if (this._baseAmb) this._baseAmb.intensity = 0.45 * v;
+    if (this._baseDir) this._baseDir.intensity = 0.85 * v;
   }
 
   _clearScaledContent() {

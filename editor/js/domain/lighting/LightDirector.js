@@ -1,11 +1,13 @@
 import { INTERPOLATION } from '../timeline/types.js';
+import { keyframeTimeEps, snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
 import {
   applyHouseChannelBag,
   applyHouseLightLevels,
   captureHouseChannelBag,
-  defaultHouseLightLevels,
   ensureHouseStageLights,
+  isWorkLightActive,
   readHouseLightLevels,
+  resetHouseChannelLive,
 } from './houseStageLights.js';
 import {
   asLightKeyValue,
@@ -14,6 +16,8 @@ import {
 } from './lightKeyValue.js';
 
 /** @typedef {'fill' | 'L' | 'C' | 'R'} HouseChannelId */
+
+const DEFAULT_KEY_INTERP = INTERPOLATION.SMOOTH;
 
 /** @type {ReadonlyArray<{
  *   channel: HouseChannelId,
@@ -45,48 +49,102 @@ export class LightDirector {
     /** @type {Map<string, { channel: HouseChannelId, trackId: string, name: string }>} */
     this.channels = new Map();
     this.suspendApply = false;
+    /** @type {Map<string, import('./lightKeyValue.js').LightKeyValue>} */
+    this._preHideBag = new Map();
   }
 
-  /** Ensure stage lights + 4 timeline tracks (idempotent). */
-  ensureHouseTracks() {
+  /** Ensure physical HOUSE lights exist — no auto timeline tracks. */
+  ensureHouseLights() {
     ensureHouseStageLights(this.stageManager);
+    applyHouseLightLevels(this.scene, readHouseLightLevels(this.scene));
+    this.resyncChannelsFromEngine();
+    this.apply(this.engine.playheadSec);
+  }
 
-    const existing = this.engine.listTracks().filter((t) => t.kind === 'light' && t.section === 'light');
-    if (existing.length >= 4 && this.channels.size >= 4) {
-      applyHouseLightLevels(this.scene, readHouseLightLevels(this.scene));
-      return;
-    }
+  /** @deprecated use ensureHouseLights */
+  ensureHouseTracks() {
+    this.ensureHouseLights();
+  }
 
-    // Clear stale map if tracks were removed
+  resyncChannelsFromEngine() {
     this.channels.clear();
-
     for (const def of HOUSE_CHANNELS) {
       const group = `light:house:${def.channel}`;
-      let track = this.engine.listTracks().find((t) => t.group === group && t.kind === 'light');
-      if (!track) {
-        track = this.engine.addTrack({
-          name: def.trackName,
-          kind: 'light',
-          group,
-          section: 'light',
-          color: def.color,
-        });
-        const bag = channelStartupBag(def.channel);
-        this.engine.addKeyframe(track.id, 0, bag, INTERPOLATION.LINEAR);
-      }
+      const track = this.engine.listTracks().find((t) => t.group === group && t.kind === 'light');
+      if (!track) continue;
       this.channels.set(def.channel, {
         channel: def.channel,
         trackId: track.id,
         name: def.trackName,
+        kind: 'house',
       });
     }
-
-    // Dim work lights slightly so HOUSE dominates when raised
-    applyHouseLightLevels(this.scene, readHouseLightLevels(this.scene));
-    this.engine.emit('tracks');
-    this.apply(this.engine.playheadSec);
   }
 
+  /**
+   * @param {HouseChannelId} channel
+   */
+  ensureTrackForChannel(channel) {
+    this.ensureHouseLights();
+    const def = HOUSE_CHANNELS.find((d) => d.channel === channel);
+    if (!def) return null;
+
+    let ch = this.channels.get(channel);
+    if (ch && this.engine.getTrack(ch.trackId)) return { ...ch, kind: 'house' };
+
+    const group = `light:house:${def.channel}`;
+    let track = this.engine.listTracks().find((t) => t.group === group && t.kind === 'light');
+    if (!track) {
+      track = this.engine.addTrack({
+        name: def.trackName,
+        kind: 'light',
+        group,
+        section: 'light',
+        color: def.color,
+      });
+      this.engine.emit('tracks');
+    }
+    ch = {
+      channel: def.channel,
+      trackId: track.id,
+      name: def.trackName,
+      kind: 'house',
+    };
+    this.channels.set(def.channel, ch);
+    return { ...ch };
+  }
+
+  /** @param {string} trackId @param {{ history?: boolean }} [opt] */
+  removeTrackById(trackId, opt = {}) {
+    const ch = this.findByTrackId(trackId);
+    if (!ch) return false;
+    const { channel } = ch;
+    this._preHideBag.delete(channel);
+    this.channels.delete(channel);
+    this.engine.removeTrack(trackId, { history: opt.history !== false });
+    resetHouseChannelLive(this.scene, channel);
+    this.apply(this.engine.playheadSec);
+    return true;
+  }
+
+  /** Live bag for a channel (no track required). */
+  liveBagForChannel(channel) {
+    return asLightKeyValue(captureHouseChannelBag(this.scene, channel));
+  }
+
+  writeLiveForChannel(channel, patch) {
+    const live = this.liveBagForChannel(channel);
+    const bag = asLightKeyValue({ ...live, ...patch }, live);
+    applyHouseChannelBag(this.scene, channel, bag);
+    return true;
+  }
+
+  findByChannel(channel) {
+    const ch = this.channels.get(channel);
+    return ch ? { ...ch, kind: 'house' } : null;
+  }
+
+  /** Channels that have tracks. */
   list() {
     return [...this.channels.values()];
   }
@@ -94,7 +152,9 @@ export class LightDirector {
   /** @param {string} trackId */
   findByTrackId(trackId) {
     for (const ch of this.channels.values()) {
-      if (ch.trackId === trackId) return ch;
+      if (ch.trackId === trackId) {
+        return { ...ch, kind: 'house' };
+      }
     }
     return null;
   }
@@ -104,41 +164,103 @@ export class LightDirector {
     return this.findByTrackId(trackId);
   }
 
-  /**
-   * @param {string} trackId
-   * @returns {import('./lightKeyValue.js').LightKeyValue | null}
-   */
+  liveBagForTrack(trackId) {
+    const ch = this.findByTrackId(trackId);
+    if (!ch) return null;
+    return asLightKeyValue(captureHouseChannelBag(this.scene, ch.channel));
+  }
+
   keyValueForTrack(trackId) {
     const ch = this.findByTrackId(trackId);
     if (!ch) return null;
     const track = this.engine.getTrack(trackId);
-    if (!track) return captureHouseChannelBag(this.scene, ch.channel);
-    return sampleLightBag(
-      track.keys,
-      this.engine.playheadSec,
-      captureHouseChannelBag(this.scene, ch.channel),
-    );
+    const fallback = this.liveBagForTrack(trackId) || emptyLightKeyValue();
+    if (!track || !track.keys.length) return fallback;
+    return sampleLightBag(track.keys, this.engine.playheadSec, fallback);
   }
 
   /**
-   * Push bag to selected key (or add at playhead) and apply.
    * @param {string} trackId
    * @param {Partial<import('./lightKeyValue.js').LightKeyValue>} patch
+   * @param {{ forceKey?: boolean, interpolation?: number }} [opt]
    */
-  writeBagOnSelectedKey(trackId, patch) {
+  writeBagOnSelectedKey(trackId, patch, opt = {}) {
     const ch = this.findByTrackId(trackId);
     if (!ch) return false;
     const track = this.engine.getTrack(trackId);
     if (!track || track.locked) return false;
 
-    const base = this.keyValueForTrack(trackId) || emptyLightKeyValue();
-    const bag = asLightKeyValue({ ...base, ...patch }, base);
+    const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
+    const eps = keyframeTimeEps(this.engine.fps);
+    const nearPh = (kf) => kf && Math.abs(kf.timeSec - ph) <= eps;
 
-    if (this.engine.selectedTrackId === trackId && this.engine.selectedKeyframeId) {
-      this.engine.editKeyframe(trackId, this.engine.selectedKeyframeId, { value: bag });
+    const liveBase = this.liveBagForTrack(trackId) || emptyLightKeyValue();
+    const selId = this.engine.selectedTrackId === trackId ? this.engine.selectedKeyframeId : null;
+    const selKfRaw = selId ? track.keys.get(selId) : null;
+    const selKf = nearPh(selKfRaw) ? selKfRaw : null;
+    const atPh = track.keys.findAtTime(ph, { eps });
+
+    let bag;
+    if (opt.forceKey) {
+      bag = asLightKeyValue({ ...liveBase, ...patch }, liveBase);
     } else {
-      this.engine.addKeyframe(trackId, this.engine.playheadSec, bag, INTERPOLATION.LINEAR);
+      const keyRaw = (selKf?.value || atPh?.value) || null;
+      const base = keyRaw ? asLightKeyValue(keyRaw, liveBase) : liveBase;
+      bag = asLightKeyValue({ ...base, ...patch }, base);
     }
+
+    if (opt.forceKey) {
+      if (atPh) {
+        this.engine.editKeyframe(trackId, atPh.id, { value: bag });
+      } else {
+        this.engine.addKeyframe(
+          trackId,
+          ph,
+          bag,
+          opt.interpolation ?? DEFAULT_KEY_INTERP,
+        );
+      }
+    } else if (selKf) {
+      this.engine.editKeyframe(trackId, selKf.id, { value: bag });
+    } else if (atPh) {
+      this.engine.editKeyframe(trackId, atPh.id, { value: bag });
+    } else {
+      applyHouseChannelBag(this.scene, ch.channel, bag);
+      return true;
+    }
+    this.apply(this.engine.playheadSec);
+    return true;
+  }
+
+  addKeyAtPlayhead(trackId, opt = {}) {
+    return this.writeBagOnSelectedKey(trackId, {}, { forceKey: true, ...opt });
+  }
+
+  navigateChannelKeys(channel, dir) {
+    const ch = this.findByChannel(channel);
+    if (!ch) return false;
+    const track = this.engine.getTrack(ch.trackId);
+    if (!track?.keys.length) return false;
+    const ph = this.engine.playheadSec;
+    const times = track.keys.list()
+      .map((k) => k.timeSec)
+      .filter((t) => (dir === 'prev' ? t < ph - 1e-6 : t > ph + 1e-6));
+    if (!times.length) return false;
+    times.sort((a, b) => a - b);
+    this.engine.playheadSec = dir === 'prev' ? times[times.length - 1] : times[0];
+    this.engine.emit('playhead');
+    this.apply(this.engine.playheadSec);
+    return true;
+  }
+
+  deleteKeyAtPlayhead(channel) {
+    const ch = this.findByChannel(channel);
+    if (!ch) return false;
+    const track = this.engine.getTrack(ch.trackId);
+    if (!track) return false;
+    const atPh = track.keys.findAtTime(this.engine.playheadSec);
+    if (!atPh) return false;
+    this.engine.removeKeyframe(ch.trackId, atPh.id);
     this.apply(this.engine.playheadSec);
     return true;
   }
@@ -148,7 +270,45 @@ export class LightDirector {
     if (this.suspendApply) return;
     for (const ch of this.channels.values()) {
       const track = this.engine.getTrack(ch.trackId);
-      if (!track || track.hidden) continue;
+      if (!track) continue;
+
+      // v3: eye-off → dim 0 (mute). Restore from keys / pre-hide cache when shown again.
+      if (track.hidden) {
+        if (!this._preHideBag.has(ch.channel)) {
+          this._preHideBag.set(
+            ch.channel,
+            captureHouseChannelBag(this.scene, ch.channel),
+          );
+        }
+        const base = track.keys.length
+          ? sampleLightBag(
+            track.keys,
+            timeSec,
+            this._preHideBag.get(ch.channel),
+          )
+          : this._preHideBag.get(ch.channel);
+        applyHouseChannelBag(this.scene, ch.channel, { ...asLightKeyValue(base), dim: 0 });
+        continue;
+      }
+
+      if (this._preHideBag.has(ch.channel) && !track.keys.length) {
+        applyHouseChannelBag(this.scene, ch.channel, this._preHideBag.get(ch.channel));
+        this._preHideBag.delete(ch.channel);
+        continue;
+      }
+      this._preHideBag.delete(ch.channel);
+
+      // WORK off + no fill keys → keep fill dark (don't let stray live levels glow)
+      if (ch.channel === 'fill' && !isWorkLightActive(this.scene) && !track.keys.length) {
+        applyHouseChannelBag(this.scene, ch.channel, {
+          ...captureHouseChannelBag(this.scene, ch.channel),
+          dim: 0,
+        });
+        continue;
+      }
+
+      // No keys → leave live levels (panel dim without +키)
+      if (!track.keys.length) continue;
       const bag = sampleLightBag(
         track.keys,
         timeSec,
@@ -157,21 +317,4 @@ export class LightDirector {
       applyHouseChannelBag(this.scene, ch.channel, bag);
     }
   }
-}
-
-/** @param {HouseChannelId} channel */
-function channelStartupBag(channel) {
-  const levels = defaultHouseLightLevels();
-  if (channel === 'fill') {
-    return asLightKeyValue({
-      dim: levels.fill,
-      color: levels.colorFill,
-      size: 0.5,
-    });
-  }
-  return asLightKeyValue({
-    dim: levels[`foh${channel}`],
-    color: levels[`color${channel}`],
-    size: levels[`size${channel}`],
-  });
 }

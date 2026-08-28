@@ -27,6 +27,9 @@ import { createViewportInteraction } from '../domain/viewport/ViewportInteractio
 import { pickMotionFbx } from '../ui/motion/MotionPicker.js';
 import { VideoBackground } from '../domain/video/VideoBackground.js';
 import { LightDirector } from '../domain/lighting/LightDirector.js';
+import { FixtureDirector } from '../domain/lighting/FixtureDirector.js';
+import { ensureWorkLights } from '../domain/lighting/workLights.js';
+import { setWorkLightActive } from '../domain/lighting/houseStageLights.js';
 
 const statusEl = document.getElementById('status');
 const viewportEl = document.getElementById('viewport');
@@ -52,7 +55,6 @@ const MENU_PHASE_HINTS = {
   'scene:prev': 'Phase 6 — 멀티 씬',
   'scene:next': 'Phase 6 — 멀티 씬',
   'scene:list': 'Phase 6 — 멀티 씬',
-  'add:fixture': 'Phase 4 — Fixture / MA (후속)',
   'add:audio': 'Phase 5 — 오디오',
   'add:group': '왼쪽 그룹 패널',
   'show:panel': '왼쪽 그룹 패널 (MVP)',
@@ -62,7 +64,7 @@ const MENU_PHASE_HINTS = {
   'view:skeleton': 'Phase 3 — 모션',
   'help:tutorial': '사용자 튜토리얼 (HTML)',
   'help:qa': 'docs/04_작업단위_테스트_튜토리얼.md',
-  'help:about': 'StageBuilder v4 · Phase 4 HOUSE',
+  'help:about': 'StageBuilder v4 · Phase 4 HOUSE+Fixture',
 };
 
 function setStatus(text) {
@@ -194,10 +196,16 @@ async function main() {
     engine: timeline,
     stageManager,
   });
+  const fixtures = new FixtureDirector({
+    scene: stageManager.scene,
+    engine: timeline,
+    stageManager,
+  });
 
   timeline.subscribe(() => {
     motion.apply(timeline.playheadSec);
     light.apply(timeline.playheadSec);
+    fixtures.apply(timeline.playheadSec);
   });
 
   /** @type {{ current: ReturnType<typeof mountEditorShell> | null }} */
@@ -213,15 +221,24 @@ async function main() {
     mountTimelineShell(timelineHost, {
       engine: timeline,
       getMotionKeyValue: (trackId) => motion.keyValueForTrack(trackId),
-      getLightKeyValue: (trackId) => light.keyValueForTrack(trackId),
+      getLightKeyValue: (trackId) =>
+        light.keyValueForTrack(trackId) ?? fixtures.keyValueForTrack(trackId),
       onTrackSelect: (trackId, opt) => {
         const m = motion.findByTrackId(trackId);
         if (m) interaction?.selectMotion(m.id, opt);
-        else shellRef.current?.syncKeyframeProps?.();
+        else {
+          shellRef.current?.syncKeyframeProps?.();
+          shellRef.current?.syncLightingPanel?.();
+        }
       },
       onTrackRemove: (trackId) => {
         const tr = timeline.getTrack(trackId);
-        if (tr?.kind === 'light') return false; // HOUSE tracks are fixed
+        if (tr?.kind === 'light') {
+          const ok =
+            light.removeTrackById(trackId) || fixtures.removeTrackById(trackId);
+          if (ok) shellRef.current?.syncLightingPanel?.();
+          return ok;
+        }
         const removed = motion.removeByTrackId(trackId);
         const selId = interaction?.getSelectedMotionId?.();
         if (selId && !motion.get(selId)) interaction.clearSelection();
@@ -428,10 +445,16 @@ async function main() {
     helpers,
     engine: timeline,
     groupStore,
+    light,
+    fixtures,
     getMotion: (trackId) => motion.findByTrackId(trackId),
-    getLight: (trackId) => light.findByTrackId(trackId),
+    getLight: (trackId) => light.findByTrackId(trackId) ?? fixtures.findByTrackId(trackId),
     onWriteLight: (trackId, patch) => {
-      light.writeBagOnSelectedKey(trackId, patch);
+      if (light.findByTrackId(trackId)) {
+        light.writeBagOnSelectedKey(trackId, patch);
+        return;
+      }
+      fixtures.writeBagOnSelectedKey(trackId, patch);
     },
     onStagePick: (motionId) => interaction?.beginStagePick(motionId),
     onPickAnimPoint: (pick) => {
@@ -532,6 +555,8 @@ async function main() {
         const ok = timeline.undo();
         motion.apply(timeline.playheadSec);
         light.apply(timeline.playheadSec);
+        fixtures.apply(timeline.playheadSec);
+        shellRef.current?.syncLightingPanel?.();
         refreshStatus(ok ? 'Undo' : 'Undo 없음');
         return;
       }
@@ -539,6 +564,8 @@ async function main() {
         const ok = timeline.redo();
         motion.apply(timeline.playheadSec);
         light.apply(timeline.playheadSec);
+        fixtures.apply(timeline.playheadSec);
+        shellRef.current?.syncLightingPanel?.();
         refreshStatus(ok ? 'Redo' : 'Redo 없음');
         return;
       }
@@ -553,12 +580,6 @@ async function main() {
       }
       if (action === 'add:motion' || action === 'file:import:fbx') {
         addMotionFromPicker();
-        return;
-      }
-      if (action === 'add:house') {
-        light.ensureHouseTracks();
-        light.apply(timeline.playheadSec);
-        refreshStatus('HOUSE 채널 준비 (Fill · FOH L/C/R)');
         return;
       }
       if (action === 'add:group' || action === 'show:panel') {
@@ -597,6 +618,8 @@ async function main() {
     onApplyProfile: (widthM, depthM, extras = {}) => {
       stageManager.applyProfile({ widthM, depthM, ...extras });
       videoBgRef.current.syncToStage(stageManager);
+      light.ensureHouseLights();
+      fixtures.refit();
       applyDefaultStageCamera(
         viewport.camera,
         viewport.controls,
@@ -612,7 +635,8 @@ async function main() {
       shell.setStageBusy(true);
       try {
         await stageManager.setStageType(type);
-        light.ensureHouseTracks();
+        light.ensureHouseLights();
+        fixtures.refit();
         if (videoBgRef.current.currentVideoPath) {
           videoBgRef.current.rebuildForStage(stageManager);
         }
@@ -646,7 +670,11 @@ async function main() {
 
   try {
     await stageManager.init();
-    light.ensureHouseTracks();
+    ensureWorkLights(stageManager.scene);
+    light.ensureHouseLights();
+    fixtures.ensureRig();
+    // Start with WORK on (rehearsal). No auto HOUSE/FX timeline tracks.
+    setWorkLightActive(stageManager.scene, true);
     applyDefaultStageCamera(
       viewport.camera,
       viewport.controls,

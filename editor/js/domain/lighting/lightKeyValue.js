@@ -60,6 +60,12 @@ export function sampleLightBag(store, timeSec, fallback = emptyLightKeyValue()) 
   const fb = asLightKeyValue(fallback);
   if (!keys.length) return fb;
 
+  // Before first cue → off (HOUSE / Fill / FOH)
+  if (timeSec < keys[0].timeSec - 1e-6) {
+    const first = asLightKeyValue(keys[0].value, fb);
+    return { ...first, dim: 0 };
+  }
+
   if (timeSec <= keys[0].timeSec) {
     return asLightKeyValue(keys[0].value, fb);
   }

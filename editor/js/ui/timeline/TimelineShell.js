@@ -1,4 +1,5 @@
 import { DURATION_MODE } from '../../domain/timeline/types.js';
+import { keyframeTimeEps, snapKeyframeTimeSec } from '../../domain/timeline/KeyframeStore.js';
 
 /**
  * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
@@ -82,6 +83,9 @@ export function mountTimelineShell(host, ctx) {
     jumps: host.querySelector('[data-role="jumps"]'),
   };
 
+  /** Prevent scroll event feedback loops while locking labels ↔ viewport */
+  let syncingScroll = false;
+
   function timelineWidthPx() {
     return Math.max(engine.durationSec * engine.pxPerSec, el.viewport.clientWidth || 400);
   }
@@ -95,6 +99,10 @@ export function mountTimelineShell(host, ctx) {
   }
 
   function render() {
+    // innerHTML rebuild resets labels scrollTop — keep both columns locked
+    const keepY = el.viewport.scrollTop || el.labels.scrollTop;
+    const keepX = el.viewport.scrollLeft;
+
     const w = timelineWidthPx();
     el.canvas.style.width = `${w}px`;
     el.time.textContent = `${engine.playheadSec.toFixed(2)} / ${engine.durationSec.toFixed(0)}s`;
@@ -149,6 +157,12 @@ export function mountTimelineShell(host, ctx) {
 
     el.labels.innerHTML = labelsHtml;
     el.tracks.innerHTML = tracksHtml;
+
+    syncingScroll = true;
+    el.viewport.scrollLeft = keepX;
+    el.viewport.scrollTop = keepY;
+    el.labels.scrollTop = keepY;
+    syncingScroll = false;
   }
 
   // toolbar actions
@@ -372,12 +386,16 @@ export function mountTimelineShell(host, ctx) {
     const track = engine.getTrack(trackId);
     if (!track || track.kind === 'clip') return null;
     if (track.locked) return null;
-    const existing = track.keys.findAtTime(engine.playheadSec);
+    const ph = snapKeyframeTimeSec(engine.playheadSec, engine.fps);
+    const eps = keyframeTimeEps(engine.fps);
+    const existing = track.keys.findAtTime(ph, { eps });
+    const value = defaultKeyValue(track);
     if (existing) {
+      engine.editKeyframe(trackId, existing.id, { value });
       selectTimelineKey(trackId, existing.id);
       return existing;
     }
-    return engine.addKeyframe(trackId, engine.playheadSec, defaultKeyValue(track));
+    return engine.addKeyframe(trackId, ph, value);
   }
 
   function addKeyAtTime(trackId, timeSec) {
@@ -386,24 +404,43 @@ export function mountTimelineShell(host, ctx) {
     const track = engine.getTrack(resolved);
     if (!track || track.kind === 'clip') return null;
     if (track.locked) return null;
-    const existing = track.keys.findAtTime(timeSec);
+    const ph = snapKeyframeTimeSec(timeSec, engine.fps);
+    const eps = keyframeTimeEps(engine.fps);
+    const existing = track.keys.findAtTime(ph, { eps });
+    const value = defaultKeyValue(track);
     if (existing) {
+      engine.editKeyframe(resolved, existing.id, { value });
       selectTimelineKey(resolved, existing.id);
       return existing;
     }
-    return engine.addKeyframe(resolved, timeSec, defaultKeyValue(track));
+    return engine.addKeyframe(resolved, ph, value);
   }
 
   function nudgeSelectedKey(deltaSec) {
-    if (!engine.selectedTrackId || !engine.selectedKeyframeId) return false;
-    const track = engine.getTrack(engine.selectedTrackId);
-    if (track?.locked) return false;
-    const kf = track?.keys.get(engine.selectedKeyframeId);
-    if (!kf) return false;
-    engine.moveKeyframe(engine.selectedTrackId, engine.selectedKeyframeId, kf.timeSec + deltaSec);
-    const moved = track.keys.get(engine.selectedKeyframeId);
-    if (moved) scrollTimeIntoView(moved.timeSec);
-    return true;
+    const refs = engine.listSelectedKeys?.() || [];
+    const list = refs.length
+      ? refs
+      : (engine.selectedTrackId && engine.selectedKeyframeId
+        ? [{ trackId: engine.selectedTrackId, keyId: engine.selectedKeyframeId }]
+        : []);
+    if (!list.length) return false;
+    let movedAny = false;
+    let focusTime = null;
+    for (const ref of list) {
+      const track = engine.getTrack(ref.trackId);
+      if (!track || track.locked) continue;
+      const kf = track.keys.get(ref.keyId);
+      if (!kf) continue;
+      const before = kf.timeSec;
+      engine.moveKeyframe(ref.trackId, ref.keyId, before + deltaSec);
+      const moved = track.keys.get(ref.keyId);
+      if (moved && Math.abs(moved.timeSec - before) > 1e-9) {
+        movedAny = true;
+        if (ref.keyId === engine.selectedKeyframeId) focusTime = moved.timeSec;
+      }
+    }
+    if (focusTime != null) scrollTimeIntoView(focusTime);
+    return movedAny;
   }
 
   function scrollTimeIntoView(timeSec) {
@@ -485,7 +522,9 @@ export function mountTimelineShell(host, ctx) {
         </div>
         <p class="sb-tl-time-dlg-hint">
           ${isKey
-            ? '선택한 키프레임을 입력한 초로 이동합니다.'
+            ? (engine.listSelectedKeys?.()?.length > 1
+              ? `선택한 키 ${engine.listSelectedKeys().length}개를 함께 이동합니다.`
+              : '선택한 키프레임을 입력한 초로 이동합니다.')
             : '플레이헤드를 입력한 초로 이동합니다.'}
         </p>
         <label class="sb-tl-time-dlg-field">
@@ -510,8 +549,16 @@ export function mountTimelineShell(host, ctx) {
       const t = clamp(raw, 0, maxSec);
       engine.pause();
       if (isKey) {
-        if (!engine.selectedTrackId || !engine.selectedKeyframeId) return;
-        engine.moveKeyframe(engine.selectedTrackId, engine.selectedKeyframeId, t);
+        if (!engine.selectedTrackId || !engine.selectedKeyframeId || !kf) return;
+        const refs = engine.listSelectedKeys?.() || [{ trackId: engine.selectedTrackId, keyId: engine.selectedKeyframeId }];
+        const delta = t - kf.timeSec;
+        for (const ref of refs) {
+          const tr = engine.getTrack(ref.trackId);
+          if (!tr || tr.locked) continue;
+          const k = tr.keys.get(ref.keyId);
+          if (!k) continue;
+          engine.moveKeyframe(ref.trackId, ref.keyId, k.timeSec + delta);
+        }
       }
       engine.setPlayhead(t);
       scrollTimeIntoView(t);
@@ -551,6 +598,7 @@ export function mountTimelineShell(host, ctx) {
     if (!track) return;
     track.hidden = !track.hidden;
     engine.emit('tracks');
+    // Directors subscribe to all emits and re-apply (lights mute when hidden)
     engine.emit('change');
   }
 
@@ -613,11 +661,9 @@ export function mountTimelineShell(host, ctx) {
       { sep: true },
       {
         label: '트랙 삭제',
-        disabled: engine.getTrack(trackId)?.kind === 'light',
         action: () => {
-          if (engine.getTrack(trackId)?.kind === 'light') return;
           const removedScene = onTrackRemove?.(trackId) === true;
-          engine.removeTrack(trackId, { history: !removedScene });
+          if (!removedScene) engine.removeTrack(trackId, { history: true });
         },
       },
     ]);
@@ -716,12 +762,30 @@ export function mountTimelineShell(host, ctx) {
       const track = engine.getTrack(keyBtn.dataset.track);
       const kf = track?.keys.get(keyBtn.dataset.key);
       if (!track || !kf) return;
-      if (track.locked) {
-        selectTimelineKey(track.id, kf.id);
-        return;
+      const already = engine.isKeySelected?.(track.id, kf.id);
+      if (!already) {
+        selectTimelineKey(track.id, kf.id, { scrub: true });
+      } else {
+        // Keep multi-selection; scrub playhead to this key
+        engine.pause();
+        engine.setPlayhead(kf.timeSec);
+        scrollTimeIntoView(kf.timeSec);
+        engine.selectedTrackId = track.id;
+        engine.selectedKeyframeId = kf.id;
+        engine.emit('selection');
+        onTrackSelect?.(track.id, { selectKey: false });
+        focusTimeline();
       }
+      if (track.locked) return;
+      const refs = (engine.listSelectedKeys?.() || [{ trackId: track.id, keyId: kf.id }])
+        .map((r) => {
+          const tr = engine.getTrack(r.trackId);
+          const k = tr?.keys.get(r.keyId);
+          if (!tr || !k || tr.locked) return null;
+          return { trackId: r.trackId, keyId: r.keyId, startTime: k.timeSec };
+        })
+        .filter(Boolean);
       dragMoved = false;
-      selectTimelineKey(track.id, kf.id, { scrub: true });
       drag = {
         kind: 'key',
         trackId: track.id,
@@ -729,6 +793,7 @@ export function mountTimelineShell(host, ctx) {
         startTime: kf.timeSec,
         lastTime: kf.timeSec,
         pointerId: e.pointerId,
+        group: refs,
       };
       el.viewport.setPointerCapture(e.pointerId);
       return;
@@ -750,14 +815,17 @@ export function mountTimelineShell(host, ctx) {
       engine.setPlayhead(secFromClientX(e.clientX));
       return;
     }
-    const track = engine.getTrack(drag.trackId);
-    if (!track) return;
     const t = secFromClientX(e.clientX);
     if (Math.abs(t - drag.startTime) > 1e-4) dragMoved = true;
-    // Skip if another key already occupies this time (no stacking)
-    if (track.keys.findAtTime(t, { excludeId: drag.keyId })) return;
-    const updated = track.keys.update(drag.keyId, { timeSec: t });
-    if (!updated) return;
+    const delta = t - drag.startTime;
+    const group = drag.group || [{ trackId: drag.trackId, keyId: drag.keyId, startTime: drag.startTime }];
+    for (const g of group) {
+      const track = engine.getTrack(g.trackId);
+      if (!track) continue;
+      const next = Math.min(engine.durationSec, Math.max(0, g.startTime + delta));
+      if (track.keys.findAtTime(next, { excludeId: g.keyId })) continue;
+      track.keys.update(g.keyId, { timeSec: next });
+    }
     drag.lastTime = t;
     engine.emit('keys');
   });
@@ -768,13 +836,20 @@ export function mountTimelineShell(host, ctx) {
       drag = null;
       return;
     }
-    const { trackId, keyId, startTime, lastTime } = drag;
+    const { startTime, lastTime, group } = drag;
     drag = null;
     if (Math.abs(startTime - lastTime) < 1e-6) return;
-    const track = engine.getTrack(trackId);
-    if (!track) return;
-    track.keys.update(keyId, { timeSec: startTime });
-    engine.moveKeyframe(trackId, keyId, lastTime);
+    const delta = lastTime - startTime;
+    const items = group || [];
+    // revert live preview, then commit via history
+    for (const g of items) {
+      const track = engine.getTrack(g.trackId);
+      if (!track) continue;
+      track.keys.update(g.keyId, { timeSec: g.startTime });
+    }
+    for (const g of items) {
+      engine.moveKeyframe(g.trackId, g.keyId, g.startTime + delta);
+    }
   });
 
   el.viewport.addEventListener('pointercancel', () => {
@@ -782,10 +857,19 @@ export function mountTimelineShell(host, ctx) {
   });
 
   function deleteSelectedKey() {
-    if (!engine.selectedTrackId || !engine.selectedKeyframeId) return false;
-    if (engine.getTrack(engine.selectedTrackId)?.locked) return false;
-    engine.removeKeyframe(engine.selectedTrackId, engine.selectedKeyframeId);
-    return true;
+    const refs = engine.listSelectedKeys?.() || [];
+    const list = refs.length
+      ? refs
+      : (engine.selectedTrackId && engine.selectedKeyframeId
+        ? [{ trackId: engine.selectedTrackId, keyId: engine.selectedKeyframeId }]
+        : []);
+    if (!list.length) return false;
+    let n = 0;
+    for (const ref of list) {
+      if (engine.getTrack(ref.trackId)?.locked) continue;
+      if (engine.removeKeyframe(ref.trackId, ref.keyId)) n += 1;
+    }
+    return n > 0;
   }
 
   // keyboard (capture — 뷰포트/브라우저보다 먼저 키프레임 이동 처리)
@@ -872,6 +956,31 @@ export function mountTimelineShell(host, ctx) {
   window.addEventListener('pointerdown', onDocPointerDown, true);
 
   const unsub = engine.subscribe(() => render());
+
+  /** Viewport is scroll source; labels mirror Y (render also restores both). */
+  const lockVerticalScroll = (y) => {
+    if (syncingScroll) return;
+    syncingScroll = true;
+    el.viewport.scrollTop = y;
+    el.labels.scrollTop = y;
+    syncingScroll = false;
+  };
+  el.viewport.addEventListener('scroll', () => {
+    if (syncingScroll) return;
+    syncingScroll = true;
+    el.labels.scrollTop = el.viewport.scrollTop;
+    syncingScroll = false;
+  }, { passive: true });
+  el.labels.addEventListener('scroll', () => {
+    if (syncingScroll) return;
+    lockVerticalScroll(el.labels.scrollTop);
+  }, { passive: true });
+  el.labels.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+    e.preventDefault();
+    lockVerticalScroll(el.viewport.scrollTop + e.deltaY);
+  }, { passive: false });
+
   render();
 
   return {
@@ -1008,7 +1117,7 @@ function partitionByFolder(rows, engine) {
 function trackLabelHtml(tr, engine, nested) {
   const nest = nested ? ' sb-tl-label-nested' : '';
   const accent = tr.color || sectionAccent(tr.section);
-  const sel = engine.selectedTrackId === tr.id ? ' is-selected' : '';
+  const sel = engine.isTrackSelected?.(tr.id) || engine.selectedTrackId === tr.id ? ' is-selected' : '';
   const hid = tr.hidden ? ' is-hidden' : '';
   const loc = tr.locked ? ' is-locked' : '';
   const eyeIcon = tr.hidden ? 'fas fa-eye-slash' : 'fas fa-eye';
@@ -1034,7 +1143,7 @@ function trackLabelHtml(tr, engine, nested) {
 function trackRowHtml(tr, engine, secToX) {
   const accent = tr.color || sectionAccent(tr.section);
   const keys = tr.keys.list().map((kf) => {
-    const sel = engine.selectedKeyframeId === kf.id ? ' is-selected' : '';
+    const sel = engine.isKeySelected?.(tr.id, kf.id) || engine.selectedKeyframeId === kf.id ? ' is-selected' : '';
     return `<button type="button" class="sb-tl-key${sel}" data-track="${tr.id}" data-key="${kf.id}"
       style="left:${secToX(kf.timeSec)}px;--key-fill:${escapeAttr(accent)}" title="${kf.timeSec.toFixed(2)}s"></button>`;
   }).join('');

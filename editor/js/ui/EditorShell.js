@@ -3,6 +3,7 @@ import { createDockPanel } from './floatPanel.js';
 import { createStagePanelBody } from './StagePanel.js';
 import { createAssetsPanelBody } from './AssetsPanel.js';
 import { createGroupsPanelBody } from './GroupsPanel.js';
+import { createLightingPanelBody } from './LightingPanel.js';
 import { createKeyframePropertiesPanel } from './KeyframePropertiesPanel.js';
 import { mountViewportToolbar } from './ViewportToolbar.js';
 import { mountMenubar } from './menubar/Menubar.js';
@@ -36,7 +37,16 @@ import {
  *   onGroupColor?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onKeyframeEdited?: () => void,
  *   getMotion?: (trackId: string) => import('../domain/motion/MotionDirector.js').MotionItem | null,
- *   getLight?: (trackId: string) => { channel: string, trackId: string, name: string } | null,
+ *   getLight?: (trackId: string) => {
+ *     kind?: 'house' | 'fixture',
+ *     channel?: string,
+ *     fid?: number,
+ *     trackId: string,
+ *     name: string,
+ *   } | null,
+ *   onWriteLight?: (trackId: string, patch: Record<string, number | string>) => void,
+ *   light?: import('../domain/lighting/LightDirector.js').LightDirector,
+ *   fixtures?: import('../domain/lighting/FixtureDirector.js').FixtureDirector,
  *   onStagePick?: (motionId: string) => void,
  *   onPickAnimPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
@@ -156,6 +166,32 @@ export function mountEditorShell(root, ctx) {
     });
   }
 
+  let lightingUi = null;
+  if (ctx.engine && ctx.light && ctx.fixtures) {
+    lightingUi = createLightingPanelBody({
+      engine: ctx.engine,
+      light: ctx.light,
+      fixtures: ctx.fixtures,
+      scene: ctx.stageManager?.scene,
+      onChange: () => {
+        ctx.onKeyframeEdited?.();
+        propsUi?.sync();
+      },
+    });
+    const lightingPanel = createDockPanel('조명', lightingUi.root, {
+      storageKey: 'dock-lighting',
+      defaultHeight: 520,
+      minHeight: 200,
+    });
+    rightRail.registerPanel({
+      id: 'sc-lighting',
+      icon: 'fas fa-lightbulb',
+      label: '조명',
+      panelEl: lightingPanel,
+      defaultOpen: false,
+    });
+  }
+
   const menubarEl = root.querySelector('#menubar');
   const viewportControlsEl = root.querySelector('#viewport-controls');
 
@@ -217,6 +253,7 @@ export function mountEditorShell(root, ctx) {
     refreshAssets: () => assetsUi.refresh(),
     setActiveVideo: (key) => assetsUi.setActiveVideo?.(key),
     syncKeyframeProps: () => propsUi?.sync(),
+    syncLightingPanel: () => lightingUi?.sync(),
     refreshGroups: () => groupsUi?.render(),
     refreshGroupsCatalog: () => groupsUi?.refreshCatalog?.(),
   };
