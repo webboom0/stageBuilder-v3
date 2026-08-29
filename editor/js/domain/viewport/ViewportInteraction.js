@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { getStageDeckWorldY } from '../stage/stageGridAdaptive.js';
+import { clampMotionAboveDeck, isStageMotionItem } from '../motion/MotionDirector.js';
 import { asMotionKeyValue } from '../motion/motionKeyValue.js';
 import { cloneKeyframeValue } from '../timeline/cloneValue.js';
 import { keyframeTimeEps } from '../timeline/KeyframeStore.js';
@@ -122,6 +123,8 @@ export function createViewportInteraction(opts) {
     if (mode === 'translate' && dragSnap?.lockY !== false) {
       const lockY = dragSnap?.before?.position?.y ?? m.object.position.y;
       if (Number.isFinite(lockY)) m.object.position.y = lockY;
+    } else if (isStageMotionItem(m, engine)) {
+      clampMotionAboveDeck(m.object, stageManager);
     }
     syncLiveKeyPreview(m);
   });
@@ -137,15 +140,19 @@ export function createViewportInteraction(opts) {
     transform.setSpace(localSpace ? 'local' : 'world');
   }
 
-  function clearSelection(opt = {}) {
+  function clearViewportSelection() {
     selectedMotionId = null;
     transform.detach();
     pickMotionId = null;
     pickPointCallback = null;
     clearPickBanner();
     updateTranslateYVisibility();
-    if (!opt.skipEngine) engine.clearSelection();
     onSelectionChange?.();
+  }
+
+  function clearSelection(opt = {}) {
+    clearViewportSelection();
+    if (!opt.skipEngine) engine.clearSelection();
   }
 
   /**
@@ -163,7 +170,6 @@ export function createViewportInteraction(opts) {
     }
     transform.attach(m.object);
     updateTranslateYVisibility();
-    engine.selectedTrackId = m.trackId;
     if (opt.selectKey !== false && !engine.selectedKeyframeId) {
       const track = engine.getTrack(m.trackId);
       const keys = track?.keys.list() || [];
@@ -171,14 +177,9 @@ export function createViewportInteraction(opts) {
         (k) => Math.abs(k.timeSec - engine.playheadSec) <= keyframeTimeEps(engine.fps),
       ) || null;
       if (at) engine.selectKeyframe(m.trackId, at.id);
-      else {
-        engine.selectedTrackId = m.trackId;
-        engine.selectedKeyframeId = null;
-        engine.selectedKeys = [];
-        engine.emit('selection');
-      }
+      else engine.selectTracks([m.trackId], { updateKeyTarget: false });
     } else {
-      engine.emit('selection');
+      engine.selectTracks([m.trackId], { keepKeys: true, updateKeyTarget: false });
     }
     onSelectionChange?.();
   }
@@ -295,7 +296,7 @@ export function createViewportInteraction(opts) {
     const keyAfter = bag;
     track.keys.update(ensuredKeyId, { value: bag });
     if (engine.selectedTrackId === trackId) {
-      engine.selectKeyframe(trackId, ensuredKeyId);
+      engine.selectKeyframe(trackId, ensuredKeyId, { updateKeyTarget: false });
     }
 
     engine.commands.push({
@@ -351,7 +352,7 @@ export function createViewportInteraction(opts) {
     if (transform.dragging) return;
     const id = pickMotionFromEvent(e);
     if (id) selectMotion(id);
-    else clearSelection();
+    else clearViewportSelection();
   };
 
   const onKeyDown = (e) => {

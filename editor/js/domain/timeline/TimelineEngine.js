@@ -7,7 +7,8 @@ import {
   cmdEditKeyframe,
   cmdSetDuration,
 } from './KeyframeCommands.js';
-import { Track } from './Track.js';
+import { Track, syncTrackIdSeqFromSnapshots } from './Track.js';
+import { syncKeyframeIdSeqFromSnapshots } from './KeyframeStore.js';
 
 /**
  * TimelineEngine — duration, fps, playhead, zoom/pan, tracks, commands.
@@ -39,6 +40,12 @@ export class TimelineEngine {
     this.selectedKeys = [];
     /** @type {Set<string>} */
     this.selectedTrackIds = new Set();
+
+    /** Last explicit key-edit target per timeline section (survives viewport / section switches). */
+    /** @type {Record<string, string | null>} */
+    this.keyTargetBySection = { motion: null, stage: null, light: null, audio: null };
+    /** @type {string | null} */
+    this.recentKeyTargetTrackId = null;
 
     /** @type {Set<(ev: { type: string }) => void>} */
     this._listeners = new Set();
@@ -209,13 +216,70 @@ export class TimelineEngine {
     this.emit('view');
   }
 
-  selectKeyframe(trackId, keyframeId) {
+  /** @param {string} trackId */
+  getTrackSection(trackId) {
+    const t = this.getTrack(trackId);
+    if (!t) return null;
+    if (t.section) return t.section;
+    if (t.kind === 'audio') return 'audio';
+    if (t.kind === 'light') return 'light';
+    return 'motion';
+  }
+
+  /** @param {string} trackId */
+  _touchKeyTarget(trackId) {
+    if (!trackId || !this.getTrack(trackId)) return;
+    const section = this.getTrackSection(trackId);
+    if (!section) return;
+    this.keyTargetBySection[section] = trackId;
+    this.recentKeyTargetTrackId = trackId;
+  }
+
+  /** @param {string} section */
+  getKeyTargetTrackId(section) {
+    const id = this.keyTargetBySection[section];
+    return id && this.getTrack(id) ? id : null;
+  }
+
+  getRecentKeyTargetTrackId() {
+    const id = this.recentKeyTargetTrackId;
+    return id && this.getTrack(id) ? id : null;
+  }
+
+  _resetKeyTargets() {
+    this.keyTargetBySection = { motion: null, stage: null, light: null, audio: null };
+    this.recentKeyTargetTrackId = null;
+  }
+
+  /** @param {string} section */
+  _purgeSelectionExceptSection(section) {
+    this.selectedKeys = this.selectedKeys.filter(
+      (r) => this.getTrackSection(r.trackId) === section,
+    );
+    for (const id of [...this.selectedTrackIds]) {
+      if (this.getTrackSection(id) !== section) this.selectedTrackIds.delete(id);
+    }
+    if (this.selectedTrackId && this.getTrackSection(this.selectedTrackId) !== section) {
+      this.selectedTrackId = null;
+      this.selectedKeyframeId = null;
+    }
+  }
+
+  /**
+   * @param {string} trackId
+   * @param {string} keyframeId
+   * @param {{ updateKeyTarget?: boolean }} [opt]
+   */
+  selectKeyframe(trackId, keyframeId, opt = {}) {
+    const section = trackId ? this.getTrackSection(trackId) : null;
+    if (section) this._purgeSelectionExceptSection(section);
     this.selectedTrackId = trackId || null;
     this.selectedKeyframeId = keyframeId || null;
     this.selectedKeys = trackId && keyframeId
       ? [{ trackId, keyId: keyframeId }]
       : [];
     this.selectedTrackIds = new Set(trackId ? [trackId] : []);
+    if (opt.updateKeyTarget !== false) this._touchKeyTarget(trackId);
     this.emit('selection');
   }
 
@@ -235,33 +299,50 @@ export class TimelineEngine {
       seen.add(k);
       cleaned.push({ trackId: r.trackId, keyId: r.keyId });
     }
-    this.selectedKeys = cleaned;
-    const primary = cleaned[0] || null;
+    const section = cleaned[0] ? this.getTrackSection(cleaned[0].trackId) : null;
+    if (section) this._purgeSelectionExceptSection(section);
+    const filtered = section
+      ? cleaned.filter((r) => this.getTrackSection(r.trackId) === section)
+      : cleaned;
+    this.selectedKeys = filtered;
+    const primary = filtered[0] || null;
     this.selectedTrackId = primary?.trackId ?? null;
     this.selectedKeyframeId = primary?.keyId ?? null;
-    this.selectedTrackIds = new Set(cleaned.map((r) => r.trackId));
+    this.selectedTrackIds = new Set(filtered.map((r) => r.trackId));
+    if (filtered[0]) this._touchKeyTarget(filtered[0].trackId);
     this.emit('selection');
   }
 
   /**
    * Highlight tracks (e.g. fixture panel multi-select) without requiring keys.
    * @param {Iterable<string>} trackIds
-   * @param {{ keepKeys?: boolean }} [opt]
+   * @param {{ keepKeys?: boolean, updateKeyTarget?: boolean }} [opt]
    */
   selectTracks(trackIds, opt = {}) {
-    const ids = [...new Set([...(trackIds || [])].filter(Boolean))];
-    this.selectedTrackIds = new Set(ids.filter((id) => this.getTrack(id)));
-    this.selectedTrackId = ids.find((id) => this.selectedTrackIds.has(id)) ?? null;
+    const ids = [...new Set([...(trackIds || [])].filter(Boolean))].filter((id) => this.getTrack(id));
+    const section = ids[0] ? this.getTrackSection(ids[0]) : null;
+    if (section) this._purgeSelectionExceptSection(section);
+    const filtered = section
+      ? ids.filter((id) => this.getTrackSection(id) === section)
+      : ids;
+    this.selectedTrackIds = new Set(filtered);
+    this.selectedTrackId = filtered[0] ?? null;
     if (!opt.keepKeys) {
       this.selectedKeyframeId = null;
       this.selectedKeys = [];
     } else {
-      this.selectedKeys = this.selectedKeys.filter((r) => this.selectedTrackIds.has(r.trackId));
+      this.selectedKeys = this.selectedKeys.filter(
+        (r) => this.selectedTrackIds.has(r.trackId)
+          && (!section || this.getTrackSection(r.trackId) === section),
+      );
       if (this.selectedKeyframeId && !this.selectedKeys.some((r) => r.keyId === this.selectedKeyframeId)) {
         const p = this.selectedKeys[0];
         this.selectedTrackId = p?.trackId ?? this.selectedTrackId;
         this.selectedKeyframeId = p?.keyId ?? null;
       }
+    }
+    if (opt.updateKeyTarget !== false && filtered[0]) {
+      this._touchKeyTarget(filtered[0]);
     }
     this.emit('selection');
   }
@@ -380,6 +461,7 @@ export class TimelineEngine {
     this.folders.clear();
     this.commands.reset();
     this.clearSelection();
+    this._resetKeyTargets();
     this.playheadSec = 0;
     this.emit('tracks');
     this.emit('keys');
@@ -390,6 +472,7 @@ export class TimelineEngine {
    *   durationSec?: number,
    *   durationMode?: string,
    *   playheadSec?: number,
+   *   timelinePxPerSec?: number,
    *   tracks?: ReturnType<Track['snapshot']>[],
    *   folders?: Array<{ id: string, name: string, collapsed: boolean }>,
    * }} data
@@ -399,6 +482,11 @@ export class TimelineEngine {
     if (Number.isFinite(data.durationSec)) this.durationSec = data.durationSec;
     if (data.durationMode) this.durationMode = data.durationMode;
     if (Number.isFinite(data.playheadSec)) this.playheadSec = data.playheadSec;
+    if (Number.isFinite(data.timelinePxPerSec)) {
+      this.pxPerSec = clamp(data.timelinePxPerSec, 2, 80);
+    } else {
+      this.pxPerSec = 8;
+    }
     for (const f of data.folders || []) {
       this.folders.set(f.id, {
         id: f.id,
@@ -409,9 +497,12 @@ export class TimelineEngine {
     for (const snap of data.tracks || []) {
       this.tracks.set(snap.id, Track.fromSnapshot(snap));
     }
+    syncTrackIdSeqFromSnapshots(data.tracks || []);
+    syncKeyframeIdSeqFromSnapshots(data.tracks || []);
     this.emit('tracks');
     this.emit('duration');
     this.emit('playhead');
+    this.emit('view');
   }
 
   /** Seed demo tracks for Phase 2 QA */

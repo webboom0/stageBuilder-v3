@@ -72,6 +72,7 @@ export function serializeScene(ctx) {
     durationSec: engine.durationSec,
     durationMode: engine.durationMode,
     playheadSec: engine.playheadSec,
+    timelinePxPerSec: engine.pxPerSec,
     tracks,
     folders,
     motions,
@@ -158,6 +159,7 @@ export async function applyScene(doc, ctx) {
     durationSec: doc.durationSec,
     durationMode: doc.durationMode || DURATION_MODE.CLAMP_END,
     playheadSec: doc.playheadSec ?? 0,
+    timelinePxPerSec: doc.timelinePxPerSec,
     tracks: doc.tracks || [],
     folders: doc.folders || [],
   });

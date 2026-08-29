@@ -3,6 +3,7 @@ import { asMotionKeyValue } from '../domain/motion/motionKeyValue.js';
 import { asLightKeyValue } from '../domain/lighting/lightKeyValue.js';
 import { asFixtureKeyValue } from '../domain/lighting/fixtureKeyValue.js';
 import { applyMotionTint } from '../domain/motion/walkLitePerformer.js';
+import { clampMotionAboveDeck } from '../domain/motion/MotionDirector.js';
 import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
 
@@ -35,7 +36,7 @@ import { createMotionAnimSection } from './MotionAnimSection.js';
  * }} opts
  */
 export function createKeyframePropertiesPanel(opts) {
-  const { engine } = opts;
+  const { engine, stageManager = null } = opts;
   const root = document.createElement('div');
   root.className = 'sb-panel-body sb-kf-props';
   root.innerHTML = `
@@ -363,6 +364,7 @@ export function createKeyframePropertiesPanel(opts) {
     }
     const pos = stageXyz.pos.read();
     m.object.position.set(pos[0], pos[1], pos[2]);
+    clampMotionAboveDeck(m.object, stageManager);
     pushObjectToSelectedKey(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
@@ -383,6 +385,7 @@ export function createKeyframePropertiesPanel(opts) {
       THREE.MathUtils.degToRad(rot[1]),
       THREE.MathUtils.degToRad(rot[2]),
     );
+    clampMotionAboveDeck(m.object, stageManager);
     pushObjectToSelectedKey(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
@@ -399,6 +402,7 @@ export function createKeyframePropertiesPanel(opts) {
     }
     const sc = stageXyz.scale.read().map((v) => Math.max(1e-6, v));
     m.object.scale.set(sc[0], sc[1], sc[2]);
+    clampMotionAboveDeck(m.object, stageManager);
     pushObjectToSelectedKey(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();

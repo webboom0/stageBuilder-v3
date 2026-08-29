@@ -5,6 +5,21 @@ export function newKeyframeId() {
   return `kf_${_nextId++}`;
 }
 
+/**
+ * After scene load, avoid newKeyframeId() reusing ids from restored keys on other tracks.
+ * @param {Array<{ keys?: Array<{ id?: string }> }>} trackSnapshots
+ */
+export function syncKeyframeIdSeqFromSnapshots(trackSnapshots) {
+  let next = _nextId;
+  for (const snap of trackSnapshots || []) {
+    for (const k of snap.keys || []) {
+      const m = /^kf_(\d+)$/.exec(String(k?.id || ''));
+      if (m) next = Math.max(next, parseInt(m[1], 10) + 1);
+    }
+  }
+  _nextId = next;
+}
+
 /** Same-time key collision epsilon (seconds) — half frame @ 30fps */
 export const KEYFRAME_TIME_EPS = 1 / 60;
 

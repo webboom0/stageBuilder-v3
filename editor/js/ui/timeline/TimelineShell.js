@@ -513,17 +513,33 @@ export function mountTimelineShell(host, ctx) {
     return xToSec(clientX - rect.left + el.viewport.scrollLeft);
   }
 
+  function isKeyableTrack(trackId) {
+    const track = trackId ? engine.getTrack(trackId) : null;
+    return !!(track && track.kind !== 'clip' && !track.locked);
+  }
+
   function resolveTrackId(preferred) {
-    if (preferred) return preferred;
-    if (engine.selectedTrackId) return engine.selectedTrackId;
-    if (sectionFilter !== 'all') {
+    if (preferred && isKeyableTrack(preferred)) return preferred;
+
+    const section = sectionFilter !== 'all' ? sectionFilter : null;
+    if (section) {
+      const targeted = engine.getKeyTargetTrackId?.(section);
+      if (targeted && isKeyableTrack(targeted)) return targeted;
       const inSection = engine.listTracks().find(
-        (t) => t.kind === 'motion' && (t.section || 'motion') === sectionFilter,
+        (t) => t.kind === 'motion' && (t.section || 'motion') === section,
       );
-      if (inSection) return inSection.id;
+      if (inSection && isKeyableTrack(inSection.id)) return inSection.id;
     }
-    return engine.listTracks().find((t) => t.kind === 'motion')?.id
-      ?? engine.listTracks().find((t) => t.kind !== 'clip')?.id
+
+    const recent = engine.getRecentKeyTargetTrackId?.();
+    if (recent && isKeyableTrack(recent)) return recent;
+
+    if (engine.selectedTrackId && isKeyableTrack(engine.selectedTrackId)) {
+      return engine.selectedTrackId;
+    }
+
+    return engine.listTracks().find((t) => t.kind === 'motion' && isKeyableTrack(t.id))?.id
+      ?? engine.listTracks().find((t) => t.kind !== 'clip' && isKeyableTrack(t.id))?.id
       ?? null;
   }
 
@@ -853,9 +869,7 @@ export function mountTimelineShell(host, ctx) {
     if (!label) return;
     const trackId = label.dataset.track;
     const track = trackId ? engine.getTrack(trackId) : null;
-    engine.selectedTrackId = trackId;
-    engine.selectedKeyframeId = null;
-    engine.emit('selection');
+    engine.selectTracks(trackId ? [trackId] : []);
     if (track?.kind === 'audio') {
       audio?.selectTrackTarget(trackId);
     }
@@ -868,9 +882,7 @@ export function mountTimelineShell(host, ctx) {
     e.preventDefault();
     const trackId = label.dataset.track;
     const track = engine.getTrack(trackId);
-    engine.selectedTrackId = trackId;
-    engine.selectedKeyframeId = null;
-    engine.emit('selection');
+    engine.selectTracks(trackId ? [trackId] : []);
     if (track?.kind === 'audio') {
       openCtx(e.clientX, e.clientY, [
         {
@@ -930,9 +942,7 @@ export function mountTimelineShell(host, ctx) {
 
     const trackId = resolveTrackId(trackRow?.dataset.track);
     if (trackId) {
-      engine.selectedTrackId = trackId;
-      engine.selectedKeyframeId = null;
-      engine.emit('selection');
+      engine.selectTracks([trackId]);
     }
     openCtx(e.clientX, e.clientY, [
       {
@@ -994,13 +1004,10 @@ export function mountTimelineShell(host, ctx) {
       if (!already) {
         selectTimelineKey(track.id, kf.id, { scrub: true });
       } else {
-        // Keep multi-selection; scrub playhead to this key
         engine.pause();
         engine.setPlayhead(kf.timeSec);
         scrollTimeIntoView(kf.timeSec);
-        engine.selectedTrackId = track.id;
-        engine.selectedKeyframeId = kf.id;
-        engine.emit('selection');
+        engine.selectKeyframe(track.id, kf.id);
         onTrackSelect?.(track.id, { selectKey: false });
         focusTimeline();
       }
@@ -1436,7 +1443,7 @@ function trackRowHtml(tr, engine, secToX, audio) {
   }
   const accent = tr.color || sectionAccent(tr.section);
   const keys = tr.keys.list().map((kf) => {
-    const sel = engine.isKeySelected?.(tr.id, kf.id) || engine.selectedKeyframeId === kf.id ? ' is-selected' : '';
+    const sel = engine.isKeySelected?.(tr.id, kf.id) ? ' is-selected' : '';
     return `<button type="button" class="sb-tl-key${sel}" data-track="${tr.id}" data-key="${kf.id}"
       style="left:${secToX(kf.timeSec)}px;--key-fill:${escapeAttr(accent)}" title="${kf.timeSec.toFixed(2)}s"></button>`;
   }).join('');

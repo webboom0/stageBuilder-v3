@@ -120,4 +120,32 @@ export async function deleteProjectAsset(projectId, tab, filename) {
   if (!res.ok) throw new Error('삭제 실패');
 }
 
+/**
+ * Copy a file from shared library (`files/fbx`, `props`, `video`, `music`) into project assets.
+ * @param {string} projectId
+ * @param {AssetsTab} tab
+ * @param {string} filename library filename (basename)
+ */
+export async function importProjectAssetFromLibrary(projectId, tab, filename) {
+  const kind = kindForTab(tab);
+  const res = await fetch(
+    apiUrl(`${projectAssetsApiBase(projectId, kind)}/import-library`),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ filename }),
+    },
+  );
+  if (!res.ok) {
+    let msg = '라이브러리 가져오기 실패';
+    try {
+      const data = await res.json();
+      msg = data.error || msg;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 export { filesUrl };

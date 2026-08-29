@@ -95,6 +95,59 @@ function mountProjectRoutes(app, deps) {
     }
   }
 
+  /** @param {string} dir */
+  function dirHasFiles(dir) {
+    if (!fs.existsSync(dir)) return false;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isFile()) return true;
+      if (entry.isDirectory() && dirHasFiles(p)) return true;
+    }
+    return false;
+  }
+
+  /** JSON-only project root (no asset files) — snapshot / legacy link export */
+  function isJsonOnlyProjectRoot(root) {
+    return !dirHasFiles(path.join(root, 'assets'));
+  }
+
+  /** @param {string} srcRoot @param {string} destDir @param {string} projectId */
+  function applyJsonSnapshotToProject(srcRoot, destDir, projectId) {
+    const projectPath = path.join(srcRoot, 'project.json');
+    if (!fs.existsSync(projectPath)) {
+      throw new Error('ZIP 안에 project.json을 찾을 수 없습니다.');
+    }
+    const snapshotProject = readJson(projectPath);
+    snapshotProject.id = projectId;
+    snapshotProject.updatedAt = new Date().toISOString();
+    writeJson(path.join(destDir, 'project.json'), snapshotProject);
+
+    const manifestSrc = path.join(srcRoot, 'manifest.json');
+    if (fs.existsSync(manifestSrc)) {
+      fs.copyFileSync(manifestSrc, path.join(destDir, 'manifest.json'));
+    }
+
+    const scenesSrc = path.join(srcRoot, 'scenes');
+    const scenesDest = path.join(destDir, 'scenes');
+    ensureDir(scenesDest);
+    /** @type {Set<string>} */
+    const kept = new Set();
+    if (fs.existsSync(scenesSrc)) {
+      for (const name of fs.readdirSync(scenesSrc)) {
+        if (!name.endsWith('.json')) continue;
+        fs.copyFileSync(path.join(scenesSrc, name), path.join(scenesDest, name));
+        kept.add(name);
+      }
+    }
+    for (const name of fs.readdirSync(scenesDest)) {
+      if (name.endsWith('.json') && !kept.has(name)) {
+        fs.unlinkSync(path.join(scenesDest, name));
+      }
+    }
+
+    return snapshotProject;
+  }
+
   function slugify(name) {
     const base = String(name || 'project')
       .trim()
@@ -466,6 +519,61 @@ function mountProjectRoutes(app, deps) {
     return res.json({ success: true });
   });
 
+  /** Global `files/` library → copy into project assets (no re-upload). */
+  const LIBRARY_SOURCES = {
+    characters: ['characters', 'fbx'],
+    props: ['props'],
+    audio: ['music'],
+    video: ['video'],
+  };
+
+  /** @param {string} kind @param {string} filename */
+  function resolveGlobalLibraryFile(kind, filename) {
+    const safe = path.basename(String(filename || ''));
+    if (!safe || safe !== filename) return null;
+    const cfg = ASSET_KINDS[kind];
+    if (!cfg) return null;
+    const ext = path.extname(safe).toLowerCase();
+    if (!cfg.exts.includes(ext)) return null;
+    for (const sub of LIBRARY_SOURCES[kind] || []) {
+      const full = path.join(filesRoot, sub, safe);
+      if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+        return { src: full, filename: safe };
+      }
+    }
+    return null;
+  }
+
+  app.post('/api/projects/:id/assets/:kind/import-library', requireAuth, (req, res) => {
+    const dir = projectDir(req.params.id);
+    const kind = req.params.kind;
+    const cfg = ASSET_KINDS[kind];
+    if (!dir || !cfg) return res.status(400).json({ error: '잘못된 요청' });
+    const filename = req.body?.filename;
+    if (!filename) return res.status(400).json({ error: 'filename이 필요합니다.' });
+    const found = resolveGlobalLibraryFile(kind, filename);
+    if (!found) {
+      return res.status(404).json({ error: '라이브러리에서 파일을 찾을 수 없습니다.' });
+    }
+    try {
+      const destDir = path.join(dir, cfg.subDir);
+      ensureDir(destDir);
+      const destName = getUniqueFileName(destDir, found.filename);
+      fs.copyFileSync(found.src, path.join(destDir, destName));
+      const prefix = publicPrefix(req.params.id, kind);
+      return res.json({
+        success: true,
+        file: {
+          filename: destName,
+          path: `${prefix}${destName}`,
+          relPath: assetRelPath(kind, destName),
+        },
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Bundle ZIP export / import ───
 
   const AdmZip = require('adm-zip');
@@ -520,8 +628,9 @@ function mountProjectRoutes(app, deps) {
       return res.status(500).json({ error: err.message });
     }
     const zipBase = slugify(project.showName || project.name || projectId) || projectId;
-    const mode = req.query.mode === 'link' ? 'link' : 'bundle';
-    const filename = mode === 'link' ? `${zipBase}_link.zip` : `${zipBase}.zip`;
+    const mode = req.query.mode === 'snapshot' || req.query.mode === 'link' ? 'snapshot' : 'bundle';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = mode === 'snapshot' ? `${zipBase}_snapshot_${stamp}.zip` : `${zipBase}.zip`;
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
 
@@ -529,7 +638,7 @@ function mountProjectRoutes(app, deps) {
       const zip = new AdmZip();
       const prefix = `${projectId}/`;
 
-      if (mode === 'link') {
+      if (mode === 'snapshot') {
         zip.addFile(`${prefix}project.json`, fs.readFileSync(projectPath));
         const manifestPath = path.join(dir, 'manifest.json');
         if (fs.existsSync(manifestPath)) {
@@ -558,6 +667,48 @@ function mountProjectRoutes(app, deps) {
     }
   });
 
+  app.post('/api/projects/:id/snapshot/restore', requireAuth, (req, res, next) => {
+    uploadProjectZip.single('snapshotZip')(req, res, (err) => {
+      if (err) return next(err);
+      if (!req.file) return res.status(400).json({ error: 'snapshotZip 파일이 필요합니다.' });
+
+      const projectId = path.basename(req.params.id);
+      const destDir = projectDir(projectId);
+      if (!destDir || !fs.existsSync(destDir)) {
+        return res.status(404).json({ error: '프로젝트를 찾을 수 없습니다.' });
+      }
+
+      const zipPath = req.file.path;
+      const extractRoot = path.join(path.dirname(zipPath), `extract_${Date.now()}`);
+      ensureDir(extractRoot);
+
+      void (async () => {
+        try {
+          await extractZip(zipPath, { dir: extractRoot });
+          const srcRoot = findProjectRootInExtract(extractRoot);
+          if (!srcRoot) {
+            throw new Error('ZIP 안에 project.json을 찾을 수 없습니다.');
+          }
+          if (!isJsonOnlyProjectRoot(srcRoot)) {
+            throw new Error(
+              '에셋이 포함된 ZIP은 스냅샷 복원에 사용할 수 없습니다. 「프로젝트 ZIP (에셋 포함)」은 ZIP 가져오기를 사용하세요.',
+            );
+          }
+          const project = applyJsonSnapshotToProject(srcRoot, destDir, projectId);
+          fs.rmSync(extractRoot, { recursive: true, force: true });
+          fs.unlinkSync(zipPath);
+          return res.json({ success: true, projectId, project });
+        } catch (restoreErr) {
+          try {
+            if (fs.existsSync(extractRoot)) fs.rmSync(extractRoot, { recursive: true, force: true });
+            if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+          } catch { /* ignore cleanup */ }
+          return res.status(400).json({ error: restoreErr.message });
+        }
+      })();
+    });
+  });
+
   app.post('/api/projects/import', requireAuth, (req, res, next) => {
     uploadProjectZip.single('projectZip')(req, res, (err) => {
       if (err) return next(err);
@@ -576,6 +727,14 @@ function mountProjectRoutes(app, deps) {
             fs.rmSync(extractRoot, { recursive: true, force: true });
             fs.unlinkSync(zipPath);
             return res.status(400).json({ error: 'ZIP 안에 project.json을 찾을 수 없습니다.' });
+          }
+
+          if (isJsonOnlyProjectRoot(srcRoot)) {
+            fs.rmSync(extractRoot, { recursive: true, force: true });
+            fs.unlinkSync(zipPath);
+            return res.status(400).json({
+              error: '에셋이 없는 ZIP은 새 프로젝트로 가져올 수 없습니다. 편집 중인 프로젝트에서는 「스냅샷에서 복원」을, 다른 PC로 옮길 때는 「프로젝트 ZIP (에셋 포함)」을 사용하세요.',
+            });
           }
 
           let project;

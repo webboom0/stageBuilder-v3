@@ -1,10 +1,12 @@
 import { API, apiUrl, filesUrl } from '../config/app-config.js';
 import { loadMotionCatalog } from '../domain/motion/motionCatalog.js';
 import { loadPropCatalog, probePropApiAvailable } from '../domain/motion/propCatalog.js';
+import { loadGlobalLibrary, libraryFolderHint } from '../domain/assets/globalLibrary.js';
 import {
   loadProjectAssets,
   uploadProjectAsset,
   deleteProjectAsset,
+  importProjectAssetFromLibrary,
 } from '../domain/project/projectAssets.js';
 
 /** Must match server/server.js MEDIA_EXTS + limits */
@@ -75,6 +77,7 @@ export function createAssetsPanelBody(opts = {}) {
     </div>
     <div class="sb-assets-toolbar">
       <button type="button" class="sb-assets-refresh" data-act="refresh" title="목록 새로고침">↻</button>
+      <button type="button" class="sb-assets-lib" data-act="library" title="공용 라이브러리에서 가져오기">Lib</button>
       <label class="sb-assets-upload" title="업로드">
         ⬆
         <input type="file" data-role="file" hidden />
@@ -83,7 +86,7 @@ export function createAssetsPanelBody(opts = {}) {
       <span class="sb-assets-status" data-role="status">…</span>
     </div>
     <div class="sb-assets-list" data-role="list"></div>
-    <p class="sb-assets-hint" data-role="hint">WalkLite 기본 · FBX 업로드 · + 로 추가 · 색은 속성</p>
+    <p class="sb-assets-hint" data-role="hint">WalkLite 기본 · Lib · 업로드 · + 로 추가 · 색은 속성</p>
   `;
 
   const listEl = root.querySelector('[data-role="list"]');
@@ -104,6 +107,172 @@ export function createAssetsPanelBody(opts = {}) {
   let loadGen = 0;
   /** @type {boolean | null} */
   let propApiAvailable = null;
+  /** @type {HTMLElement | null} */
+  let libraryOverlay = null;
+
+  function projectFilenames() {
+    return new Set(
+      items
+        .filter((it) => it.deletable !== false && it.filename)
+        .map((it) => String(it.filename).toLowerCase()),
+    );
+  }
+
+  function closeLibraryDialog() {
+    libraryOverlay?.remove();
+    libraryOverlay = null;
+  }
+
+  /** @param {{ url: string, path?: string, name: string, displayName?: string, filename?: string, procedural?: string, color?: number }} entry */
+  async function addEntryToScene(entry) {
+    if (tab === 'character') {
+      await opts.onAddCharacter?.({
+        url: entry.url,
+        name: entry.displayName || entry.name,
+        procedural: entry.procedural,
+        color: entry.color,
+      });
+    } else if (tab === 'stage') {
+      await opts.onAddProp?.({
+        url: entry.url,
+        name: entry.displayName || entry.name,
+        procedural: entry.procedural,
+        color: entry.color,
+      });
+    } else if (tab === 'video') {
+      await opts.onAddVideo?.({
+        url: entry.url,
+        name: entry.displayName || entry.name,
+        filename: entry.filename,
+      });
+      activeVideoKey = entry.filename || entry.url;
+      renderList();
+    } else {
+      await opts.onAddAudio?.({
+        url: entry.url,
+        path: entry.path || entry.url,
+        name: entry.displayName || entry.name,
+        filename: entry.filename,
+      });
+    }
+  }
+
+  async function openLibraryDialog() {
+    closeLibraryDialog();
+    const projectId = opts.getProjectId?.() || null;
+    statusEl.textContent = '라이브러리…';
+    let libItems = [];
+    try {
+      libItems = await loadGlobalLibrary(tab);
+    } catch (err) {
+      statusEl.textContent = '실패';
+      window.alert(`라이브러리를 불러오지 못했습니다.\n\n${err.message || err}`);
+      return;
+    } finally {
+      if (statusEl.textContent === '라이브러리…') {
+        statusEl.textContent = items.length ? `${items.length}개` : '없음';
+      }
+    }
+
+    const inProject = new Set(projectFilenames());
+    const overlay = document.createElement('div');
+    overlay.className = 'sb-assets-lib-overlay';
+    overlay.innerHTML = `
+      <div class="sb-assets-lib-dlg" role="dialog" aria-modal="true" aria-label="공용 라이브러리">
+        <div class="sb-assets-lib-head">
+          <strong>${escapeHtml(tabLabel())} — 공용 라이브러리</strong>
+          <button type="button" class="sb-tl-help-close" data-act="close-lib" aria-label="닫기">×</button>
+        </div>
+        <p class="sb-assets-lib-hint">
+          서버 <code>${escapeHtml(libraryFolderHint(tab))}</code> 폴더의 파일입니다.
+          ${projectId
+            ? '선택 후 <strong>프로젝트에 가져오기</strong> — 업로드 없이 프로젝트 에셋으로 복사됩니다.'
+            : '선택 후 <strong>씬에 추가</strong> — 프로젝트를 열면 에셋 폴더로 복사할 수 있습니다.'}
+        </p>
+        <div class="sb-assets-lib-list" data-role="lib-list"></div>
+        <div class="sb-assets-lib-actions">
+          <button type="button" class="sb-tl-btn" data-act="close-lib">취소</button>
+          <button type="button" class="sb-tl-btn sb-tl-btn-primary" data-act="import-lib" disabled>
+            ${projectId ? '프로젝트에 가져오기' : '씬에 추가'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    const listHost = overlay.querySelector('[data-role="lib-list"]');
+    const importBtn = /** @type {HTMLButtonElement} */ (overlay.querySelector('[data-act="import-lib"]'));
+    /** @type {number | null} */
+    let selectedIdx = null;
+
+    function renderLibList() {
+      if (!libItems.length) {
+        listHost.innerHTML = '<div class="sb-assets-empty">라이브러리에 파일이 없습니다.</div>';
+        importBtn.disabled = true;
+        return;
+      }
+      listHost.innerHTML = libItems.map((it, i) => {
+        const fn = String(it.filename || '');
+        const dup = inProject.has(fn.toLowerCase());
+        const sel = selectedIdx === i ? ' is-selected' : '';
+        const dupMark = dup ? ' <span class="sb-assets-badge">프로젝트에 있음</span>' : '';
+        return `
+          <div class="sb-assets-lib-item${sel}${dup ? ' is-dup' : ''}" data-i="${i}">
+            <span class="sb-assets-item-name">${escapeHtml(it.displayName || fn)}${dupMark}</span>
+            <span class="sb-assets-lib-fname">${escapeHtml(fn)}</span>
+          </div>`;
+      }).join('');
+    }
+
+    renderLibList();
+
+    listHost?.addEventListener('click', (e) => {
+      const row = e.target.closest?.('.sb-assets-lib-item');
+      if (!row) return;
+      selectedIdx = Number(row.dataset.i);
+      renderLibList();
+      importBtn.disabled = !Number.isFinite(selectedIdx);
+    });
+
+    listHost?.addEventListener('dblclick', async () => {
+      if (selectedIdx == null) return;
+      importBtn.click();
+    });
+
+    overlay.querySelector('[data-act="close-lib"]')?.addEventListener('click', closeLibraryDialog);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeLibraryDialog();
+    });
+
+    importBtn.addEventListener('click', async () => {
+      if (selectedIdx == null) return;
+      const entry = libItems[selectedIdx];
+      if (!entry?.filename) return;
+      importBtn.disabled = true;
+      try {
+        if (projectId) {
+          if (inProject.has(String(entry.filename).toLowerCase())) {
+            window.alert('이미 프로젝트에 있는 파일입니다.');
+            return;
+          }
+          await importProjectAssetFromLibrary(projectId, tab, entry.filename);
+          await refresh({ quiet: true, notifyCatalog: true });
+          statusEl.textContent = '가져오기 OK';
+          closeLibraryDialog();
+          return;
+        }
+        await addEntryToScene(entry);
+        closeLibraryDialog();
+      } catch (err) {
+        console.error(err);
+        window.alert(`가져오기 실패\n\n${err?.message || err}`);
+      } finally {
+        importBtn.disabled = selectedIdx == null;
+      }
+    });
+
+    document.body.appendChild(overlay);
+    libraryOverlay = overlay;
+  }
 
   function acceptForTab() {
     if (tab === 'character') return '.fbx';
@@ -142,17 +311,17 @@ export function createAssetsPanelBody(opts = {}) {
     fileInput.accept = acceptForTab();
     selectedKey = null;
     if (tab === 'character') {
-      hintEl.textContent = 'WalkLite 기본 · FBX 업로드 · + 로 추가 · 색은 속성';
+      hintEl.textContent = 'WalkLite 기본 · Lib · 업로드 · + 로 추가 · 색은 속성';
     } else if (tab === 'stage') {
       if (propApiAvailable === false) {
-        hintEl.textContent = '직육면체·원통 기본 · FBX 업로드 · + 로 추가 · 색은 속성 (PIVOT: FBX만)';
+        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX 업로드 · + 로 추가 (PIVOT: FBX만)';
       } else {
-        hintEl.textContent = '직육면체·원통 기본 · FBX/OBJ · + 로 추가 · 색은 속성';
+        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX/OBJ · + 로 추가 · 색은 속성';
       }
     } else if (tab === 'video') {
-      hintEl.textContent = 'Video · + 재생 · 재생 중 − 로 제거 · 🗑 는 파일 삭제';
+      hintEl.textContent = 'Video · Lib · 업로드 · + 재생 · 재생 중 − · 🗑 파일 삭제';
     } else {
-      hintEl.textContent = 'Audio · + 클릭마다 새 트랙 · 트랙 헤더 볼륨 · 🗑 파일 삭제';
+      hintEl.textContent = 'Audio · Lib · 업로드 · + 클릭마다 새 트랙 · 🗑 파일 삭제';
     }
     refresh({ quiet: false });
   }
@@ -305,6 +474,11 @@ export function createAssetsPanelBody(opts = {}) {
     refresh({ quiet: false });
   });
 
+  root.querySelector('[data-act="library"]')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void openLibraryDialog();
+  });
+
   root.querySelectorAll('.sb-assets-tab').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -440,6 +614,9 @@ export function createAssetsPanelBody(opts = {}) {
   return {
     root,
     refresh: () => refresh({ quiet: false }),
+    destroy() {
+      closeLibraryDialog();
+    },
     /** @param {string | null} key filename or url */
     setActiveVideo(key) {
       activeVideoKey = key;

@@ -13,6 +13,7 @@ import {
   getStagePivot,
   worldToPivotLocal,
 } from './stageFloorLayout.js';
+import { hideProsceniumScreenDecor } from '../video/videoStageLayout.js';
 
 /**
  * v3 building FBX + floor inside a scaled group — size changes scale shell and floor together.
@@ -114,6 +115,7 @@ export class StageManager {
       factors.heightFactor,
       factors.depthFactor,
     );
+    hideProsceniumScreenDecor(this);
     return factors;
   }
 

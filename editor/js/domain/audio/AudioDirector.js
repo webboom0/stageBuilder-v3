@@ -70,10 +70,7 @@ export class AudioDirector {
     this.insertTrackId = trackId;
     this.selectedTrackId = trackId;
     this.selectedClipId = null;
-    this.engine.selectedTrackId = trackId;
-    this.engine.selectedKeyframeId = null;
-    this.engine.selectedKeys = [];
-    this.engine.emit('selection');
+    this.engine.selectTracks([trackId]);
     this._emitClips();
   }
 
@@ -298,9 +295,7 @@ export class AudioDirector {
       this.selectedTrackId = trackId || found?.track.id || null;
       this.insertTrackId = this.selectedTrackId;
       if (this.selectedTrackId) {
-        this.engine.selectedTrackId = this.selectedTrackId;
-        this.engine.selectedKeyframeId = null;
-        this.engine.selectedKeys = [];
+        this.engine.selectTracks([this.selectedTrackId]);
       }
     } else if (trackId) {
       this.selectTrackTarget(trackId);

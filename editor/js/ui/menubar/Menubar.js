@@ -36,7 +36,6 @@ export function mountMenubar(host, ctx) {
   mountFileMenu(host, ctx);
   mountEditMenu(host, ctx);
   mountSceneMenu(host, ctx);
-  mountAddMenu(host, ctx);
   mountViewMenu(host, ctx);
   mountShowMenu(host, ctx);
   mountHelpMenu(host, ctx);
@@ -74,7 +73,16 @@ function mountFileMenu(host, ctx) {
     onClick: () => stub(ctx, 'file:save'),
   });
   addOption(options, {
-    label: 'ZIP 가져오기…',
+    label: '스냅샷 저장…',
+    onClick: () => stub(ctx, 'file:export:snapshot'),
+  });
+  addOption(options, {
+    label: '스냅샷에서 복원…',
+    onClick: () => stub(ctx, 'file:import:snapshot'),
+  });
+  addSeparator(options);
+  addOption(options, {
+    label: 'ZIP 가져오기 (에셋 포함)…',
     onClick: () => stub(ctx, 'file:import:zip'),
   });
   addSeparator(options);
@@ -82,7 +90,6 @@ function mountFileMenu(host, ctx) {
   const exportTitle = addOption(options, { label: '내보내기', submenu: true });
   const exportSub = createSubmenu(exportTitle, root);
   addOption(exportSub, { label: '프로젝트 ZIP (에셋 포함)…', onClick: () => stub(ctx, 'file:export:zip') });
-  addOption(exportSub, { label: '프로젝트 ZIP (JSON만)…', onClick: () => stub(ctx, 'file:export:zipLink') });
   addOption(exportSub, { label: '현재 씬 렌더…', onClick: () => stub(ctx, 'file:export:renderScene') });
   addOption(exportSub, { label: '전체 렌더…', onClick: () => stub(ctx, 'file:export:renderAll') });
 
@@ -118,16 +125,6 @@ function mountSceneMenu(host, ctx) {
   addOption(options, { label: '이전 씬', shortcut: 'Ctrl+[', onClick: () => stub(ctx, 'scene:prev') });
   addOption(options, { label: '다음 씬', shortcut: 'Ctrl+]', onClick: () => stub(ctx, 'scene:next') });
   addOption(options, { label: '씬 목록…', onClick: () => stub(ctx, 'scene:list') });
-  host.appendChild(root);
-}
-
-function mountAddMenu(host, ctx) {
-  const { root, options } = createMenu('추가');
-  addOption(options, { label: '모션 (FBX)…', onClick: () => stub(ctx, 'add:motion') });
-
-  addOption(options, { label: '오디오…', onClick: () => stub(ctx, 'add:audio') });
-  addSeparator(options);
-  addOption(options, { label: '그룹', onClick: () => stub(ctx, 'add:group') });
   host.appendChild(root);
 }
 

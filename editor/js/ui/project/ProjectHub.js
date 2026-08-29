@@ -23,7 +23,7 @@ export function runProjectHub() {
       <div class="sb-project-hub__body">
         <div class="sb-project-hub__actions">
           <button type="button" class="sb-project-hub__btn sb-project-hub__btn--primary" data-act="new">+ 새 프로젝트</button>
-          <button type="button" class="sb-project-hub__btn" data-act="import">ZIP 가져오기</button>
+          <button type="button" class="sb-project-hub__btn" data-act="import">ZIP 가져오기 (에셋 포함)</button>
           <button type="button" class="sb-project-hub__btn" data-act="refresh">↻ 새로고침</button>
         </div>
         <ul class="sb-project-list" data-role="list"></ul>

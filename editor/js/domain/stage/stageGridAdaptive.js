@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { V3_FBX_REFERENCE } from './StageProfile.js';
-import { V3_PROSCENIUM_FLOOR } from './stageFloorLayout.js';
+import { V3_PROSCENIUM_FLOOR, getClampedProfileFactors } from './stageFloorLayout.js';
+import { normalizeStageType } from './StageTypes.js';
 
 export const GRID_MODE_ADAPTIVE = 'adaptive';
 export const GRID_MODE_FIXED = 'fixed';
@@ -50,27 +51,30 @@ export function getDefaultWorldPerMeter() {
 }
 
 /**
- * World units per meter for grid / formation.
- * Full floor plate width ÷ profile.widthM (건물 FBX는 왜곡하지 않고, 사람은 HumanScale로 축소).
+ * World units per meter for grid / formation / human scale.
+ * Uses the v3 proscenium floor plate as the canonical meter ruler so proscenium
+ * and arena share the same character size at the same profile W×D (arena circle
+ * mesh is smaller in world units but must not shrink performers).
  *
  * @param {import('./StageManager.js').StageManager | null} stageManager
  */
 export function getStageWorldPerMeter(stageManager) {
-  const floor = stageManager?.floor;
   const profile = stageManager?.profile;
-  if (!floor || !profile?.widthM || !profile?.depthM) {
+  if (!profile?.widthM) {
     return getDefaultWorldPerMeter();
   }
-  floor.updateWorldMatrix(true, true);
-  _box.setFromObject(floor);
-  if (_box.isEmpty()) return getDefaultWorldPerMeter();
-  _box.getSize(_size);
 
-  const perX = _size.x / profile.widthM;
-  if (!Number.isFinite(perX) || perX < 1e-6) {
+  const stageType = normalizeStageType(stageManager?.stageType ?? 'proscenium');
+  const factors = getClampedProfileFactors(profile, stageType);
+  const [gw] = V3_PROSCENIUM_FLOOR.geometry;
+  const [sx] = V3_PROSCENIUM_FLOOR.scale;
+  const plateWorldWidth = gw * sx * factors.widthFactor;
+  const perM = plateWorldWidth / profile.widthM;
+
+  if (!Number.isFinite(perM) || perM < 1e-6) {
     return getDefaultWorldPerMeter();
   }
-  return perX;
+  return perM;
 }
 
 /**

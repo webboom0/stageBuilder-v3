@@ -126,9 +126,9 @@ export async function reorderScenes(projectId, sceneIds) {
   return res.json();
 }
 
-/** @param {string} projectId @param {'bundle' | 'link'} [mode] */
+/** @param {string} projectId @param {'bundle' | 'snapshot'} [mode] */
 export async function exportProjectBundle(projectId, mode = 'bundle') {
-  const q = mode === 'link' ? '?mode=link' : '';
+  const q = mode === 'snapshot' ? '?mode=snapshot' : '';
   const res = await fetch(
     apiUrl(`/api/projects/${encodeURIComponent(projectId)}/export${q}`),
     { credentials: 'include' },
@@ -152,6 +152,27 @@ export async function exportProjectBundle(projectId, mode = 'bundle') {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** @param {string} projectId */
+export async function exportProjectSnapshot(projectId) {
+  return exportProjectBundle(projectId, 'snapshot');
+}
+
+/**
+ * @param {string} projectId
+ * @param {File} file — snapshot ZIP (JSON only)
+ * @returns {Promise<{ projectId: string, project: object }>}
+ */
+export async function restoreProjectSnapshot(projectId, file) {
+  const fd = new FormData();
+  fd.append('snapshotZip', file);
+  const res = await fetch(
+    apiUrl(`/api/projects/${encodeURIComponent(projectId)}/snapshot/restore`),
+    { method: 'POST', credentials: 'include', body: fd },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
 }
 
 /**

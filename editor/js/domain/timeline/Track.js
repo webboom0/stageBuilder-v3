@@ -4,6 +4,19 @@ import { AudioClipStore } from '../audio/AudioClipStore.js';
 let _trackSeq = 1;
 
 /**
+ * After loading scene snapshots, bump auto-id counter so addTrack() won't reuse restored ids.
+ * @param {Array<{ id?: string }>} snapshots
+ */
+export function syncTrackIdSeqFromSnapshots(snapshots) {
+  let next = _trackSeq;
+  for (const snap of snapshots || []) {
+    const m = /^track_(\d+)$/.exec(String(snap?.id || ''));
+    if (m) next = Math.max(next, parseInt(m[1], 10) + 1);
+  }
+  _trackSeq = next;
+}
+
+/**
  * @typedef {{
  *   id: string,
  *   name: string,

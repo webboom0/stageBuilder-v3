@@ -318,6 +318,115 @@ body.premiere-workspace {
   cursor: pointer;
 }
 
+.sb-assets-lib {
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  background: var(--panel-3);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.sb-assets-lib:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sb-assets-lib-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 16px;
+}
+
+.sb-assets-lib-dlg {
+  width: min(420px, 96vw);
+  max-height: min(520px, 88vh);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  background: var(--panel-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.sb-assets-lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sb-assets-lib-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.sb-assets-lib-hint code {
+  font-size: 10px;
+}
+
+.sb-assets-lib-list {
+  flex: 1;
+  min-height: 120px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  background: var(--panel-1);
+}
+
+.sb-assets-lib-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+}
+
+.sb-assets-lib-item:last-child {
+  border-bottom: none;
+}
+
+.sb-assets-lib-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sb-assets-lib-item.is-selected {
+  background: rgba(154, 134, 255, 0.14);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.sb-assets-lib-item.is-dup {
+  opacity: 0.72;
+}
+
+.sb-assets-lib-fname {
+  font-size: 10px;
+  color: var(--ink-dim);
+  word-break: break-all;
+}
+
+.sb-assets-lib-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .sb-assets-status {
   font-size: 10px;
   color: var(--ink-dim);

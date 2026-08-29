@@ -24,7 +24,6 @@ import { colorForGroup, recolorGroupDeployedMembers } from '../domain/motion/wal
 import { getStageDeckCenter, getStageWorldPerMeter } from '../domain/stage/stageGridAdaptive.js';
 import { getHumanFormationSpacingWorld } from '../domain/stage/HumanScale.js';
 import { createViewportInteraction } from '../domain/viewport/ViewportInteraction.js';
-import { pickMotionFbx } from '../ui/motion/MotionPicker.js';
 import { VideoBackground } from '../domain/video/VideoBackground.js';
 import { LightDirector } from '../domain/lighting/LightDirector.js';
 import { FixtureDirector } from '../domain/lighting/FixtureDirector.js';
@@ -38,7 +37,7 @@ import { showProjectPickerDialog } from '../ui/project/ProjectPickerDialog.js';
 import { showProjectManagerDialog } from '../ui/project/ProjectManagerDialog.js';
 import { showSceneLoadReportDialog } from '../ui/project/SceneLoadReportDialog.js';
 import { showProjectMetaPopup } from '../ui/project/ProjectMetaPopup.js';
-import { createProject, exportProjectBundle, importProjectBundle, listProjects, probeProjectsApi } from '../domain/project/projectApi.js';
+import { createProject, exportProjectBundle, exportProjectSnapshot, importProjectBundle, restoreProjectSnapshot, listProjects, probeProjectsApi } from '../domain/project/projectApi.js';
 import { ProjectStore } from '../domain/project/ProjectStore.js';
 import { createEditorLoadingOverlay } from '../ui/EditorLoadingOverlay.js';
 
@@ -57,9 +56,10 @@ const MENU_PHASE_HINTS = {
   'file:save': 'Phase 6 — 프로젝트',
   'file:saveAs': 'Phase 6 — 프로젝트',
   'file:import:audio': 'Phase 5 — 오디오',
-  'file:import:zip': 'Phase 6 — 프로젝트 ZIP',
+  'file:import:zip': 'Phase 6 — 프로젝트 ZIP (에셋 포함)',
+  'file:import:snapshot': 'Phase 6 — 스냅샷 복원',
   'file:export:zip': 'Phase 6 — ZIP',
-  'file:export:zipLink': 'Phase 6 — ZIP (JSON)',
+  'file:export:snapshot': 'Phase 6 — 스냅샷',
   'file:export:renderScene': 'Phase 7 — 렌더',
   'file:export:renderAll': 'Phase 7 — 렌더',
   'edit:clone': 'Phase 3+',
@@ -72,8 +72,6 @@ const MENU_PHASE_HINTS = {
   'scene:prev': 'Phase 6 — 멀티 씬',
   'scene:next': 'Phase 6 — 멀티 씬',
   'scene:list': 'Phase 6 — 멀티 씬',
-  'add:audio': 'Phase 5 — 오디오',
-  'add:group': '왼쪽 그룹 패널',
   'show:panel': '왼쪽 그룹 패널 (MVP)',
   'show:go': '그룹 패널 GO',
   'show:standby': 'Phase 7 — Show Control',
@@ -258,7 +256,7 @@ async function main(initialProjectStore) {
     }
     if (
       !suppressSceneDirty
-      && (ev.type === 'keys' || ev.type === 'tracks' || ev.type === 'duration')
+      && (ev.type === 'keys' || ev.type === 'tracks' || ev.type === 'duration' || ev.type === 'view')
     ) {
       markSceneDirty();
     }
@@ -544,18 +542,6 @@ async function main(initialProjectStore) {
     );
   }
 
-  async function addMotionFromPicker() {
-    const pick = await pickMotionFbx();
-    if (!pick?.url) return;
-    try {
-      const item = await addMotionEntry(pick);
-      refreshStatus(`모션 추가: ${item.name}`);
-    } catch (err) {
-      console.error(err);
-      refreshStatus(`모션 로드 실패: ${err.message}`);
-    }
-  }
-
   const applyCam = (presetId) => {
     applyCameraPreset(
       presetId,
@@ -800,7 +786,7 @@ async function main(initialProjectStore) {
     }
   }
 
-  async function exportProjectZipFlow(mode = 'bundle') {
+  async function exportProjectZipFlow() {
     if (!projectStore) return;
     try {
       shellRef.current?.setStageBusy?.(true);
@@ -809,8 +795,8 @@ async function main(initialProjectStore) {
         shellRef.current?.refreshProjectPanel?.();
         refreshStatus('저장 후 ZIP 내보내기…');
       }
-      await exportProjectBundle(projectStore.projectId, mode);
-      refreshStatus(mode === 'link' ? 'ZIP (JSON) 다운로드' : 'ZIP 다운로드');
+      await exportProjectBundle(projectStore.projectId, 'bundle');
+      refreshStatus('ZIP 다운로드');
     } catch (err) {
       console.error(err);
       refreshStatus(`ZIP 내보내기 실패: ${err.message}`);
@@ -818,6 +804,70 @@ async function main(initialProjectStore) {
     } finally {
       shellRef.current?.setStageBusy?.(false);
     }
+  }
+
+  async function exportSnapshotFlow() {
+    if (!projectStore) return;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      if (projectStore.dirty) {
+        await projectStore.saveActiveScene(getSceneCtx());
+        shellRef.current?.refreshProjectPanel?.();
+        refreshStatus('저장 후 스냅샷…');
+      }
+      await exportProjectSnapshot(projectStore.projectId);
+      refreshStatus('스냅샷 저장됨');
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`스냅샷 저장 실패: ${err.message}`);
+      window.alert(`스냅샷을 저장하지 못했습니다.\n\n${err.message}`);
+    } finally {
+      shellRef.current?.setStageBusy?.(false);
+    }
+  }
+
+  function restoreSnapshotFlow() {
+    if (!projectStore) {
+      window.alert('프로젝트를 연 뒤 「스냅샷에서 복원」을 사용하세요.');
+      return;
+    }
+    const ok = window.confirm(
+      '현재 프로젝트의 씬·설정이 스냅샷 내용으로 덮어씌워집니다.\n'
+      + '에셋(음악·FBX 등)은 그대로 유지됩니다.\n\n'
+      + '계속할까요?',
+    );
+    if (!ok) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip,application/zip';
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void (async () => {
+        try {
+          cancelAutoSaveDebounce();
+          shellRef.current?.setStageBusy?.(true);
+          refreshStatus('스냅샷 복원 중…');
+          const data = await restoreProjectSnapshot(projectStore.projectId, file);
+          projectStore.project = data.project;
+          suppressSceneDirty = true;
+          const result = await projectStore.reloadFromServer(getSceneCtx());
+          afterSceneSwitch();
+          presentSceneLoadReport(result, projectStore.sceneName());
+          shellRef.current?.refreshProjectPanel?.();
+          refreshStatus('스냅샷에서 복원됨');
+        } catch (err) {
+          console.error(err);
+          refreshStatus(`스냅샷 복원 실패: ${err.message}`);
+          window.alert(`스냅샷을 복원하지 못했습니다.\n\n${err.message}`);
+        } finally {
+          suppressSceneDirty = false;
+          shellRef.current?.setStageBusy?.(false);
+        }
+      })();
+    });
+    input.click();
   }
 
   function importProjectZipFlow() {
@@ -1129,10 +1179,6 @@ async function main(initialProjectStore) {
         refreshStatus(MENU_PHASE_HINTS[action]);
         return;
       }
-      if (action === 'add:motion') {
-        addMotionFromPicker();
-        return;
-      }
       if (action === 'file:new') {
         void newProjectFlow();
         return;
@@ -1149,7 +1195,15 @@ async function main(initialProjectStore) {
         importProjectZipFlow();
         return;
       }
-      if (action === 'add:group' || action === 'show:panel') {
+      if (action === 'file:import:snapshot') {
+        restoreSnapshotFlow();
+        return;
+      }
+      if (action === 'file:export:snapshot' && projectStore) {
+        void exportSnapshotFlow();
+        return;
+      }
+      if (action === 'show:panel') {
         refreshStatus(MENU_PHASE_HINTS[action]);
         return;
       }
@@ -1220,11 +1274,7 @@ async function main(initialProjectStore) {
       }
       if (action.startsWith('file:export:')) {
         if (action === 'file:export:zip' && projectStore) {
-          void exportProjectZipFlow('bundle');
-          return;
-        }
-        if (action === 'file:export:zipLink' && projectStore) {
-          void exportProjectZipFlow('link');
+          void exportProjectZipFlow();
           return;
         }
         refreshStatus(`내보내기 — ${MENU_PHASE_HINTS[action] ?? '준비 중'}`);

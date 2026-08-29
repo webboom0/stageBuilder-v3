@@ -222,6 +222,18 @@ export class ProjectStore {
     return null;
   }
 
+  /** @param {Parameters<typeof applyScene>[1]} ctx — reload project.json + active scene from server */
+  async reloadFromServer(ctx) {
+    this.project = await fetchProject(this.projectId);
+    this.activeSceneDoc = null;
+    const scenes = this.project.scenes || [];
+    if (scenes.length && !scenes.some((s) => s.id === this.activeSceneId)) {
+      this.project.activeSceneId = scenes[0].id;
+      await saveProjectMeta(this.projectId, this.project);
+    }
+    return this.loadActiveScene(ctx);
+  }
+
   /** @param {string} projectId */
   static async open(projectId) {
     const project = await fetchProject(projectId);

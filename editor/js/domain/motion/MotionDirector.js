@@ -44,6 +44,16 @@ const STAGE_TRACK_PALETTE = [
 ];
 
 let _seq = 1;
+
+/** @param {Iterable<string>} motionIds */
+export function syncMotionIdSeqFromIds(motionIds) {
+  let next = _seq;
+  for (const id of motionIds) {
+    const m = /^mot_(\d+)$/.exec(String(id || ''));
+    if (m) next = Math.max(next, parseInt(m[1], 10) + 1);
+  }
+  _seq = next;
+}
 let _colorSeq = 0;
 let _stageColorSeq = 0;
 
@@ -289,6 +299,9 @@ export class MotionDirector {
       m.object.position.set(bag.position[0], bag.position[1], bag.position[2]);
       m.object.rotation.set(bag.rotation[0], bag.rotation[1], bag.rotation[2]);
       m.object.scale.set(bag.scale[0], bag.scale[1], bag.scale[2]);
+      if (isStageMotionItem(m, this.engine)) {
+        clampMotionAboveDeck(m.object, this.stageManager);
+      }
       // Keep cull disabled (skinned bind-pose / hot-reload edge cases)
       if (m.object.frustumCulled) disableMotionFrustumCull(m.object);
 
@@ -537,6 +550,7 @@ export class MotionDirector {
 
   /** Recreate timeline rows for motions that loaded without a track row. */
   reconcileTracks() {
+    syncMotionIdSeqFromIds([...this.motions.keys()]);
     for (const m of this.motions.values()) {
       if (this.engine.getTrack(m.trackId)) continue;
       const section = m.assetRole === 'stage' ? 'stage' : 'motion';
@@ -623,6 +637,32 @@ function placeOnStage(root, stageManager, positionOffset) {
   if (!box.isEmpty()) {
     root.position.y += deckY - box.min.y;
   }
+}
+
+/**
+ * Keep prop bottom (world bbox min.y) on or above stage deck — blocks moving under the floor.
+ * @param {THREE.Object3D} root
+ * @param {import('../stage/StageManager.js').StageManager | null} stageManager
+ * @returns {boolean} true if position was raised
+ */
+export function clampMotionAboveDeck(root, stageManager) {
+  const deckY = getStageDeckWorldY(stageManager);
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  if (box.isEmpty() || box.min.y >= deckY - 1e-4) return false;
+  root.position.y += deckY - box.min.y;
+  return true;
+}
+
+/** @param {import('./MotionDirector.js').MotionItem | null | undefined} m @param {import('../timeline/TimelineEngine.js').TimelineEngine | null} [engine] */
+export function isStageMotionItem(m, engine = null) {
+  if (!m) return false;
+  if (m.section === 'stage' || m.assetRole === 'stage') return true;
+  if (engine) {
+    const track = engine.getTrack(m.trackId);
+    return track?.section === 'stage';
+  }
+  return false;
 }
 
 function guessName(url, assetRole = 'character') {
