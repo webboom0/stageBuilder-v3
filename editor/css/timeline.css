@@ -75,6 +75,9 @@ body.sb-tl-resize-active * {
 }
 
 .sb-tl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 22px;
   min-width: 28px;
   padding: 0 8px;
@@ -83,6 +86,7 @@ body.sb-tl-resize-active * {
   background: var(--panel-3);
   color: var(--ink);
   font-size: 11px;
+  line-height: 1;
   cursor: pointer;
 }
 

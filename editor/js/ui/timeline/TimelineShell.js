@@ -1190,6 +1190,7 @@ export function mountTimelineShell(host, ctx) {
     }
 
     if (e.key === ' ') {
+      if (document.querySelector('.sb-multiview-overlay')) return;
       if (host.contains(document.activeElement) || e.target === document.body || host.contains(e.target)) {
         e.preventDefault();
         engine.togglePlay();

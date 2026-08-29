@@ -238,7 +238,9 @@ export function createAssetsPanelBody(opts = {}) {
       importBtn.click();
     });
 
-    overlay.querySelector('[data-act="close-lib"]')?.addEventListener('click', closeLibraryDialog);
+    overlay.querySelectorAll('[data-act="close-lib"]').forEach((btn) => {
+      btn.addEventListener('click', closeLibraryDialog);
+    });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeLibraryDialog();
     });
@@ -614,6 +616,15 @@ export function createAssetsPanelBody(opts = {}) {
   return {
     root,
     refresh: () => refresh({ quiet: false }),
+    /** 프로젝트 전환 직후 — 이전 목록 즉시 비우기 */
+    clearStale() {
+      loadGen += 1;
+      items = [];
+      selectedKey = null;
+      activeVideoKey = null;
+      statusEl.textContent = '불러오는 중…';
+      renderList();
+    },
     destroy() {
       closeLibraryDialog();
     },

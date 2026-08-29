@@ -264,6 +264,7 @@ export function mountEditorShell(root, ctx) {
       onMenuAction: (action) => ctx.onMenuAction?.(action),
       onHelpersChanged: syncHelperUi,
       onStageFocusToggle: handleStageFocusToggle,
+      getMultiViewEnabled: ctx.getMultiViewEnabled,
     });
   }
 
@@ -271,6 +272,8 @@ export function mountEditorShell(root, ctx) {
     controlsApi = mountViewportMenubarControls(viewportControlsEl, {
       helpers: ctx.helpers,
       onChange: syncHelperUi,
+      onMultiViewToggle: (on) => ctx.onMultiViewToggle?.(on),
+      getMultiViewEnabled: () => ctx.getMultiViewEnabled?.() ?? false,
     });
   }
 
@@ -281,7 +284,11 @@ export function mountEditorShell(root, ctx) {
       onZoom: ctx.onZoom,
       onStageFocusToggle: handleStageFocusToggle,
       onBuildingLockToggle: ctx.onBuildingLockToggle,
+      onStructureXRayToggle: ctx.onStructureXRayToggle,
+      getStructureXRayEnabled: () => ctx.getStructureXRayEnabled?.() ?? false,
       onTransformMode: (mode) => ctx.onTransformMode?.(mode),
+      onMultiViewToggle: () => ctx.onMultiViewToggle?.(),
+      getMultiViewEnabled: () => ctx.getMultiViewEnabled?.() ?? false,
     });
     const localCb = toolbarEl.querySelector('#sb-toolbar-local');
     localCb?.addEventListener('change', () => {
@@ -301,7 +308,17 @@ export function mountEditorShell(root, ctx) {
     /** @param {{ label?: string } | null} scale */
     setGridScaleLabel: (scale) => controlsApi?.setScaleLabel(scale),
     syncHelperUi,
-    refreshAssets: () => assetsUi.refresh(),
+    syncMultiViewUi: () => {
+      controlsApi?.syncMultiView?.();
+      toolbarApi?.setMultiViewActive?.(!!ctx.getMultiViewEnabled?.());
+    },
+    /** @param {boolean} on */
+    setStructureXRayActive: (on) => toolbarApi?.setStructureXRayActive?.(on),
+    clearAssetsStale: () => assetsUi.clearStale?.(),
+    refreshAssets: () => {
+      assetsUi.clearStale?.();
+      return assetsUi.refresh();
+    },
     setActiveVideo: (key) => assetsUi.setActiveVideo?.(key),
     syncKeyframeProps: () => propsUi?.sync(),
     syncLightingPanel: () => lightingUi?.sync(),

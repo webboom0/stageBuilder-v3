@@ -34,8 +34,9 @@ export class StageViewportHelpers {
    * @param {THREE.Scene} _scene — reserved (overlay는 별도 Scene)
    * @param {{ stageManager: import('./StageManager.js').StageManager }} ctx
    */
-  constructor(_scene, ctx) {
+  constructor(scene, ctx) {
     this.stageManager = ctx.stageManager;
+    this.mainScene = scene;
     this.gridMode = loadGridMode();
     this.states = loadHelperStates();
     this.viewportGridScale = null;
@@ -45,6 +46,13 @@ export class StageViewportHelpers {
 
     this.overlayScene = new THREE.Scene();
     this.overlayScene.add(this.root);
+
+    this.skeletonGroup = new THREE.Group();
+    this.skeletonGroup.name = 'SkeletonHelpers';
+    this.mainScene.add(this.skeletonGroup);
+    /** @type {Map<string, THREE.SkeletonHelper>} */
+    this._skeletonHelpers = new Map();
+    this._skeletonSyncFrame = 0;
 
     // GridHelper 톤에 가깝게 (major 밝게, minor 약하게)
     this.stageGrid = new ViewportStageGrid({
@@ -67,6 +75,7 @@ export class StageViewportHelpers {
     this.root.add(this.guides);
 
     this._applyVisibility();
+    if (this.states.skeletonHelpers) this._syncSkeletonHelpers();
   }
 
   getGridMode() {
@@ -103,6 +112,13 @@ export class StageViewportHelpers {
     this.setHelperStates({ guideHelper: !this.states.guideHelper });
   }
 
+  toggleSkeleton() {
+    const on = !this.states.skeletonHelpers;
+    this.setHelperStates({ skeletonHelpers: on });
+    if (on) this._syncSkeletonHelpers();
+    else this._clearSkeletonHelpers();
+  }
+
   getOverlayScene() {
     return this.overlayScene;
   }
@@ -117,6 +133,11 @@ export class StageViewportHelpers {
    * @param {number} viewportHeight
    */
   update(camera, lookTarget, viewportHeight) {
+    if (this.states.skeletonHelpers) {
+      this._skeletonSyncFrame += 1;
+      if (this._skeletonSyncFrame % 30 === 0) this._syncSkeletonHelpers();
+    }
+
     if (!this.states.gridHelper && !this.states.guideHelper) {
       this.viewportGridScale = null;
       return;
@@ -202,6 +223,34 @@ export class StageViewportHelpers {
       this.gridHelperGroup.visible = false;
     }
     this.guides.visible = !!this.states.guideHelper;
+    this.skeletonGroup.visible = !!this.states.skeletonHelpers;
+  }
+
+  _syncSkeletonHelpers() {
+    /** @type {Set<string>} */
+    const seen = new Set();
+    this.mainScene.traverse((obj) => {
+      if (!obj.isSkinnedMesh || !obj.skeleton) return;
+      seen.add(obj.uuid);
+      if (this._skeletonHelpers.has(obj.uuid)) return;
+      const helper = new THREE.SkeletonHelper(obj);
+      this.skeletonGroup.add(helper);
+      this._skeletonHelpers.set(obj.uuid, helper);
+    });
+    for (const [uuid, helper] of this._skeletonHelpers) {
+      if (seen.has(uuid)) continue;
+      this.skeletonGroup.remove(helper);
+      helper.dispose?.();
+      this._skeletonHelpers.delete(uuid);
+    }
+  }
+
+  _clearSkeletonHelpers() {
+    for (const helper of this._skeletonHelpers.values()) {
+      this.skeletonGroup.remove(helper);
+      helper.dispose?.();
+    }
+    this._skeletonHelpers.clear();
   }
 
   _persistHelpers() {

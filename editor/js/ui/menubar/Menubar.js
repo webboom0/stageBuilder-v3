@@ -18,6 +18,7 @@ import {
  *   onStageFocusToggle?: () => void,
  *   helpers: import('../../domain/stage/StageViewportHelpers.js').StageViewportHelpers,
  *   onHelpersChanged?: () => void,
+ *   getMultiViewEnabled?: () => boolean,
  * }} MenubarContext
  */
 
@@ -36,8 +37,8 @@ export function mountMenubar(host, ctx) {
   mountFileMenu(host, ctx);
   mountEditMenu(host, ctx);
   mountSceneMenu(host, ctx);
+  mountLibraryMenu(host, ctx);
   mountViewMenu(host, ctx);
-  mountShowMenu(host, ctx);
   mountHelpMenu(host, ctx);
 
   return {
@@ -54,12 +55,10 @@ function mountFileMenu(host, ctx) {
   const { root, options } = createMenu('파일');
   addOption(options, {
     label: '새 프로젝트',
-    shortcut: 'Ctrl+N',
     onClick: () => stub(ctx, 'file:new'),
   });
   addOption(options, {
     label: '열기…',
-    shortcut: 'Ctrl+O',
     onClick: () => stub(ctx, 'file:open'),
   });
   addOption(options, {
@@ -108,10 +107,6 @@ function mountEditMenu(host, ctx) {
     shortcut: 'Ctrl+Y',
     onClick: () => stub(ctx, 'edit:redo'),
   });
-  addSeparator(options);
-  addOption(options, { label: '복제', shortcut: 'Ctrl+D', onClick: () => stub(ctx, 'edit:clone') });
-  addOption(options, { label: '삭제', shortcut: 'Del', onClick: () => stub(ctx, 'edit:delete') });
-  addOption(options, { label: '중앙으로', onClick: () => stub(ctx, 'edit:center') });
   host.appendChild(root);
 }
 
@@ -128,6 +123,15 @@ function mountSceneMenu(host, ctx) {
   host.appendChild(root);
 }
 
+function mountLibraryMenu(host, ctx) {
+  const { root, options } = createMenu('라이브러리');
+  addOption(options, { label: '캐릭터…', onClick: () => stub(ctx, 'library:character') });
+  addOption(options, { label: '스테이지…', onClick: () => stub(ctx, 'library:stage') });
+  addOption(options, { label: '오디오…', onClick: () => stub(ctx, 'library:audio') });
+  addOption(options, { label: '비디오…', onClick: () => stub(ctx, 'library:video') });
+  host.appendChild(root);
+}
+
 function mountViewMenu(host, ctx) {
   const { root, options } = createMenu('보기');
   const helpers = ctx.helpers;
@@ -136,8 +140,11 @@ function mountViewMenu(host, ctx) {
   const helperTitle = addOption(options, { label: '도우미', submenu: true });
   const helperSub = createSubmenu(helperTitle, root);
 
-  const gridRow = addOption(helperSub, {
-    label: '그리드 도우미',
+  const gridMenuTitle = addOption(helperSub, { label: '그리드 도우미', submenu: true });
+  const gridSub = createSubmenu(gridMenuTitle, root, { nested: true });
+
+  const gridRow = addOption(gridSub, {
+    label: '표시',
     toggle: true,
     toggleOn: states.gridHelper,
     onClick: () => {
@@ -148,7 +155,9 @@ function mountViewMenu(host, ctx) {
   });
   gridRow.dataset.toggleId = 'gridHelper';
 
-  const adaptiveRow = addOption(helperSub, {
+  addSeparator(gridSub);
+
+  const adaptiveRow = addOption(gridSub, {
     label: '격자 단위: 자동',
     toggle: true,
     toggleOn: helpers.getGridMode() === GRID_MODE_ADAPTIVE,
@@ -159,7 +168,7 @@ function mountViewMenu(host, ctx) {
   });
   adaptiveRow.dataset.toggleId = 'gridAdaptive';
 
-  const fixedRow = addOption(helperSub, {
+  const fixedRow = addOption(gridSub, {
     label: '격자 단위: 1m 고정',
     toggle: true,
     toggleOn: helpers.getGridMode() === GRID_MODE_FIXED,
@@ -170,7 +179,7 @@ function mountViewMenu(host, ctx) {
   });
   fixedRow.dataset.toggleId = 'gridFixed';
 
-  const gridHelperRow = addOption(helperSub, {
+  const gridHelperRow = addOption(gridSub, {
     label: '격자: GridHelper',
     toggle: true,
     toggleOn: helpers.getGridMode() === GRID_MODE_GRID_HELPER,
@@ -193,12 +202,17 @@ function mountViewMenu(host, ctx) {
   });
   guideRow.dataset.toggleId = 'guideHelper';
 
-  addOption(helperSub, {
+  const skeletonRow = addOption(helperSub, {
     label: '골격 도우미',
     toggle: true,
-    toggleOn: false,
-    onClick: () => stub(ctx, 'view:skeleton'),
+    toggleOn: states.skeletonHelpers,
+    onClick: () => {
+      helpers.toggleSkeleton();
+      setToggleOn(skeletonRow, helpers.getHelperStates().skeletonHelpers);
+      ctx.onHelpersChanged?.();
+    },
   });
+  skeletonRow.dataset.toggleId = 'skeletonHelper';
 
   addSeparator(options);
 
@@ -220,6 +234,15 @@ function mountViewMenu(host, ctx) {
   }
 
   addSeparator(options);
+  const multiViewRow = addOption(options, {
+    label: '멀티뷰 (2×2)',
+    toggle: true,
+    toggleOn: !!ctx.getMultiViewEnabled?.(),
+    onClick: () => stub(ctx, 'view:multiview'),
+  });
+  multiViewRow.dataset.toggleId = 'multiView';
+
+  addSeparator(options);
   addOption(options, {
     label: '무대 전체 보기',
     shortcut: 'DblClick',
@@ -237,22 +260,6 @@ function mountViewMenu(host, ctx) {
     },
   });
 
-  host.appendChild(root);
-}
-
-function mountShowMenu(host, ctx) {
-  const { root, options } = createMenu('연출');
-  addOption(options, {
-    label: 'Show Control…',
-    onClick: () => stub(ctx, 'show:panel'),
-  });
-  addOption(options, { label: 'GO', shortcut: 'Space', onClick: () => stub(ctx, 'show:go') });
-  addOption(options, { label: 'Standby', onClick: () => stub(ctx, 'show:standby') });
-  addSeparator(options);
-  addOption(options, {
-    label: '무대연출 프리셋…',
-    onClick: () => stub(ctx, 'show:presets'),
-  });
   host.appendChild(root);
 }
 
@@ -299,10 +306,14 @@ function syncViewToggleRows(host, ctx) {
     const id = el.getAttribute('data-toggle-id');
     if (id === 'gridHelper') setToggleOn(/** @type {HTMLElement} */ (el), !!states.gridHelper);
     if (id === 'guideHelper') setToggleOn(/** @type {HTMLElement} */ (el), !!states.guideHelper);
+    if (id === 'skeletonHelper') setToggleOn(/** @type {HTMLElement} */ (el), !!states.skeletonHelpers);
     if (id === 'gridFixed') setToggleOn(/** @type {HTMLElement} */ (el), mode === GRID_MODE_FIXED);
     if (id === 'gridAdaptive') setToggleOn(/** @type {HTMLElement} */ (el), mode === GRID_MODE_ADAPTIVE);
     if (id === 'gridGridHelper') {
       setToggleOn(/** @type {HTMLElement} */ (el), mode === GRID_MODE_GRID_HELPER);
+    }
+    if (id === 'multiView') {
+      setToggleOn(/** @type {HTMLElement} */ (el), !!ctx.getMultiViewEnabled?.());
     }
   });
 }

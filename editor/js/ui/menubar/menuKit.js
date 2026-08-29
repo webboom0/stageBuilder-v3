@@ -2,6 +2,35 @@
  * Lightweight menubar DOM helpers (v3 Menubar look, no UIPanel dependency).
  */
 
+/** @param {HTMLElement} menuRoot @param {HTMLElement} submenu */
+function hideOtherSubmenus(menuRoot, submenu) {
+  const parentSubmenu = submenu._sbParentSubmenu;
+  menuRoot.querySelectorAll('.options--submenu').forEach((el) => {
+    if (el === submenu) return;
+    if (parentSubmenu && el === parentSubmenu) return;
+    el.style.display = 'none';
+  });
+}
+
+/**
+ * @param {HTMLElement | null} relatedTarget
+ * @param {HTMLElement} titleRow
+ * @param {HTMLElement} submenu
+ */
+function shouldKeepSubmenuOpen(relatedTarget, titleRow, submenu) {
+  if (!relatedTarget || !(relatedTarget instanceof Node)) return false;
+  if (submenu.contains(relatedTarget) || titleRow.contains(relatedTarget)) return true;
+  if (relatedTarget === titleRow) return true;
+
+  const nestedSub = /** @type {HTMLElement | null} */ (
+    relatedTarget instanceof Element ? relatedTarget.closest('.options--submenu') : null
+  );
+  if (nestedSub?._sbTitleRow && submenu.contains(nestedSub._sbTitleRow)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * @param {string} label
  * @returns {{ root: HTMLElement, options: HTMLElement }}
@@ -78,45 +107,68 @@ export function addSeparator(parent) {
 /**
  * @param {HTMLElement} titleRow
  * @param {HTMLElement} menuRoot
+ * @param {{ nested?: boolean }} [opts]
  * @returns {HTMLElement} submenu panel
  */
-export function createSubmenu(titleRow, menuRoot) {
+export function createSubmenu(titleRow, menuRoot, opts = {}) {
   const submenu = document.createElement('div');
   submenu.className = 'options options--submenu';
+  if (opts.nested) submenu.classList.add('options--submenu-nested');
   submenu.style.display = 'none';
   menuRoot.appendChild(submenu);
 
+  /** @type {HTMLElement | null} */
+  submenu._sbTitleRow = titleRow;
+  /** @type {HTMLElement | null} */
+  submenu._sbParentSubmenu = titleRow.closest('.options--submenu');
+  titleRow._sbSubmenu = submenu;
+
   let hideTimer = null;
+  const zIndex = opts.nested ? 10002 : 10001;
+  const hideDelayMs = 320;
 
   const show = () => {
     clearTimeout(hideTimer);
-    menuRoot.querySelectorAll('.options--submenu').forEach((el) => {
-      if (el !== submenu) el.style.display = 'none';
-    });
+    hideOtherSubmenus(menuRoot, submenu);
     menuRoot.classList.add('submenu-active');
     const rect = titleRow.getBoundingClientRect();
     const pad = parseFloat(getComputedStyle(titleRow).paddingTop) || 0;
-    submenu.style.left = `${rect.right - 4}px`;
+    submenu.style.left = `${rect.right - 10}px`;
     submenu.style.top = `${rect.top - pad}px`;
     submenu.style.maxHeight = `calc(100vh - ${rect.top}px)`;
+    submenu.style.zIndex = String(zIndex);
     submenu.style.display = 'block';
+  };
+
+  const hide = () => {
+    submenu.style.display = 'none';
+    menuRoot.querySelectorAll('.options--submenu').forEach((el) => {
+      if (el === submenu) return;
+      if (submenu.contains(el._sbTitleRow)) {
+        el.style.display = 'none';
+      }
+    });
+    const anyOpen = Array.from(menuRoot.querySelectorAll('.options--submenu')).some(
+      (el) => getComputedStyle(el).display !== 'none',
+    );
+    if (!anyOpen) menuRoot.classList.remove('submenu-active');
   };
 
   const scheduleHide = () => {
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      submenu.style.display = 'none';
-      const anyOpen = Array.from(menuRoot.querySelectorAll('.options--submenu')).some(
-        (el) => getComputedStyle(el).display !== 'none',
-      );
-      if (!anyOpen) menuRoot.classList.remove('submenu-active');
-    }, 150);
+    hideTimer = setTimeout(hide, hideDelayMs);
+  };
+
+  const onLeave = (e) => {
+    const next = /** @type {Node | null} */ (e.relatedTarget);
+    if (shouldKeepSubmenuOpen(next, titleRow, submenu)) return;
+    scheduleHide();
   };
 
   titleRow.addEventListener('mouseenter', show);
-  titleRow.addEventListener('mouseleave', scheduleHide);
+  titleRow.addEventListener('mouseleave', onLeave);
   submenu.addEventListener('mouseenter', show);
-  submenu.addEventListener('mouseleave', scheduleHide);
+  submenu.addEventListener('mouseleave', onLeave);
 
   return submenu;
 }

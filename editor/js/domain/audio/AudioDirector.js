@@ -32,6 +32,145 @@ export class AudioDirector {
     /** @type {Map<string, { active: boolean }>} */
     this._playState = new Map();
     this._lastPlayheadSec = 0;
+    /** @type {{ ctx: AudioContext, dest: MediaStreamAudioDestinationNode } | null} */
+    this._exportCapture = null;
+  }
+
+  /** 타임라인에 녹음 가능한 오디오 클립이 있는지 */
+  hasExportableClips() {
+    for (const track of this.listAudioTracks()) {
+      if (track.hidden || track.locked) continue;
+      for (const clip of track.clips.list()) {
+        if (!clip.muted) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * WebM 렌더용 — HTMLAudio → Web Audio → MediaStream
+   * @returns {Promise<MediaStream | null>}
+   */
+  async beginExportCapture() {
+    if (this._exportCapture) return this._exportCapture.dest.stream;
+    if (!this.hasExportableClips()) return null;
+
+    this.preloadAllClips();
+    await this._waitClipsMetadata(8000);
+
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+
+    const ctx = new Ctx();
+    const dest = ctx.createMediaStreamDestination();
+    let wired = 0;
+
+    for (const track of this.listAudioTracks()) {
+      for (const clip of track.clips.list()) {
+        const el = this._getElement(clip);
+        if (el._sbExportWired) continue;
+        try {
+          const source = ctx.createMediaElementSource(el);
+          source.connect(dest);
+          el._sbExportWired = true;
+          el._sbExportSource = source;
+          wired += 1;
+        } catch (err) {
+          console.warn('[audio] export capture wire failed:', clip.name || clip.id, err);
+        }
+      }
+    }
+
+    if (!wired) {
+      await ctx.close().catch(() => {});
+      return null;
+    }
+
+    this._exportCapture = { ctx, dest };
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    return dest.stream;
+  }
+
+  /** 렌더 종료 후 캡처 그래프·오디오 요소 정리 */
+  endExportCapture() {
+    if (!this._exportCapture) return;
+
+    const { ctx } = this._exportCapture;
+    for (const el of this._elements.values()) {
+      el.pause();
+      if (el._sbExportSource) {
+        try { el._sbExportSource.disconnect(); } catch { /* ignore */ }
+        delete el._sbExportSource;
+        delete el._sbExportWired;
+      }
+    }
+    void ctx.close().catch(() => {});
+    this._exportCapture = null;
+    this._playState.clear();
+    this._lastPlayheadSec = 0;
+    for (const clipId of [...this._elements.keys()]) {
+      this._disposeElement(clipId);
+    }
+  }
+
+  /** @param {number} timeoutMs */
+  async _waitClipsMetadata(timeoutMs) {
+    const deadline = performance.now() + timeoutMs;
+    /** @type {HTMLAudioElement[]} */
+    const targets = [];
+    for (const track of this.listAudioTracks()) {
+      for (const clip of track.clips.list()) {
+        targets.push(this._getElement(clip));
+      }
+    }
+    while (performance.now() < deadline) {
+      const pending = targets.filter((el) => el.readyState < HTMLMediaElement.HAVE_METADATA);
+      if (!pending.length) return;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+  }
+
+  /** 씬 전환 후 렌더 캡처 그래프에 새 클립 연결 */
+  refreshExportCaptureWiring() {
+    if (!this._exportCapture) return;
+    const { ctx, dest } = this._exportCapture;
+
+    /** @type {Set<string>} */
+    const validIds = new Set();
+    for (const track of this.listAudioTracks()) {
+      for (const clip of track.clips.list()) validIds.add(clip.id);
+    }
+    for (const clipId of [...this._elements.keys()]) {
+      if (validIds.has(clipId)) continue;
+      const el = this._elements.get(clipId);
+      if (el?._sbExportSource) {
+        try { el._sbExportSource.disconnect(); } catch { /* ignore */ }
+        delete el._sbExportSource;
+        delete el._sbExportWired;
+      }
+      this._disposeElement(clipId);
+    }
+
+    this._playState.clear();
+    this._lastPlayheadSec = 0;
+    this.preloadAllClips();
+
+    for (const track of this.listAudioTracks()) {
+      for (const clip of track.clips.list()) {
+        const el = this._getElement(clip);
+        if (el._sbExportWired) continue;
+        try {
+          const source = ctx.createMediaElementSource(el);
+          source.connect(dest);
+          el._sbExportWired = true;
+          el._sbExportSource = source;
+        } catch (err) {
+          console.warn('[audio] export re-wire failed:', clip.name || clip.id, err);
+        }
+      }
+    }
   }
 
   /** @param {string} trackId */
@@ -583,6 +722,7 @@ export class AudioDirector {
     if (!el) {
       el = new Audio();
       el.preload = 'auto';
+      el.crossOrigin = 'anonymous';
       el._sbUrl = url;
       el._sbClipId = clip.id;
       el.src = url;
@@ -590,6 +730,7 @@ export class AudioDirector {
       return el;
     }
     el._sbClipId = clip.id;
+    if (!el.crossOrigin) el.crossOrigin = 'anonymous';
     if (el._sbUrl !== url) {
       el._sbUrl = url;
       el.src = url;

@@ -11,6 +11,10 @@ import { TRANSFORM_ICONS, VIEWPORT_VIEW_ICONS } from './viewportToolbarIcons.js'
  *   onTransformMode?: (mode: 'translate' | 'rotate' | 'scale') => void,
  *   onStageFocusToggle?: () => void,
  *   onBuildingLockToggle?: () => boolean,
+ *   onStructureXRayToggle?: () => boolean,
+ *   getStructureXRayEnabled?: () => boolean,
+ *   onMultiViewToggle?: () => void,
+ *   getMultiViewEnabled?: () => boolean,
  * }} ctx
  */
 export function mountViewportToolbar(container, ctx) {
@@ -57,6 +61,13 @@ export function mountViewportToolbar(container, ctx) {
     <button type="button" class="toolbar-btn toolbar-btn--view" data-building-lock="1" title="빌딩고정" aria-label="빌딩고정">
       <span class="toolbar-svg-icon" aria-hidden="true">${VIEWPORT_VIEW_ICONS.lockBuilding}</span>
     </button>
+    <button type="button" class="toolbar-btn toolbar-btn--view" data-structure-xray="1" title="구조물 투명/불투명" aria-label="구조물 투명 토글">
+      <span class="toolbar-svg-icon" aria-hidden="true">${VIEWPORT_VIEW_ICONS.structureXRay}</span>
+    </button>
+    <span class="toolbar-divider" aria-hidden="true"></span>
+    <button type="button" class="toolbar-btn toolbar-btn--view" data-multiview="1" title="멀티뷰 모니터 (2×2)" aria-label="멀티뷰">
+      <span class="toolbar-svg-icon" aria-hidden="true">${VIEWPORT_VIEW_ICONS.multiview}</span>
+    </button>
     <span class="toolbar-divider" aria-hidden="true"></span>
     <label class="toolbar-local-switch" title="로컬">
       <input type="checkbox" id="sb-toolbar-local" />
@@ -100,6 +111,23 @@ export function mountViewportToolbar(container, ctx) {
     }
   });
 
+  const structureXRayBtn = container.querySelector('[data-structure-xray]');
+  structureXRayBtn?.addEventListener('click', () => {
+    const on = ctx.onStructureXRayToggle?.();
+    if (typeof on === 'boolean') {
+      structureXRayBtn.classList.toggle('selected', on);
+    }
+  });
+  if (ctx.getStructureXRayEnabled?.()) {
+    structureXRayBtn?.classList.add('selected');
+  }
+
+  const multiViewBtn = container.querySelector('[data-multiview]');
+  multiViewBtn?.addEventListener('click', () => {
+    ctx.onMultiViewToggle?.();
+    multiViewBtn.classList.toggle('selected', !!ctx.getMultiViewEnabled?.());
+  });
+
   enableToolbarDrag(container);
 
   return {
@@ -110,6 +138,14 @@ export function mountViewportToolbar(container, ctx) {
     /** @param {boolean} on */
     setBuildingLockActive(on) {
       lockBuildingBtn?.classList.toggle('selected', on);
+    },
+    /** @param {boolean} on */
+    setStructureXRayActive(on) {
+      structureXRayBtn?.classList.toggle('selected', on);
+    },
+    /** @param {boolean} on */
+    setMultiViewActive(on) {
+      multiViewBtn?.classList.toggle('selected', on);
     },
   };
 }
