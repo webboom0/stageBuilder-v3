@@ -1,6 +1,14 @@
 import { filesUrl } from '../../config/app-config.js';
 import { MIN_CLIP_SEC } from './types.js';
 
+/** @type {(() => string | null) | null} */
+let _getProjectId = null;
+
+/** Phase 6 — resolve assets/audio/… relative paths. */
+export function setAudioProjectResolver(fn) {
+  _getProjectId = fn;
+}
+
 /**
  * Reject blob: and non-server paths (Phase 5 — no blob in projects).
  * @param {string} path
@@ -11,7 +19,14 @@ export function assertServerAudioPath(path) {
   if (p.startsWith('blob:')) {
     throw new Error('blob URL은 저장할 수 없습니다. 서버에 업로드한 파일만 사용하세요.');
   }
-  if (!p.includes('/files/music/') && !p.includes('/music/')) {
+  if (p.startsWith('http://') || p.startsWith('https://')) {
+    if (p.includes('/files/music/') || p.includes('/music/') || p.includes('/files/projects/')) {
+      return p;
+    }
+    throw new Error('서버 music 경로만 사용할 수 있습니다.');
+  }
+  if (!p.includes('/files/music/') && !p.includes('/music/')
+    && !p.includes('/files/projects/') && !p.startsWith('assets/')) {
     throw new Error('서버 music 경로만 사용할 수 있습니다.');
   }
   return p;
@@ -20,12 +35,24 @@ export function assertServerAudioPath(path) {
 /** @param {string} path */
 export function resolveAudioUrl(path) {
   const p = assertServerAudioPath(path);
-  if (p.startsWith('http://') || p.startsWith('https://')) return p;
-  // API paths are /files/music/... — do NOT strip /files/ (would 404 as /music/...)
+  if (p.startsWith('http://') || p.startsWith('https://')) {
+    try {
+      const u = new URL(p);
+      if (u.pathname.startsWith('/files/')) return filesUrl(u.pathname);
+    } catch { /* use as-is below */ }
+    return p;
+  }
   if (p.startsWith('/files/')) return filesUrl(p);
   if (p.startsWith('files/')) return filesUrl(`/${p}`);
   if (p.startsWith('/music/')) return filesUrl(`/files${p}`);
   if (p.startsWith('music/')) return filesUrl(`/files/${p}`);
+  if (p.startsWith('assets/')) {
+    const projectId = _getProjectId?.();
+    if (!projectId) {
+      throw new Error('프로젝트 오디오 — 프로젝트를 연 뒤 다시 추가하세요.');
+    }
+    return filesUrl(`/files/projects/${projectId}/${p.replace(/^\/+/, '')}`);
+  }
   return filesUrl(`/files/music/${p.replace(/^\/+/, '')}`);
 }
 

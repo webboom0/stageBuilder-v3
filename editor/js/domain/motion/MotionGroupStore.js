@@ -247,6 +247,20 @@ export class MotionGroupStore {
   }
 
   /**
+   * Replace all groups (scene load).
+   * @param {MotionGroup[]} groups
+   * @param {string | null} [activeId]
+   */
+  replaceAll(groups, activeId = null) {
+    this.groups.clear();
+    for (const g of groups || []) {
+      this.groups.set(g.id, g);
+    }
+    this.activeGroupId = activeId || groups?.[0]?.id || null;
+    this.selectedSegmentId = null;
+  }
+
+  /**
    * @param {number} count
    * @param {number} [spacing]
    * @param {string} [formation]

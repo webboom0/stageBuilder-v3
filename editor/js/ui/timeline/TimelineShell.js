@@ -87,6 +87,9 @@ export function mountTimelineShell(host, ctx) {
     { id: 'audio', label: 'Audio' },
   ];
 
+  /** @type {Record<string, boolean>} UI-only section fold (not filter). */
+  const sectionCollapsed = Object.fromEntries(SECTION_META.map((s) => [s.id, false]));
+
   const el = {
     time: host.querySelector('[data-role="time"]'),
     duration: host.querySelector('[data-role="duration"]'),
@@ -156,14 +159,25 @@ export function mountTimelineShell(host, ctx) {
 
     for (const sec of SECTION_META) {
       if (sectionFilter !== 'all' && sectionFilter !== sec.id) continue;
+      const folded = sectionCollapsed[sec.id] === true;
       const rows = trackList.filter((tr) => (tr.section || 'motion') === sec.id);
       const secLabelClass = sec.id === 'audio' ? ' sb-tl-sec-label-audio' : '';
-      labelsHtml += `<div class="sb-tl-sec-label${secLabelClass}" data-section="${sec.id}">${escapeHtml(sec.label)}</div>`;
+      const secFoldClass = folded ? ' is-collapsed' : '';
+      labelsHtml += `<div class="sb-tl-sec-label${secLabelClass}${secFoldClass}" data-section="${sec.id}">
+        <button type="button" class="sb-tl-sec-toggle" data-section="${sec.id}" title="접기/펼치기">${folded ? '▸' : '▾'}</button>
+        <span class="sb-tl-sec-label-text">${escapeHtml(sec.label)}</span>
+      </div>`;
       if (sec.id === 'audio') {
-        tracksHtml += audioSectionToolbarHtml(audio);
+        if (!folded) {
+          tracksHtml += audioSectionToolbarHtml(audio);
+        } else {
+          tracksHtml += `<div class="sb-tl-sec-lane" data-section="${sec.id}"></div>`;
+        }
       } else {
         tracksHtml += `<div class="sb-tl-sec-lane" data-section="${sec.id}"></div>`;
       }
+
+      if (folded) continue;
 
       if (!rows.length && sec.id !== 'audio') {
         continue;
@@ -774,6 +788,14 @@ export function mountTimelineShell(host, ctx) {
     engine.emit('change');
   }
 
+  /** Dispose scene/audio/light object, then remove the timeline row if still present. */
+  function deleteTimelineTrack(trackId) {
+    onTrackRemove?.(trackId);
+    if (engine.getTrack(trackId)) {
+      engine.removeTrack(trackId, { history: true });
+    }
+  }
+
   function frameStep() {
     return 1 / Math.max(1, engine.fps || 30);
   }
@@ -801,6 +823,13 @@ export function mountTimelineShell(host, ctx) {
     if (e.target.closest?.('[data-tl-act="track-vol"]')) return;
     focusTimeline();
     closeCtx();
+    const secToggle = e.target.closest?.('.sb-tl-sec-toggle');
+    if (secToggle?.dataset.section) {
+      const sid = secToggle.dataset.section;
+      sectionCollapsed[sid] = !sectionCollapsed[sid];
+      render();
+      return;
+    }
     const toggle = e.target.closest?.('.sb-tl-folder-toggle');
     if (toggle?.dataset.folder) {
       const f = engine.folders.get(toggle.dataset.folder);
@@ -846,9 +875,7 @@ export function mountTimelineShell(host, ctx) {
       openCtx(e.clientX, e.clientY, [
         {
           label: '트랙 삭제',
-          action: () => {
-            if (onTrackRemove?.(trackId) !== true) engine.removeTrack(trackId, { history: true });
-          },
+          action: () => deleteTimelineTrack(trackId),
         },
       ]);
       return;
@@ -858,10 +885,7 @@ export function mountTimelineShell(host, ctx) {
       { sep: true },
       {
         label: '트랙 삭제',
-        action: () => {
-          const removedScene = onTrackRemove?.(trackId) === true;
-          if (!removedScene) engine.removeTrack(trackId, { history: true });
-        },
+        action: () => deleteTimelineTrack(trackId),
       },
     ]);
   });
@@ -1169,6 +1193,13 @@ export function mountTimelineShell(host, ctx) {
   window.addEventListener('pointerdown', onDocPointerDown, true);
 
   const unsub = engine.subscribe((ev) => {
+    if (ev.type === 'sceneLoaded') {
+      sectionFilter = 'all';
+      el.jumps?.querySelectorAll('.sb-tl-jump').forEach((b) => {
+        b.classList.toggle('is-on', b.dataset.section === 'all');
+      });
+      host.classList.remove('tl-filtered');
+    }
     if (audioDragClipId) {
       if (ev.type === 'playhead') syncPlayheadUi();
       else if (ev.type === 'selection') refreshAudioSelection();

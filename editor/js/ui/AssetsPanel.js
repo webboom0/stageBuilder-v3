@@ -1,6 +1,11 @@
 import { API, apiUrl, filesUrl } from '../config/app-config.js';
 import { loadMotionCatalog } from '../domain/motion/motionCatalog.js';
 import { loadPropCatalog, probePropApiAvailable } from '../domain/motion/propCatalog.js';
+import {
+  loadProjectAssets,
+  uploadProjectAsset,
+  deleteProjectAsset,
+} from '../domain/project/projectAssets.js';
 
 /** Must match server/server.js MEDIA_EXTS + limits */
 const UPLOAD_RULES = Object.freeze({
@@ -55,6 +60,7 @@ const UPLOAD_RULES = Object.freeze({
  *   onAddAudio?: (entry: { url: string, path: string, name: string, filename?: string }) => void | Promise<void>,
  *   onRemoveVideo?: () => void | Promise<void>,
  *   onCatalogChanged?: () => void | Promise<void>,
+ *   getProjectId?: () => string | null,
  * }} [opts]
  */
 export function createAssetsPanelBody(opts = {}) {
@@ -191,7 +197,10 @@ export function createAssetsPanelBody(opts = {}) {
     if (!quiet) statusEl.textContent = '불러오는 중…';
     try {
       let next = [];
-      if (tab === 'character') {
+      const projectId = opts.getProjectId?.() || null;
+      if (projectId) {
+        next = await loadProjectAssets(projectId, tab);
+      } else if (tab === 'character') {
         next = await loadMotionCatalog();
       } else if (tab === 'stage') {
         if (propApiAvailable === null) {
@@ -280,7 +289,7 @@ export function createAssetsPanelBody(opts = {}) {
         } else {
           await opts.onAddAudio?.({
             url: entry.url,
-            path: entry.path || `/files/music/${entry.filename}`,
+            path: entry.path || entry.url,
             name: entry.displayName || entry.name,
             filename: entry.filename,
           });
@@ -321,6 +330,13 @@ export function createAssetsPanelBody(opts = {}) {
 
     statusEl.textContent = '업로드 중…';
     try {
+      const projectId = opts.getProjectId?.() || null;
+      if (projectId) {
+        await uploadProjectAsset(projectId, tab, file);
+        await refresh({ quiet: true, notifyCatalog: true });
+        statusEl.textContent = '업로드 OK';
+        return;
+      }
       if (tab === 'stage' && propApiAvailable === null) {
         propApiAvailable = await probePropApiAvailable();
       }
@@ -384,6 +400,18 @@ export function createAssetsPanelBody(opts = {}) {
     }
     if (!window.confirm(`삭제할까요?\n${entry.filename}`)) return;
     try {
+      const projectId = opts.getProjectId?.() || null;
+      if (projectId) {
+        await deleteProjectAsset(projectId, tab, entry.filename);
+        if (tab === 'video' && entry.filename && isActiveVideo(entry)) {
+          await opts.onRemoveVideo?.();
+          activeVideoKey = null;
+        }
+        selectedKey = null;
+        await refresh({ quiet: true, notifyCatalog: true });
+        statusEl.textContent = '삭제됨';
+        return;
+      }
       let path = API.deleteFbx;
       if (tab === 'stage') path = propApiAvailable === false ? API.deleteFbx : API.deleteProp;
       else if (tab === 'video') path = API.deleteVideo;

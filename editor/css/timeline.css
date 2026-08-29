@@ -465,7 +465,8 @@ body.sb-tl-resize-active * {
   height: 20px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  gap: 2px;
+  padding: 0 8px 0 2px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -473,6 +474,35 @@ body.sb-tl-resize-active * {
   color: #c9b8ff;
   background: #161616;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sb-tl-sec-toggle {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+}
+
+.sb-tl-sec-toggle:hover {
+  color: #fff;
+}
+
+.sb-tl-sec-label-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-tl-sec-label.is-collapsed {
+  color: #9a8cc4;
 }
 
 .sb-tl-folder-label {

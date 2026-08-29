@@ -38,6 +38,47 @@ html/stageBuilder/
     video/         ← Video
 ```
 
+## Phase 6 — 프로젝트·씬 (로컬 완료 후 pivot 배포)
+
+로컬 `server/projectsRoutes.js`를 pivot에도 붙입니다 (**editor만으로는 Phase 6 API 동작 안 함**).
+
+### pivot server.js 에 추가
+
+`StageBuilder_v4/server/projectsRoutes.js` 와 동일 파일을 pivot에서 require:
+
+```javascript
+const { mountProjectRoutes } = require('E:/SynologyDrive/StageBuilder_v2_new/StageBuilder_v4/server/projectsRoutes');
+// 또는 pivot/nginx/server.js 옆에 projectsRoutes.js 복사 후:
+// const { mountProjectRoutes } = require('./projectsRoutes');
+
+mountProjectRoutes(app, {
+  requireAuth,
+  filesRoot: STAGEBUILDER_FILES_ROOT,
+  ensureDir,          // pivot에 이미 있는 헬퍼 재사용
+  getUniqueFileName,
+  safeListFiles,
+  safeDeleteFile,
+  buildUploadResponse,
+  MEDIA_EXTS,
+  multer,
+  createFileFilter,
+});
+```
+
+`STAGEBUILDER_FILES_ROOT` 아래 **`projects/`** 폴더 생성 후 Node **재시작**.
+
+### 프로젝트 폴더 (서버)
+
+```
+files/projects/{projectId}/
+  project.json
+  manifest.json
+  scenes/scene_01.json
+  assets/characters|props|audio|video/
+```
+
+일상 저장은 이 폴더에 JSON + 프로젝트별 에셋. 전역 `files/music/` · `fbx/` 는 **레거시** (Phase 6 에디터는 프로젝트 Assets 사용).
+
 ## 업로드 범위
 
 | 대상 | 경로 | 서버 API |

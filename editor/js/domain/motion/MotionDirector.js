@@ -16,6 +16,11 @@ import {
 import { sampleMotionBag } from './sampleTracks.js';
 import { motionKeyFromObject } from './motionKeyValue.js';
 import { createWalkLitePerformer, WALK_LITE_PROCEDURAL_ID, applyMotionTint } from './walkLitePerformer.js';
+import {
+  parseMotionIdFromGroup,
+  inferProcedural,
+  resolveMotionLoadUrl,
+} from '../project/sceneMotionPersistence.js';
 
 /** v3 MOTION_DEFAULT_SPAWN_Z ≈ 50 world units forward of deck center */
 export const MOTION_SPAWN_FORWARD_WORLD = 50;
@@ -314,6 +319,267 @@ export class MotionDirector {
     disposeObject(m.object);
     this.motions.delete(m.id);
     return true;
+  }
+
+  /** Dispose all motion objects (tracks managed separately). */
+  clearAll() {
+    for (const id of [...this.motions.keys()]) {
+      const m = this.motions.get(id);
+      if (!m) continue;
+      this.root.remove(m.object);
+      m.mixer?.stopAllAction();
+      disposeObject(m.object);
+      this.motions.delete(id);
+    }
+  }
+
+  /**
+   * Restore a motion object for an existing track (scene load).
+   * @param {{
+   *   id: string,
+   *   trackId: string,
+   *   name: string,
+   *   fileUrl: string,
+   *   assetRole?: 'character' | 'stage',
+   *   procedural?: string,
+   *   color?: string,
+   *   folderId?: string | null,
+   * }} ref
+   * @param {(path: string) => string} resolveUrl
+   */
+  async restoreFromSaved(ref, resolveUrl) {
+    if (!ref?.id) throw new Error('motion ref missing id');
+    if (this.motions.has(ref.id)) return this.motions.get(ref.id);
+
+    const procedural = inferProcedural(ref.fileUrl, ref.procedural);
+    ref = { ...ref, procedural };
+
+    let track = this.engine.getTrack(ref.trackId);
+    if (!track) {
+      const alt = this.engine.listTracks().find((t) => t.motionId === ref.id);
+      if (alt) {
+        track = alt;
+        ref.trackId = alt.id;
+      }
+    }
+    if (!track) {
+      track = this._ensureTrackForRestore(ref);
+      console.warn('[MotionDirector] recreated missing track for restore', ref.trackId, ref.name);
+    }
+    const assetRole = ref.assetRole === 'stage' ? 'stage' : 'character';
+    const url = resolveMotionLoadUrl(ref, resolveUrl);
+
+    track.name = ref.name || track.name;
+    track.motionId = ref.id;
+    track.color = ref.color || track.color;
+    track.folderId = ref.folderId ?? track.folderId;
+
+    const n = parseInt(String(ref.id).replace(/^mot_/, ''), 10);
+    if (Number.isFinite(n)) _seq = Math.max(_seq, n + 1);
+
+    const humanM = this.stageManager?.profile?.humanHeightM ?? DEFAULT_HUMAN_HEIGHT_M;
+    const worldPerM = getStageWorldPerMeter(this.stageManager);
+    const targetWorldHeight = resolveHumanWorldHeight(this.stageManager, humanM);
+
+    let root;
+    let animations = [];
+    let animDuration = 2;
+
+    if (assetRole === 'stage') {
+      const procId = procedural || resolveStageProceduralId(url);
+      if (procId) {
+        const loaded = createStagePrimitive(procId, { name: ref.name, stageManager: this.stageManager });
+        root = loaded.root;
+        animations = loaded.animations;
+        animDuration = loaded.animDuration;
+      } else {
+        const loaded = await loadPropAsset(url, { name: ref.name, stageManager: this.stageManager });
+        root = loaded.root;
+        animations = loaded.animations;
+        animDuration = loaded.animDuration;
+      }
+    } else if (
+      procedural
+      || String(url).includes('walk-lite')
+      || String(url).startsWith('procedural://')
+    ) {
+      root = createWalkLitePerformer({
+        displayName: ref.name,
+        targetWorldHeight,
+      });
+      animations = root.animations?.slice() || [];
+      animDuration = animations[0]?.duration > 0 ? animations[0].duration : 0.7;
+    } else {
+      const loaded = await loadMotionFbx(url, { name: ref.name, targetWorldHeight });
+      root = loaded.root;
+      animations = loaded.animations;
+      animDuration = loaded.animDuration;
+    }
+
+    root.userData.motionId = ref.id;
+    root.userData.source = assetRole === 'stage' ? 'stage-prop' : 'motion';
+    root.userData.assetRole = assetRole;
+    root.userData.fileUrl = ref.fileUrl || '';
+
+    const firstKey = track.keys.list()[0];
+    if (firstKey?.value?.position) {
+      root.position.set(
+        firstKey.value.position[0],
+        firstKey.value.position[1],
+        firstKey.value.position[2],
+      );
+    } else {
+      placeOnStage(root, this.stageManager);
+    }
+
+    const mixer = new THREE.AnimationMixer(root);
+    let action = null;
+    if (animations[0]) {
+      action = mixer.clipAction(animations[0]);
+      action.setLoop(THREE.LoopRepeat, Infinity);
+      action.play();
+    }
+
+    ensureMaterialsForOpacity(root);
+    disableMotionFrustumCull(root);
+    this.root.add(root);
+
+    /** @type {MotionItem} */
+    const item = {
+      id: ref.id,
+      name: ref.name,
+      object: root,
+      mixer,
+      action,
+      animDuration,
+      trackId: ref.trackId,
+      folderId: ref.folderId ?? null,
+      fileUrl: ref.fileUrl || '',
+      color: ref.color || track.color,
+      assetRole,
+      section: assetRole === 'stage' ? 'stage' : 'motion',
+    };
+    this.motions.set(ref.id, item);
+    this._syncTrackMotionMeta(track, ref);
+    this.apply(this.engine.playheadSec);
+    return item;
+  }
+
+  /**
+   * Restore 3D objects for motion tracks that still have no instance after doc.motions pass.
+   * @param {object} doc
+   * @param {(path: string) => string} resolveUrl
+   */
+  async reconcileMotionsFromDocument(doc, resolveUrl) {
+    /** @type {Map<string, object>} */
+    const refsById = new Map();
+    /** @type {Map<string, object>} */
+    const refsByTrackId = new Map();
+    for (const ref of doc.motions || []) {
+      if (!ref?.id) continue;
+      refsById.set(ref.id, ref);
+      if (ref.trackId) refsByTrackId.set(ref.trackId, ref);
+    }
+
+    for (const track of this.engine.listTracks()) {
+      if (!this._isMotionTrack(track)) continue;
+      const motionId = track.motionId || parseMotionIdFromGroup(track.group);
+      if (!motionId) continue;
+      if (this.motions.has(motionId)) continue;
+      if (this.findByTrackId(track.id)) continue;
+
+      let ref = refsById.get(motionId) || refsByTrackId.get(track.id);
+      if (!ref && track.motionMeta) {
+        ref = {
+          id: motionId,
+          trackId: track.id,
+          name: track.name,
+          fileUrl: track.motionMeta.fileUrl || '',
+          assetRole: track.motionMeta.assetRole || (track.section === 'stage' ? 'stage' : 'character'),
+          procedural: track.motionMeta.procedural || inferProcedural(track.motionMeta.fileUrl, null),
+          color: track.motionMeta.color ?? track.color ?? null,
+          folderId: track.motionMeta.folderId ?? track.folderId ?? null,
+        };
+      }
+      if (!ref) {
+        console.warn('[MotionDirector] motion track without restore data:', track.name, track.id);
+        continue;
+      }
+      try {
+        await this.restoreFromSaved({ ...ref, id: motionId, trackId: track.id }, resolveUrl);
+      } catch (err) {
+        console.warn('[MotionDirector] reconcile restore failed:', ref.name, err);
+      }
+    }
+  }
+
+  /** @param {import('../timeline/Track.js').Track} track */
+  _isMotionTrack(track) {
+    return track.kind === 'motion'
+      || !!track.motionId
+      || String(track.group || '').startsWith('motion:')
+      || String(track.group || '').startsWith('stage:');
+  }
+
+  /**
+   * @param {import('../timeline/Track.js').Track} track
+   * @param {{ fileUrl?: string, assetRole?: string, procedural?: string | null, color?: string | null, folderId?: string | null }} ref
+   */
+  _syncTrackMotionMeta(track, ref) {
+    track.motionMeta = {
+      fileUrl: ref.fileUrl || '',
+      assetRole: ref.assetRole || 'character',
+      procedural: inferProcedural(ref.fileUrl, ref.procedural),
+      color: ref.color ?? track.color ?? null,
+      folderId: ref.folderId ?? track.folderId ?? null,
+    };
+  }
+
+  /** Recreate timeline rows for motions that loaded without a track row. */
+  reconcileTracks() {
+    for (const m of this.motions.values()) {
+      if (this.engine.getTrack(m.trackId)) continue;
+      const section = m.assetRole === 'stage' ? 'stage' : 'motion';
+      const track = this.engine.addTrack({
+        id: m.trackId,
+        name: m.name,
+        kind: 'motion',
+        group: `${section}:${m.id}`,
+        section,
+        folderId: m.folderId ?? null,
+        motionId: m.id,
+        color: m.color ?? null,
+      });
+      const keyValue = motionKeyFromObject(m.object);
+      const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
+      this.engine.addKeyframe(track.id, ph, keyValue, INTERPOLATION.LINEAR);
+      console.warn('[MotionDirector] reconciled orphan motion track', m.name, m.trackId);
+    }
+  }
+
+  /**
+   * @param {{
+   *   id: string,
+   *   trackId: string,
+   *   name: string,
+   *   assetRole?: 'character' | 'stage',
+   *   folderId?: string | null,
+   *   color?: string | null,
+   * }} ref
+   */
+  _ensureTrackForRestore(ref) {
+    const assetRole = ref.assetRole === 'stage' ? 'stage' : 'character';
+    const section = assetRole === 'stage' ? 'stage' : 'motion';
+    return this.engine.addTrack({
+      id: ref.trackId,
+      name: ref.name || (assetRole === 'stage' ? 'Stage' : 'Character'),
+      kind: 'motion',
+      group: `${section}:${ref.id}`,
+      section,
+      folderId: ref.folderId ?? null,
+      motionId: ref.id,
+      color: ref.color ?? null,
+    });
   }
 }
 

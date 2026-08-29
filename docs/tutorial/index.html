@@ -17,6 +17,7 @@
         <div class="nav-group">시작</div>
         <a href="#intro" class="nav-l2">안내</a>
         <a href="#layout" class="nav-l2">화면 구성</a>
+        <a href="#project-scenes" class="nav-l2">프로젝트 · 씬</a>
 
         <div class="nav-group">무대</div>
         <a href="#stage-type" class="nav-l2">타입 · 규격</a>
@@ -74,13 +75,95 @@
           <tbody>
             <tr><td>상단 메뉴</td><td>파일 · 편집 · 씬 · 추가 · 보기 · 연출 · 도움말 · 그리드</td></tr>
             <tr><td>메뉴 바로 아래</td><td>연결 상태 · 무대 크기 · 안내 메시지 (상태 표시줄)</td></tr>
-            <tr><td>왼쪽</td><td>무대 · Assets · 그룹 패널</td></tr>
+            <tr><td>왼쪽</td><td><strong>프로젝트</strong> · 무대 · Assets · 그룹 패널</td></tr>
             <tr><td>가운데</td><td>3D 무대 뷰 · 하단 <strong>뷰포트 툴바</strong> (이동/카메라/빌딩고정)</td></tr>
             <tr><td>오른쪽</td><td>Properties — Characters(속성·구간) / Stage(속성) / 조명</td></tr>
             <tr><td>하단</td><td>타임라인</td></tr>
           </tbody>
         </table>
         <div class="figure">메뉴 · 패널 · 뷰 · 타임라인 전체 화면</div>
+      </section>
+
+      <section id="project-scenes">
+        <h2>프로젝트 · 씬 (막)</h2>
+        <p>
+          에디터를 열면 먼저 <strong>프로젝트 허브</strong>에서 공연을 고르거나 새로 만듭니다.
+          편집 중에는 왼쪽 <strong>프로젝트</strong> 패널(필름 아이콘)에서 공연명과 씬 목록을 확인합니다.
+        </p>
+
+        <h3>프로젝트 허브</h3>
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>새 공연</td><td><strong>+ 새 프로젝트</strong> → 정보 입력</td></tr>
+            <tr><td>열기</td><td>목록에서 프로젝트 클릭</td></tr>
+            <tr><td>ZIP 가져오기</td><td><strong>ZIP 가져오기</strong> (허브 · <strong>파일 → ZIP 가져오기…</strong>)</td></tr>
+            <tr><td>목록 갱신</td><td><strong>↻ 새로고침</strong></td></tr>
+          </tbody>
+        </table>
+
+        <h3>프로젝트 정보 (수정)</h3>
+        <p>
+          패널 상단 <strong>요약 박스</strong>에 공연 정보가 표시됩니다.
+          <strong>수정</strong>을 누르면 팝업에서 입력·변경합니다.
+          새 프로젝트를 만들 때도 같은 항목을 입력합니다.
+        </p>
+        <table>
+          <thead><tr><th>표시</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><strong>큰 제목</strong></td><td><strong>공연명</strong> (필수)</td></tr>
+            <tr><td><strong>아래 한 줄</strong></td><td>입력한 항목을 <strong>공연장소 · 장르 · 연출 · 공연기간</strong> 순으로 이어 붙여 표시</td></tr>
+            <tr><td>비어 있을 때</td><td><strong>수정에서 정보 입력</strong> 안내</td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th>팝업 항목</th><th>필수</th><th>예시</th></tr></thead>
+          <tbody>
+            <tr><td><strong>공연명</strong></td><td>✓</td><td>로미오와 줄리엣</td></tr>
+            <tr><td><strong>장르</strong></td><td></td><td>뮤지컬, 연극</td></tr>
+            <tr><td><strong>공연기간</strong></td><td></td><td>시작일 ~ 종료일 (날짜 선택)</td></tr>
+            <tr><td><strong>공연장소/규모</strong></td><td></td><td>예술의전당/대극장</td></tr>
+            <tr><td><strong>연출</strong></td><td></td><td>홍길동 → 요약 줄에 <strong>연출 홍길동</strong>으로 표시</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <strong>파일 → 프로젝트 편집…</strong>은 저장된 <strong>프로젝트 목록</strong>에서 고르고 수정·삭제하는 메뉴입니다.
+          지금 연 공연 정보를 바꿀 때는 패널 <strong>수정</strong>을 사용하세요.
+        </div>
+
+        <h3>씬 · 패널</h3>
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>지금 편집 중인 씬</td><td>목록 <strong>편집 중</strong> · 왼쪽 <strong>번호</strong> (1막·2막 순서) · 상태 표시줄 「공연명」 1막</td></tr>
+            <tr><td>씬 저장</td><td>씬 (막) 옆 <strong>저장</strong> · <strong>파일 → 저장</strong> (Ctrl+S)</td></tr>
+            <tr><td>자동 저장</td><td>변경 후 약 <strong>45초</strong> 뒤 자동 저장 · <strong>저장 안 됨 *</strong> 표시는 수동/자동 저장 전</td></tr>
+            <tr><td>씬 전환</td><td>목록 클릭 · <strong>씬 → 이전/다음</strong> (Ctrl+[ / Ctrl+])</td></tr>
+            <tr><td>씬 추가</td><td><strong>+</strong> · <strong>씬 → 씬 추가</strong></td></tr>
+            <tr><td>이름 변경</td><td>씬 항목 <strong>더블클릭</strong> · <strong>씬 → 이름 바꾸기…</strong></td></tr>
+            <tr><td>씬 순서</td><td>항목 옆 <strong>↑ ↓</strong></td></tr>
+            <tr><td>씬 복제</td><td>복제 아이콘 · <strong>씬 → 씬 복제</strong></td></tr>
+            <tr><td>씬 삭제</td><td>휴지통 (마지막 씬은 불가) · <strong>씬 → 씬 삭제</strong></td></tr>
+          </tbody>
+        </table>
+
+        <h3>ZIP 내보내기 · 가져오기</h3>
+        <p><strong>파일 → 내보내기</strong>에서 ZIP 두 종류를 고릅니다. 둘 다 ZIP 형식이며, 안에 들어 있는 내용만 다릅니다.</p>
+        <table>
+          <thead><tr><th>메뉴</th><th>포함 내용</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><strong>프로젝트 ZIP (에셋 포함)…</strong></td><td>씬 JSON + FBX·음악·영상 등 <strong>프로젝트 에셋 전체</strong></td><td>백업 · 다른 PC로 옮기기</td></tr>
+            <tr><td><strong>프로젝트 ZIP (JSON만)…</strong></td><td>project · manifest · 씬 JSON <strong>만</strong> (에셋 파일 없음)</td><td>가벼운 공유 · 구조만 전달</td></tr>
+          </tbody>
+        </table>
+        <div class="note">JSON만 ZIP을 가져오면 씬은 열리지만, 없는 파일은 <strong>씬 로드 경고</strong>로 알려 줍니다. 에셋은 Assets 탭에서 다시 올리거나, 에셋 포함 ZIP을 사용하세요.</div>
+
+        <h3>씬 로드 경고</h3>
+        <p>씬을 열 때 모션·오디오·영상·에셋 파일을 찾지 못하면 경고 창이 뜹니다. 씬 자체는 열리며, 누락 항목만 목록으로 보여 줍니다.</p>
+
+        <div class="note">에디터 진입·씬 전환 시 무대·건물·씬 로드가 끝날 때까지 로딩 화면이 표시됩니다.</div>
+        <div class="note">씬마다 타임라인·모션·조명이 따로 저장됩니다. Assets는 프로젝트마다 묶입니다.</div>
+        <div class="figure">프로젝트 패널 — 공연명 · 요약 한 줄 · 수정 · 씬 번호 · ↑↓ · 편집 중</div>
       </section>
 
       <section id="stage-type">
@@ -111,6 +194,16 @@
           </tbody>
         </table>
         <div class="figure">무대 패널 — 타입 · 규격 · W/D</div>
+
+        <h3>기본 소품</h3>
+        <p>같은 <strong>무대</strong> 패널 아래 <strong>기본 소품</strong>에서 추가할 수도 있습니다. 새 씬·씬 전환 시 <strong>직육면체·원통</strong>이 없으면 자동 배치됩니다.</p>
+        <table>
+          <thead><tr><th>소품</th><th>크기</th></tr></thead>
+          <tbody>
+            <tr><td>직육면체</td><td>0.5 × 0.5 × 0.5 m</td></tr>
+            <tr><td>원통</td><td>반경 0.25 m · 높이 0.5 m</td></tr>
+          </tbody>
+        </table>
       </section>
 
       <section id="stage-camera">
@@ -552,7 +645,7 @@
             <tr><td>재생</td><td><span class="kbd">Space</span> — 타임라인과 동기</td></tr>
           </tbody>
         </table>
-        <div class="note">서버 <code>/files/music/</code> 경로만 사용 (blob URL 저장 안 함). 프로젝트 저장은 이후 버전.</div>
+        <div class="note">서버 프로젝트 폴더에 저장됩니다. blob URL은 저장되지 않습니다.</div>
         <div class="figure">Audio 트랙 · 클립 · 파형</div>
       </section>
 
@@ -571,7 +664,7 @@
 
       <section id="coming">
         <h2>곧 추가되는 기능</h2>
-        <p>멀티 씬 · 프로젝트 저장 · Show Control · 렌더는 이후 버전에 이어집니다.</p>
+        <p>Show Control · 렌더 등은 이후 버전에 이어집니다.</p>
       </section>
 
       <p class="footer-meta">

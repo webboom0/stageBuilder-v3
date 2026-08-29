@@ -78,6 +78,13 @@ export class FixtureDirector {
     }
   }
 
+  /** Clear fixture timeline state before loading another scene. */
+  resetForSceneLoad() {
+    this.channels.clear();
+    this.fxEngine.clearAllTimelineBags();
+    this.fxEngine.update();
+  }
+
   /**
    * Create timeline track for one fixture if missing.
    * @param {number} fid

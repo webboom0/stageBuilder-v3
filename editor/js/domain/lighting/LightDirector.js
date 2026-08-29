@@ -56,7 +56,7 @@ export class LightDirector {
   /** Ensure physical HOUSE lights exist — no auto timeline tracks. */
   ensureHouseLights() {
     ensureHouseStageLights(this.stageManager);
-    applyHouseLightLevels(this.scene, readHouseLightLevels(this.scene));
+    applyHouseLightLevels(this.scene, readHouseLightLevels(this.scene), this.stageManager);
     this.resyncChannelsFromEngine();
     this.apply(this.engine.playheadSec);
   }
@@ -79,6 +79,15 @@ export class LightDirector {
         kind: 'house',
       });
     }
+  }
+
+  /** Reset live HOUSE levels before loading another scene's tracks. */
+  resetForSceneLoad() {
+    for (const def of HOUSE_CHANNELS) {
+      resetHouseChannelLive(this.scene, def.channel);
+    }
+    this._preHideBag.clear();
+    this.channels.clear();
   }
 
   /**

@@ -1,4 +1,5 @@
 import { loadMotionCatalog } from '../domain/motion/motionCatalog.js';
+import { loadProjectAssets } from '../domain/project/projectAssets.js';
 import {
   SEGMENT_KIND_LABELS,
   SEGMENT_EASING,
@@ -26,6 +27,7 @@ import { normalizeColorHex } from '../domain/motion/walkLitePerformer.js';
  *     onPicked: (pt: { x: number, z: number }) => void,
  *   }) => void,
  *   getDefaultSpawn?: () => { fromX: number, fromZ: number, formationSpacing?: number },
+ *   getProjectId?: () => string | null,
  * }} opts
  */
 export function createGroupsPanelBody(opts) {
@@ -82,13 +84,18 @@ export function createGroupsPanelBody(opts) {
 
   /** @type {any[]} */
   let catalog = [];
+  let catalogReady = false;
   /** @type {Set<number>} */
   const selectedSlots = new Set();
   /** @type {Set<string>} */
   const selectedMemberIds = new Set();
 
   async function loadCatalog() {
-    catalog = await loadMotionCatalog();
+    const projectId = opts.getProjectId?.() || null;
+    catalog = projectId
+      ? await loadProjectAssets(projectId, 'character')
+      : await loadMotionCatalog();
+    catalogReady = true;
     renderCatalog();
   }
 
@@ -130,8 +137,12 @@ export function createGroupsPanelBody(opts) {
   }
 
   function renderCatalog() {
-    if (!catalog.length) {
+    if (!catalogReady) {
       catalogEl.innerHTML = '<div class="sb-ens-empty">목록 불러오는 중…</div>';
+      return;
+    }
+    if (!catalog.length) {
+      catalogEl.innerHTML = '<div class="sb-ens-empty">Characters 에셋이 없습니다.</div>';
       return;
     }
     catalogEl.innerHTML = catalog.map((entry, index) => {

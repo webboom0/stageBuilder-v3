@@ -63,6 +63,10 @@ function mountFileMenu(host, ctx) {
     shortcut: 'Ctrl+O',
     onClick: () => stub(ctx, 'file:open'),
   });
+  addOption(options, {
+    label: '프로젝트 편집…',
+    onClick: () => stub(ctx, 'file:manageProjects'),
+  });
   addSeparator(options);
   addOption(options, {
     label: '저장',
@@ -70,23 +74,15 @@ function mountFileMenu(host, ctx) {
     onClick: () => stub(ctx, 'file:save'),
   });
   addOption(options, {
-    label: '다른 이름으로 저장…',
-    onClick: () => stub(ctx, 'file:saveAs'),
+    label: 'ZIP 가져오기…',
+    onClick: () => stub(ctx, 'file:import:zip'),
   });
   addSeparator(options);
 
-  const importTitle = addOption(options, { label: '가져오기', submenu: true });
-  const importSub = createSubmenu(importTitle, root);
-  addOption(importSub, { label: '모션 (FBX)…', onClick: () => stub(ctx, 'file:import:fbx') });
-  addOption(importSub, {
-    label: 'v3 모션 JSON…',
-    onClick: () => stub(ctx, 'file:import:v3motion'),
-  });
-  addOption(importSub, { label: '오디오…', onClick: () => stub(ctx, 'file:import:audio') });
-
   const exportTitle = addOption(options, { label: '내보내기', submenu: true });
   const exportSub = createSubmenu(exportTitle, root);
-  addOption(exportSub, { label: '프로젝트 ZIP…', onClick: () => stub(ctx, 'file:export:zip') });
+  addOption(exportSub, { label: '프로젝트 ZIP (에셋 포함)…', onClick: () => stub(ctx, 'file:export:zip') });
+  addOption(exportSub, { label: '프로젝트 ZIP (JSON만)…', onClick: () => stub(ctx, 'file:export:zipLink') });
   addOption(exportSub, { label: '현재 씬 렌더…', onClick: () => stub(ctx, 'file:export:renderScene') });
   addOption(exportSub, { label: '전체 렌더…', onClick: () => stub(ctx, 'file:export:renderAll') });
 

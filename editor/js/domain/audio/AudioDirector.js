@@ -85,7 +85,12 @@ export class AudioDirector {
     const n = this.listAudioTracks().length + 1;
     const trackName = entry.name || entry.filename || `Audio ${n}`;
     const track = this.createTrack(trackName);
-    return this.addClipToTrack(track.id, entry);
+    try {
+      return await this.addClipToTrack(track.id, entry);
+    } catch (err) {
+      this.removeTrack(track.id);
+      throw err;
+    }
   }
 
   /**

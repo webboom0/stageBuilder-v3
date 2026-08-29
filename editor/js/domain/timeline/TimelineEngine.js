@@ -373,6 +373,47 @@ export class TimelineEngine {
     else this.play();
   }
 
+  /** Clear timeline for scene switch / project load (no undo). */
+  resetForSceneLoad() {
+    this.pause();
+    this.tracks.clear();
+    this.folders.clear();
+    this.commands.reset();
+    this.clearSelection();
+    this.playheadSec = 0;
+    this.emit('tracks');
+    this.emit('keys');
+  }
+
+  /**
+   * @param {{
+   *   durationSec?: number,
+   *   durationMode?: string,
+   *   playheadSec?: number,
+   *   tracks?: ReturnType<Track['snapshot']>[],
+   *   folders?: Array<{ id: string, name: string, collapsed: boolean }>,
+   * }} data
+   */
+  loadFromSceneData(data) {
+    this.resetForSceneLoad();
+    if (Number.isFinite(data.durationSec)) this.durationSec = data.durationSec;
+    if (data.durationMode) this.durationMode = data.durationMode;
+    if (Number.isFinite(data.playheadSec)) this.playheadSec = data.playheadSec;
+    for (const f of data.folders || []) {
+      this.folders.set(f.id, {
+        id: f.id,
+        name: f.name,
+        collapsed: !!f.collapsed,
+      });
+    }
+    for (const snap of data.tracks || []) {
+      this.tracks.set(snap.id, Track.fromSnapshot(snap));
+    }
+    this.emit('tracks');
+    this.emit('duration');
+    this.emit('playhead');
+  }
+
   /** Seed demo tracks for Phase 2 QA */
   seedDemoTracks() {
     if (this.tracks.size) return;

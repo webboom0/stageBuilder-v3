@@ -1,5 +1,6 @@
 import { createPanelRail } from './PanelRail.js';
 import { createDockPanel } from './floatPanel.js';
+import { createProjectPanelBody } from './project/ProjectPanel.js';
 import { createStagePanelBody } from './StagePanel.js';
 import { createAssetsPanelBody } from './AssetsPanel.js';
 import { createGroupsPanelBody } from './GroupsPanel.js';
@@ -59,11 +60,49 @@ import {
  *   onApplyMotionAnim?: (motionId: string) => void | Promise<void>,
  *   onTransformMode?: (mode: 'translate' | 'rotate' | 'scale') => void,
  *   onTransformSpace?: (local: boolean) => void,
+ *   getProjectId?: () => string | null,
+ *   getProjectStore?: () => import('../domain/project/ProjectStore.js').ProjectStore | null,
+ *   onSwitchScene?: (sceneId: string) => void | Promise<void>,
+ *   onAddScene?: () => void | Promise<void>,
+ *   onRenameScene?: (sceneId: string, name: string) => void | Promise<void>,
+ *   onDuplicateScene?: (sceneId: string) => void | Promise<void>,
+ *   onDeleteScene?: (sceneId: string) => void | Promise<void>,
+ *   onReorderScene?: (sceneId: string, direction: 'up' | 'down') => void | Promise<void>,
+ *   onSaveProject?: () => void | Promise<void>,
+ *   onUpdateProjectMeta?: (meta: object) => void | Promise<void>,
  * }} ctx
  */
 export function mountEditorShell(root, ctx) {
-  const leftRail = createPanelRail(root, { side: 'left', distribution: 'resizable' });
-  const rightRail = createPanelRail(root, { side: 'right', distribution: 'resizable' });
+  const leftRail = createPanelRail(root, { side: 'left', distribution: 'resizable', collapseMode: true });
+  const rightRail = createPanelRail(root, { side: 'right', distribution: 'resizable', collapseMode: true });
+
+  let projectPanelUi = null;
+  if (ctx.getProjectStore) {
+    projectPanelUi = createProjectPanelBody({
+      getStore: () => ctx.getProjectStore?.() ?? null,
+      onSwitchScene: (sceneId) => ctx.onSwitchScene?.(sceneId),
+      onAddScene: () => ctx.onAddScene?.(),
+      onRenameScene: (sceneId, name) => ctx.onRenameScene?.(sceneId, name),
+      onDuplicateScene: (sceneId) => ctx.onDuplicateScene?.(sceneId),
+      onDeleteScene: (sceneId) => ctx.onDeleteScene?.(sceneId),
+      onReorderScene: (sceneId, direction) => ctx.onReorderScene?.(sceneId, direction),
+      onSave: () => ctx.onSaveProject?.(),
+      onUpdateMeta: (meta) => ctx.onUpdateProjectMeta?.(meta),
+    });
+    const projectPanel = createDockPanel('프로젝트', projectPanelUi.root, {
+      storageKey: 'dock-project',
+      defaultHeight: 260,
+      minHeight: 180,
+    });
+    leftRail.registerPanel({
+      id: 'project',
+      icon: 'fas fa-film',
+      label: '프로젝트',
+      panelEl: projectPanel.el,
+      panelApi: projectPanel,
+      defaultOpen: true,
+    });
+  }
 
   const stageUi = createStagePanelBody({
     stageManager: ctx.stageManager,
@@ -74,20 +113,22 @@ export function mountEditorShell(root, ctx) {
 
   const stagePanel = createDockPanel('무대', stageUi.root, {
     storageKey: 'dock-stage-무대',
-    defaultHeight: 220,
+    defaultHeight: 300,
   });
 
   leftRail.registerPanel({
     id: 'stage',
     icon: 'fas fa-theater-masks',
     label: '무대',
-    panelEl: stagePanel,
+    panelEl: stagePanel.el,
+    panelApi: stagePanel,
     defaultOpen: true,
   });
 
   let groupsUi = null;
 
   const assetsUi = createAssetsPanelBody({
+    getProjectId: () => ctx.getProjectId?.() ?? null,
     onAddCharacter: (entry) => ctx.onAddCharacter?.(entry),
     onAddProp: (entry) => ctx.onAddProp?.(entry),
     onAddVideo: (entry) => ctx.onAddVideo?.(entry),
@@ -105,7 +146,8 @@ export function mountEditorShell(root, ctx) {
     id: 'assets',
     icon: 'fas fa-folder-open',
     label: 'Assets',
-    panelEl: assetsPanel,
+    panelEl: assetsPanel.el,
+    panelApi: assetsPanel,
     defaultOpen: true,
   });
 
@@ -141,13 +183,15 @@ export function mountEditorShell(root, ctx) {
     id: 'properties',
     icon: 'fas fa-sliders-h',
     label: '속성',
-    panelEl: propsPanel,
+    panelEl: propsPanel.el,
+    panelApi: propsPanel,
     defaultOpen: true,
   });
 
   if (ctx.groupStore) {
     groupsUi = createGroupsPanelBody({
       store: ctx.groupStore,
+      getProjectId: () => ctx.getProjectId?.() ?? null,
       onDeploy: (groupId) => ctx.onDeployGroup?.(groupId),
       onPickGroupPoint: (pick) => ctx.onPickGroupPoint?.(pick),
       getDefaultSpawn: () => ctx.getGroupDefaultSpawn?.() || { fromX: 0, fromZ: 50 },
@@ -164,8 +208,10 @@ export function mountEditorShell(root, ctx) {
       id: 'sc-groups',
       icon: 'fas fa-users',
       label: '그룹',
-      panelEl: groupsPanel,
-      defaultOpen: false,
+      panelEl: groupsPanel.el,
+      panelApi: groupsPanel,
+      defaultOpen: true,
+      startCollapsed: true,
     });
   }
 
@@ -190,8 +236,10 @@ export function mountEditorShell(root, ctx) {
       id: 'sc-lighting',
       icon: 'fas fa-lightbulb',
       label: '조명',
-      panelEl: lightingPanel,
-      defaultOpen: false,
+      panelEl: lightingPanel.el,
+      panelApi: lightingPanel,
+      defaultOpen: true,
+      startCollapsed: true,
     });
   }
 
@@ -205,7 +253,6 @@ export function mountEditorShell(root, ctx) {
   const syncHelperUi = () => {
     menubarApi?.syncViewToggles();
     controlsApi?.sync();
-    ctx.onChange?.();
   };
 
   const handleStageFocusToggle = () => toggleStageFocus();
@@ -260,5 +307,8 @@ export function mountEditorShell(root, ctx) {
     syncLightingPanel: () => lightingUi?.sync(),
     refreshGroups: () => groupsUi?.render(),
     refreshGroupsCatalog: () => groupsUi?.refreshCatalog?.(),
+    refreshProjectPanel: () => projectPanelUi?.render(),
+    openProjectPanel: () => leftRail.openPanel('project'),
+    setProjectPanelSaving: (busy) => projectPanelUi?.setSaving?.(busy),
   };
 }

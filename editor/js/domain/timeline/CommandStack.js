@@ -58,4 +58,10 @@ export class CommandStack {
   _emit() {
     this._listeners.forEach((fn) => fn());
   }
+
+  reset() {
+    this._stack = [];
+    this._index = -1;
+    this._emit();
+  }
 }

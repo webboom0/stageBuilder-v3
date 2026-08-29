@@ -12,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const cors = require('cors');
+const { mountProjectRoutes } = require('./projectsRoutes');
 
 const SECRET_KEY = process.env.SECRET_KEY || 'pivot-secret-key';
 const PORT = Number(process.env.PORT) || 3000;
@@ -291,29 +292,18 @@ app.delete('/api/video-files/:filename', requireAuth, (req, res) => {
   return res.json({ success: true });
 });
 
-// ─── Projects (Phase 6 stub) ───
-app.get('/api/projects', requireAuth, (_req, res) => {
-  if (!fs.existsSync(PROJECTS_ROOT)) return res.json([]);
-  const dirs = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true }).filter((d) => d.isDirectory());
-  const projects = dirs
-    .map((d) => {
-      const projectJson = path.join(PROJECTS_ROOT, d.name, 'project.json');
-      if (!fs.existsSync(projectJson)) return null;
-      try {
-        const data = JSON.parse(fs.readFileSync(projectJson, 'utf8'));
-        const stats = fs.statSync(projectJson);
-        return {
-          id: d.name,
-          name: data.name || d.name,
-          sceneCount: Array.isArray(data.scenes) ? data.scenes.length : 0,
-          updatedAt: stats.mtime.toISOString(),
-        };
-      } catch {
-        return { id: d.name, name: d.name, sceneCount: 0, updatedAt: null };
-      }
-    })
-    .filter(Boolean);
-  res.json(projects);
+// ─── Projects (Phase 6) — shared module for pivot require ───
+mountProjectRoutes(app, {
+  requireAuth,
+  filesRoot: STAGEBUILDER_FILES_ROOT,
+  ensureDir,
+  getUniqueFileName,
+  safeListFiles,
+  safeDeleteFile,
+  buildUploadResponse,
+  MEDIA_EXTS,
+  multer,
+  createFileFilter,
 });
 
 // ─── Static (pivot-compatible paths) ───

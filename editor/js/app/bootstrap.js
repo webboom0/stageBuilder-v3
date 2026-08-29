@@ -29,22 +29,37 @@ import { VideoBackground } from '../domain/video/VideoBackground.js';
 import { LightDirector } from '../domain/lighting/LightDirector.js';
 import { FixtureDirector } from '../domain/lighting/FixtureDirector.js';
 import { AudioDirector } from '../domain/audio/AudioDirector.js';
+import { setAudioProjectResolver } from '../domain/audio/audioPaths.js';
 import { ensureWorkLights } from '../domain/lighting/workLights.js';
-import { setWorkLightActive } from '../domain/lighting/houseStageLights.js';
+import { setWorkLightActive, bindHouseStageManager } from '../domain/lighting/houseStageLights.js';
 import { initTooltips } from '../ui/initTooltips.js';
+import { runProjectHub } from '../ui/project/ProjectHub.js';
+import { showProjectPickerDialog } from '../ui/project/ProjectPickerDialog.js';
+import { showProjectManagerDialog } from '../ui/project/ProjectManagerDialog.js';
+import { showSceneLoadReportDialog } from '../ui/project/SceneLoadReportDialog.js';
+import { showProjectMetaPopup } from '../ui/project/ProjectMetaPopup.js';
+import { createProject, exportProjectBundle, importProjectBundle, listProjects, probeProjectsApi } from '../domain/project/projectApi.js';
+import { ProjectStore } from '../domain/project/ProjectStore.js';
+import { createEditorLoadingOverlay } from '../ui/EditorLoadingOverlay.js';
 
 const statusEl = document.getElementById('status');
 const viewportEl = document.getElementById('viewport');
 const wrapperEl = document.querySelector('.wrapper');
 const timelineHost = document.getElementById('timeline');
 
+/** 자동 저장 — 마지막 편집 후 대기 (dirty일 때만 저장) */
+const AUTO_SAVE_DEBOUNCE_MS = 45 * 1000;
+
 const MENU_PHASE_HINTS = {
   'file:new': 'Phase 6 — 프로젝트',
   'file:open': 'Phase 6 — 프로젝트',
+  'file:manageProjects': 'Phase 6 — 프로젝트',
   'file:save': 'Phase 6 — 프로젝트',
   'file:saveAs': 'Phase 6 — 프로젝트',
   'file:import:audio': 'Phase 5 — 오디오',
+  'file:import:zip': 'Phase 6 — 프로젝트 ZIP',
   'file:export:zip': 'Phase 6 — ZIP',
+  'file:export:zipLink': 'Phase 6 — ZIP (JSON)',
   'file:export:renderScene': 'Phase 7 — 렌더',
   'file:export:renderAll': 'Phase 7 — 렌더',
   'edit:clone': 'Phase 3+',
@@ -73,7 +88,7 @@ function setStatus(text) {
   if (statusEl) statusEl.textContent = text;
 }
 
-function formatStatus(api, stageManager, extra = '') {
+function formatStatus(api, stageManager, extra = '', projectStore = null) {
   const { profile, stageType } = stageManager;
   const typeLabel = STAGE_TYPES[stageType]?.label ?? stageType;
   const hasStage = !!stageManager.background;
@@ -81,11 +96,16 @@ function formatStatus(api, stageManager, extra = '') {
     ? `Assets API OK (local ${API_BASE_URL}) | FBX ${api.fbxCount} · Audio ${api.audioCount}`
     : `Assets API unavailable (${API_BASE_URL}) — run: node server/server.js`;
 
-  const parts = [
+  const parts = [];
+  if (projectStore?.project) {
+    const p = projectStore.project;
+    parts.push(`「${p.showName || p.name || projectStore.projectId}」 ${projectStore.sceneName()}${projectStore.dirty ? ' *' : ''}`);
+  }
+  parts.push(
     apiLine,
     `${typeLabel} ${profile.widthM}×${profile.depthM}m (${Math.round(profile.widthM * profile.depthM)}㎡)`,
     hasStage ? 'Stage shell OK' : 'Stage shell missing — check ../files/stage/*.fbx',
-  ];
+  );
   const eff = stageManager.getEffectiveProfile?.();
   if (eff?.clamped) {
     parts.push(`적용 ${eff.effectiveWidthM}×${eff.effectiveDepthM}m (한도)`);
@@ -105,6 +125,10 @@ async function checkApi() {
     const health = await fetchJson(API.health);
     let fbxCount = 0;
     let audioCount = 0;
+    let projectsOk = false;
+    try {
+      projectsOk = await probeProjectsApi();
+    } catch { /* ignore */ }
     try {
       const fbxFiles = await fetchJson(API.fbxFiles);
       fbxCount = Array.isArray(fbxFiles) ? fbxFiles.length : 0;
@@ -113,7 +137,7 @@ async function checkApi() {
       const audioFiles = await fetchJson(API.audioFiles);
       audioCount = Array.isArray(audioFiles) ? audioFiles.length : 0;
     } catch { /* auth */ }
-    return { health, fbxCount, audioCount };
+    return { health, fbxCount, audioCount, projectsOk };
   } catch (err) {
     console.warn('Assets API check failed:', err);
     return null;
@@ -181,11 +205,18 @@ function initViewport(stageManager, helpers, shellRef, videoBgRef) {
   return { camera, renderer, controls, resize };
 }
 
-async function main() {
-  initTooltips(document.body);
+async function main(initialProjectStore) {
+  let projectStore = initialProjectStore;
+  const bootLoading = createEditorLoadingOverlay();
+  bootLoading.show('에디터 준비 중…');
+
+  setAudioProjectResolver(() => projectStore?.projectId ?? null);
   setStatus('Loading stage…');
   const api = await checkApi();
-  const stageManager = new StageManager(DEFAULT_STAGE_PROFILE);
+  const stageManager = new StageManager(
+    projectStore?.project?.stageProfile || DEFAULT_STAGE_PROFILE,
+  );
+  bindHouseStageManager(stageManager);
   const helpers = new StageViewportHelpers(stageManager.scene, { stageManager });
   const timeline = new TimelineEngine();
   const motion = new MotionDirector({
@@ -224,6 +255,12 @@ async function main() {
   timeline.subscribe((ev) => {
     if (ev.type === 'selection') {
       syncStageFromTimelineSelection();
+    }
+    if (
+      !suppressSceneDirty
+      && (ev.type === 'keys' || ev.type === 'tracks' || ev.type === 'duration')
+    ) {
+      markSceneDirty();
     }
     if (ev.type === 'play' && timeline.playing) {
       audio.preloadAllClips();
@@ -309,12 +346,57 @@ async function main() {
     motion.suspendApply = !!ev.value;
   });
 
-  const refreshStatus = (extra = '') => setStatus(formatStatus(api, stageManager, extra));
+  const refreshStatus = (extra = '') => setStatus(formatStatus(api, stageManager, extra, projectStore));
+
+  /** 씬 load 중 타임라인 emit → dirty 오탐 방지 */
+  let suppressSceneDirty = false;
+
+  function markSceneDirty() {
+    if (!projectStore || suppressSceneDirty) return;
+    const wasDirty = projectStore.dirty;
+    projectStore.markDirty();
+    refreshStatus();
+    if (!wasDirty) shellRef.current?.refreshProjectPanel?.();
+    scheduleAutoSave();
+  }
+
+  function getSceneCtx() {
+    return {
+      engine: timeline,
+      motion,
+      groupStore,
+      videoBg: videoBgRef.current,
+      audio,
+      stageManager,
+      light,
+      fixtures,
+      onStageReload: async () => {
+        light.ensureHouseLights();
+        fixtures.refit();
+        if (videoBgRef.current.currentVideoPath) {
+          videoBgRef.current.rebuildForStage(stageManager);
+        }
+        shellRef.current?.syncStagePanel?.();
+      },
+      onSceneApplied: () => {
+        shellRef.current?.syncKeyframeProps?.();
+        shellRef.current?.refreshGroups?.();
+        shellRef.current?.syncLightingPanel?.();
+        shellRef.current?.refreshProjectPanel?.();
+      },
+    };
+  }
+
+  function afterSceneSwitch() {
+    interaction?.clearSelection?.();
+    refreshStatus(`씬: ${projectStore?.sceneName?.() ?? ''}`);
+  }
 
   async function addMotionEntry(entry, extra = {}) {
     const assetRole = entry.assetRole || extra.assetRole || 'character';
     refreshStatus(`${assetRole === 'stage' ? 'Stage' : 'Character'} loading: ${entry.name}…`);
-    const item = await motion.addFromUrl(entry.url, {
+    const fileRef = entry.path || entry.url;
+    const item = await motion.addFromUrl(fileRef, {
       name: entry.name,
       procedural: entry.procedural,
       color: entry.color,
@@ -485,6 +567,369 @@ async function main() {
     );
   };
 
+  async function confirmDiscardDirty() {
+    if (!projectStore?.dirty) return true;
+    return window.confirm('저장하지 않은 변경이 있습니다. 계속할까요?');
+  }
+
+  function presentSceneLoadReport(result, sceneName) {
+    if (result?.loadReport?.hasIssues?.()) {
+      showSceneLoadReportDialog({
+        sceneName: sceneName || projectStore?.sceneName?.(),
+        warnings: result.loadReport.warnings,
+      });
+    }
+  }
+
+  async function assignProject(store) {
+    projectStore = store;
+    if (store?.project?.stageProfile) {
+      stageManager.applyProfile(store.project.stageProfile);
+      videoBgRef.current.syncToStage(stageManager);
+      light.ensureHouseLights();
+      fixtures.refit();
+      if (videoBgRef.current.currentVideoPath) {
+        videoBgRef.current.rebuildForStage(stageManager);
+      }
+      applyDefaultStageCamera(
+        viewport.camera,
+        viewport.controls,
+        stageManager.stageType,
+        stageManager.profile,
+        stageManager,
+      );
+      shellRef.current?.syncStagePanel?.();
+    }
+    suppressSceneDirty = true;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      if (projectStore) {
+        const result = await projectStore.loadActiveScene(getSceneCtx());
+        afterSceneSwitch();
+        presentSceneLoadReport(result, projectStore.sceneName());
+      }
+      shellRef.current?.refreshProjectPanel?.();
+      refreshStatus();
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`프로젝트 로드 실패: ${err.message}`);
+      window.alert(`프로젝트를 불러오지 못했습니다.\n\n${err.message}`);
+    } finally {
+      suppressSceneDirty = false;
+      shellRef.current?.setStageBusy?.(false);
+    }
+  }
+
+  async function newProjectFlow() {
+    if (!api?.projectsOk) {
+      window.alert('프로젝트 API가 필요합니다. server를 실행하세요.');
+      return;
+    }
+    if (!(await confirmDiscardDirty())) return;
+    const meta = await showProjectMetaPopup({ mode: 'create' });
+    if (!meta) return;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      const project = await createProject(meta);
+      const store = new ProjectStore(project.id, project);
+      await assignProject(store);
+      refreshStatus(`새 프로젝트: ${store.project.showName || store.projectId}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`프로젝트 생성 실패: ${err.message}`);
+      window.alert(`프로젝트를 만들지 못했습니다.\n\n${err.message}`);
+    } finally {
+      shellRef.current?.setStageBusy?.(false);
+    }
+  }
+
+  async function openProjectFlow() {
+    if (!api?.projectsOk) {
+      window.alert('프로젝트 API가 필요합니다. server를 실행하세요.');
+      return;
+    }
+    if (!(await confirmDiscardDirty())) return;
+    const projectId = await showProjectPickerDialog();
+    if (!projectId) return;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      const store = await ProjectStore.open(projectId);
+      await assignProject(store);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`프로젝트 열기 실패: ${err.message}`);
+      window.alert(`프로젝트를 열지 못했습니다.\n\n${err.message}`);
+    } finally {
+      shellRef.current?.setStageBusy?.(false);
+    }
+  }
+
+  async function manageProjectsFlow() {
+    if (!api?.projectsOk) {
+      window.alert('프로젝트 API가 필요합니다. server를 실행하세요.');
+      return;
+    }
+    await showProjectManagerDialog({
+      activeProjectId: projectStore?.projectId ?? null,
+      onEdited: async (projectId, project) => {
+        if (projectStore?.projectId === projectId) {
+          projectStore.project = project;
+          shellRef.current?.refreshProjectPanel?.();
+          refreshStatus('프로젝트 정보 수정됨');
+        }
+      },
+      onDeleted: async (projectId) => {
+        if (projectStore?.projectId !== projectId) return;
+        cancelAutoSaveDebounce();
+        const remaining = await listProjects();
+        if (!remaining.length) {
+          window.alert('모든 프로젝트가 삭제되었습니다. 시작 화면으로 이동합니다.');
+          window.location.reload();
+          return;
+        }
+        if (!(await confirmDiscardDirty())) return;
+        try {
+          shellRef.current?.setStageBusy?.(true);
+          const store = await ProjectStore.open(remaining[0].id);
+          await assignProject(store);
+          refreshStatus(`프로젝트 전환: ${store.project.showName || store.projectId}`);
+        } catch (err) {
+          console.error(err);
+          window.alert(`다른 프로젝트를 열지 못했습니다.\n\n${err.message}`);
+        } finally {
+          shellRef.current?.setStageBusy?.(false);
+        }
+      },
+    });
+  }
+
+  async function duplicateSceneFlow(sceneId) {
+    if (!projectStore) return;
+    suppressSceneDirty = true;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      const dup = await projectStore.duplicateScene(getSceneCtx(), sceneId);
+      afterSceneSwitch();
+      presentSceneLoadReport(dup, projectStore.sceneName());
+      refreshStatus(`씬 복제됨`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`씬 복제 실패: ${err.message}`);
+      window.alert(err.message || '씬 복제 실패');
+    } finally {
+      suppressSceneDirty = false;
+      shellRef.current?.setStageBusy?.(false);
+      shellRef.current?.refreshProjectPanel?.();
+    }
+  }
+
+  async function deleteSceneFlow(sceneId) {
+    if (!projectStore) return;
+    const scenes = projectStore.project.scenes || [];
+    if (scenes.length <= 1) {
+      window.alert('마지막 씬은 삭제할 수 없습니다.');
+      return;
+    }
+    const scene = scenes.find((s) => s.id === sceneId);
+    const label = scene?.name || sceneId;
+    if (!window.confirm(`씬 «${label}»을(를) 삭제할까요?\n\n되돌릴 수 없습니다.`)) return;
+    suppressSceneDirty = true;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      const loadResult = await projectStore.deleteScene(getSceneCtx(), sceneId);
+      afterSceneSwitch();
+      if (loadResult) presentSceneLoadReport(loadResult, projectStore.sceneName());
+      refreshStatus(`씬 삭제: ${label}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`씬 삭제 실패: ${err.message}`);
+      window.alert(err.message || '씬 삭제 실패');
+    } finally {
+      suppressSceneDirty = false;
+      shellRef.current?.setStageBusy?.(false);
+      shellRef.current?.refreshProjectPanel?.();
+    }
+  }
+
+  async function renameActiveSceneFlow() {
+    if (!projectStore) return;
+    const id = projectStore.activeSceneId;
+    const scene = projectStore.project.scenes?.find((s) => s.id === id);
+    const next = window.prompt('씬 이름', scene?.name || id);
+    if (!next?.trim()) return;
+    try {
+      await projectStore.renameScene(id, next.trim());
+      shellRef.current?.refreshProjectPanel?.();
+      refreshStatus(`씬 이름: ${next.trim()}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`이름 변경 실패: ${err.message}`);
+    }
+  }
+
+  async function saveProjectFlow(opts = {}) {
+    const { silent = false, auto = false } = opts;
+    if (!projectStore) return false;
+    if (!projectStore.dirty) {
+      if (!silent) refreshStatus('변경 사항 없음');
+      return false;
+    }
+    try {
+      if (!auto) {
+        shellRef.current?.setStageBusy?.(true);
+        shellRef.current?.setProjectPanelSaving?.(true);
+      }
+      await projectStore.saveActiveScene(getSceneCtx());
+      shellRef.current?.refreshProjectPanel?.();
+      cancelAutoSaveDebounce();
+      refreshStatus(auto ? '자동 저장됨' : '저장됨');
+      return true;
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`저장 실패: ${err.message}`);
+      if (auto && projectStore?.dirty) scheduleAutoSave();
+      if (!auto) {
+        window.alert(`저장하지 못했습니다.\n\n${err.message}`);
+      }
+      return false;
+    } finally {
+      if (!auto) {
+        shellRef.current?.setProjectPanelSaving?.(false);
+        shellRef.current?.setStageBusy?.(false);
+      }
+    }
+  }
+
+  async function exportProjectZipFlow(mode = 'bundle') {
+    if (!projectStore) return;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      if (projectStore.dirty) {
+        await projectStore.saveActiveScene(getSceneCtx());
+        shellRef.current?.refreshProjectPanel?.();
+        refreshStatus('저장 후 ZIP 내보내기…');
+      }
+      await exportProjectBundle(projectStore.projectId, mode);
+      refreshStatus(mode === 'link' ? 'ZIP (JSON) 다운로드' : 'ZIP 다운로드');
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`ZIP 내보내기 실패: ${err.message}`);
+      window.alert(`ZIP을 내보내지 못했습니다.\n\n${err.message}`);
+    } finally {
+      shellRef.current?.setStageBusy?.(false);
+    }
+  }
+
+  function importProjectZipFlow() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip,application/zip';
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void (async () => {
+        if (!(await confirmDiscardDirty())) return;
+        try {
+          shellRef.current?.setStageBusy?.(true);
+          refreshStatus('ZIP 가져오는 중…');
+          const data = await importProjectBundle(file);
+          const store = await ProjectStore.open(data.projectId);
+          projectStore = store;
+          suppressSceneDirty = true;
+          const result = await projectStore.loadActiveScene(getSceneCtx());
+          afterSceneSwitch();
+          presentSceneLoadReport(result, projectStore.sceneName());
+          shellRef.current?.refreshProjectPanel?.();
+          refreshStatus(`ZIP 가져옴: ${data.project?.showName || data.projectId}`);
+        } catch (err) {
+          console.error(err);
+          refreshStatus(`ZIP 가져오기 실패: ${err.message}`);
+          window.alert(`ZIP을 가져오지 못했습니다.\n\n${err.message}`);
+        } finally {
+          suppressSceneDirty = false;
+          shellRef.current?.setStageBusy?.(false);
+        }
+      })();
+    });
+    input.click();
+  }
+
+  let autoSaveDebounceId = null;
+
+  function scheduleAutoSave() {
+    if (!projectStore) return;
+    cancelAutoSaveDebounce();
+    autoSaveDebounceId = window.setTimeout(() => {
+      autoSaveDebounceId = null;
+      void saveProjectFlow({ silent: true, auto: true });
+    }, AUTO_SAVE_DEBOUNCE_MS);
+  }
+
+  function cancelAutoSaveDebounce() {
+    if (autoSaveDebounceId != null) {
+      window.clearTimeout(autoSaveDebounceId);
+      autoSaveDebounceId = null;
+    }
+  }
+
+  async function switchToScene(sceneId) {
+    const scenes = projectStore?.project.scenes || [];
+    const target = scenes.find((s) => s.id === sceneId);
+    if (!target || !projectStore) return;
+    cancelAutoSaveDebounce();
+    suppressSceneDirty = true;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      const result = await projectStore.switchScene(getSceneCtx(), sceneId);
+      afterSceneSwitch();
+      presentSceneLoadReport(result, target.name);
+      refreshStatus(`씬: ${target.name}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`씬 전환 실패: ${err.message}`);
+    } finally {
+      suppressSceneDirty = false;
+      shellRef.current?.setStageBusy?.(false);
+      shellRef.current?.refreshProjectPanel?.();
+    }
+  }
+
+  async function addSceneFlow() {
+    if (!projectStore) return;
+    const n = (projectStore.project.scenes?.length || 0) + 1;
+    const name = window.prompt('새 씬 이름', `${n}막`);
+    if (!name?.trim()) return;
+    suppressSceneDirty = true;
+    try {
+      shellRef.current?.setStageBusy?.(true);
+      const created = await projectStore.createScene(getSceneCtx(), name.trim());
+      afterSceneSwitch();
+      presentSceneLoadReport(created, name.trim());
+      refreshStatus(`씬 추가: ${name.trim()}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`씬 추가 실패: ${err.message}`);
+    } finally {
+      suppressSceneDirty = false;
+      shellRef.current?.setStageBusy?.(false);
+      shellRef.current?.refreshProjectPanel?.();
+    }
+  }
+
+  async function reorderSceneFlow(sceneId, direction) {
+    if (!projectStore) return;
+    try {
+      await projectStore.reorderScene(sceneId, direction);
+      shellRef.current?.refreshProjectPanel?.();
+      refreshStatus('씬 순서 변경됨');
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`순서 변경 실패: ${err.message}`);
+      window.alert(err.message || '씬 순서 변경 실패');
+    }
+  }
+
+  bootLoading.setMessage('인터페이스 구성 중…');
   const shell = mountEditorShell(wrapperEl, {
     stageManager,
     helpers,
@@ -492,6 +937,38 @@ async function main() {
     groupStore,
     light,
     fixtures,
+    getProjectId: () => projectStore?.projectId ?? null,
+    getProjectStore: () => projectStore ?? null,
+    onSwitchScene: (sceneId) => switchToScene(sceneId),
+    onAddScene: () => addSceneFlow(),
+    onRenameScene: async (sceneId, name) => {
+      if (!projectStore) return;
+      try {
+        await projectStore.renameScene(sceneId, name);
+        shellRef.current?.refreshProjectPanel?.();
+        refreshStatus(`씬 이름: ${name}`);
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`이름 변경 실패: ${err.message}`);
+      }
+    },
+    onDuplicateScene: (sceneId) => duplicateSceneFlow(sceneId),
+    onDeleteScene: (sceneId) => deleteSceneFlow(sceneId),
+    onReorderScene: (sceneId, direction) => reorderSceneFlow(sceneId, direction),
+    onSaveProject: () => saveProjectFlow(),
+    onUpdateProjectMeta: async (meta) => {
+      if (!projectStore) return;
+      try {
+        projectStore.applyMetaPatch(meta);
+        await projectStore.saveMetaOnly();
+        shellRef.current?.refreshProjectPanel?.();
+        refreshStatus('프로젝트 정보 저장됨');
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`프로젝트 수정 실패: ${err.message}`);
+        window.alert(`프로젝트 정보를 저장하지 못했습니다.\n\n${err.message}`);
+      }
+    },
     getMotion: (trackId) => motion.findByTrackId(trackId),
     getLight: (trackId) => light.findByTrackId(trackId) ?? fixtures.findByTrackId(trackId),
     onWriteLight: (trackId, patch) => {
@@ -532,6 +1009,7 @@ async function main() {
     },
     onKeyframeEdited: () => {
       motion.apply(timeline.playheadSec);
+      markSceneDirty();
     },
     onAddCharacter: async (entry) => {
       try {
@@ -569,9 +1047,14 @@ async function main() {
     },
     onAddAudio: async (entry) => {
       try {
+        let path = entry.path || entry.url;
+        const pid = projectStore?.projectId;
+        if (pid && path?.startsWith('assets/')) {
+          path = `/files/projects/${pid}/${path.replace(/^\/+/, '')}`;
+        }
         const { track, clip } = await audio.addFromAsset({
           name: entry.name,
-          path: entry.path,
+          path,
           filename: entry.filename,
           atSec: timeline.playheadSec,
         });
@@ -580,6 +1063,7 @@ async function main() {
       } catch (err) {
         console.error(err);
         refreshStatus(`Audio 실패: ${err.message}`);
+        window.alert(`오디오를 타임라인에 추가하지 못했습니다.\n\n${err.message}`);
       }
     },
     onDeployGroup: async (groupId) => {
@@ -645,8 +1129,24 @@ async function main() {
         refreshStatus(MENU_PHASE_HINTS[action]);
         return;
       }
-      if (action === 'add:motion' || action === 'file:import:fbx') {
+      if (action === 'add:motion') {
         addMotionFromPicker();
+        return;
+      }
+      if (action === 'file:new') {
+        void newProjectFlow();
+        return;
+      }
+      if (action === 'file:open') {
+        void openProjectFlow();
+        return;
+      }
+      if (action === 'file:manageProjects') {
+        void manageProjectsFlow();
+        return;
+      }
+      if (action === 'file:import:zip') {
+        importProjectZipFlow();
         return;
       }
       if (action === 'add:group' || action === 'show:panel') {
@@ -663,6 +1163,45 @@ async function main() {
         importV3MotionJsonFile();
         return;
       }
+      if (projectStore && action === 'file:save') {
+        void saveProjectFlow();
+        return;
+      }
+      if (projectStore && action === 'scene:add') {
+        void addSceneFlow();
+        return;
+      }
+      if (projectStore && action === 'scene:duplicate') {
+        void duplicateSceneFlow(projectStore.activeSceneId);
+        return;
+      }
+      if (projectStore && action === 'scene:delete') {
+        void deleteSceneFlow(projectStore.activeSceneId);
+        return;
+      }
+      if (projectStore && action === 'scene:rename') {
+        void renameActiveSceneFlow();
+        return;
+      }
+      if (projectStore && action === 'scene:list') {
+        shellRef.current?.openProjectPanel?.();
+        shellRef.current?.refreshProjectPanel?.();
+        refreshStatus('프로젝트 패널 — 씬 목록');
+        return;
+      }
+      if (projectStore && (action === 'scene:next' || action === 'scene:prev')) {
+        void (async () => {
+          const scenes = projectStore.project.scenes || [];
+          const idx = scenes.findIndex((s) => s.id === projectStore.activeSceneId);
+          const target = action === 'scene:next' ? scenes[idx + 1] : scenes[idx - 1];
+          if (!target) {
+            refreshStatus(action === 'scene:next' ? '마지막 씬' : '첫 씬');
+            return;
+          }
+          await switchToScene(target.id);
+        })();
+        return;
+      }
       if (action === 'help:tutorial') {
         const url = apiUrl('/stageBuilder/tutorial/');
         window.open(url, '_blank', 'noopener,noreferrer');
@@ -677,6 +1216,18 @@ async function main() {
       }
       if (action === 'help:about') {
         refreshStatus(MENU_PHASE_HINTS[action]);
+        return;
+      }
+      if (action.startsWith('file:export:')) {
+        if (action === 'file:export:zip' && projectStore) {
+          void exportProjectZipFlow('bundle');
+          return;
+        }
+        if (action === 'file:export:zipLink' && projectStore) {
+          void exportProjectZipFlow('link');
+          return;
+        }
+        refreshStatus(`내보내기 — ${MENU_PHASE_HINTS[action] ?? '준비 중'}`);
         return;
       }
       const hint = MENU_PHASE_HINTS[action] ?? '준비 중';
@@ -723,12 +1274,39 @@ async function main() {
         shell.setStageBusy(false);
       }
     },
-    onChange: () => refreshStatus(),
+    onChange: () => {
+      markSceneDirty();
+    },
     onStageFocusChange: () => {
       viewport.resize();
     },
   });
   shellRef.current = shell;
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      const key = e.key.toLowerCase();
+      if (key === 's') {
+        if (!projectStore) return;
+        e.preventDefault();
+        void saveProjectFlow();
+        return;
+      }
+      if (key === 'n') {
+        if (!api?.projectsOk) return;
+        e.preventDefault();
+        void newProjectFlow();
+        return;
+      }
+      if (key === 'o') {
+        if (!api?.projectsOk) return;
+        e.preventDefault();
+        void openProjectFlow();
+        return;
+      }
+    }
+  });
 
   bindViewportStageFocus(viewportEl);
   onStageFocusChange(() => {
@@ -736,12 +1314,15 @@ async function main() {
   });
 
   try {
+    bootLoading.setMessage('무대·건물 불러오는 중…');
     await stageManager.init();
     ensureWorkLights(stageManager.scene);
     light.ensureHouseLights();
     fixtures.ensureRig();
-    // Start with WORK on (rehearsal). No auto HOUSE/FX timeline tracks.
-    setWorkLightActive(stageManager.scene, true);
+    // WORK/HOUSE live levels restore from scene JSON when project loads (see applyScene).
+    if (!projectStore) {
+      setWorkLightActive(stageManager.scene, true);
+    }
     applyDefaultStageCamera(
       viewport.camera,
       viewport.controls,
@@ -750,15 +1331,44 @@ async function main() {
       stageManager,
     );
     shell.syncStagePanel();
+    if (projectStore) {
+      try {
+        bootLoading.setMessage('씬 불러오는 중…');
+        suppressSceneDirty = true;
+        const result = await projectStore.loadActiveScene(getSceneCtx());
+        cancelAutoSaveDebounce();
+        presentSceneLoadReport(result, projectStore.sceneName());
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`씬 로드 실패: ${err.message}`);
+      } finally {
+        suppressSceneDirty = false;
+      }
+    } else {
+      motion.apply(timeline.playheadSec);
+    }
     shell.syncHelperUi();
     refreshStatus();
   } catch (err) {
     console.error(err);
     refreshStatus(`Load error: ${err.message}`);
+  } finally {
+    bootLoading.hide();
   }
 }
 
-main().catch((err) => {
+async function entry() {
+  initTooltips(document.body);
+  const api = await checkApi();
+  if (api?.projectsOk) {
+    const projectStore = await runProjectHub();
+    await main(projectStore);
+    return;
+  }
+  await main(null);
+}
+
+entry().catch((err) => {
   console.error(err);
   setStatus(`Boot error: ${err.message}`);
 });

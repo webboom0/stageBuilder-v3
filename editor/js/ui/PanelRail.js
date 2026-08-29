@@ -3,6 +3,7 @@ import { initResizableInSlot } from './panelResize.js';
 export function createPanelRail(root, opts = {}) {
   const side = opts.side || 'right';
   const distribution = opts.distribution || (side === 'left' ? 'equal' : 'resizable');
+  const collapseMode = opts.collapseMode === true;
 
   const dockSel = side === 'left' ? '#sidebar-left-dock' : '#sidebar-right-dock';
   const railSel = side === 'left' ? '#sidebar-left-rail' : '#sidebar-right-rail';
@@ -12,10 +13,16 @@ export function createPanelRail(root, opts = {}) {
 
   if (!dock || !rail) {
     console.warn(`PanelRail: dock/rail not found (${side})`);
-    return { registerPanel() {}, togglePanel() {}, rebalanceHeights() {} };
+    return { registerPanel() {}, togglePanel() {}, openPanel() {}, rebalanceHeights() {} };
   }
 
-  /** @type {Map<string, { slot: HTMLElement, btn: HTMLButtonElement, open: boolean }>} */
+  /** @type {Map<string, {
+   *   slot: HTMLElement,
+   *   btn: HTMLButtonElement,
+   *   open: boolean,
+   *   wasOpened: boolean,
+   *   panelApi?: { setCollapsed: (v: boolean) => void, isCollapsed: () => boolean },
+   * }>} */
   const panels = new Map();
 
   function rebalanceHeights() {
@@ -34,7 +41,54 @@ export function createPanelRail(root, opts = {}) {
     });
   }
 
-  function registerPanel({ id, icon, label, panelEl, defaultOpen = false }) {
+  /** @param {{ slot: HTMLElement, btn: HTMLButtonElement, open: boolean, wasOpened: boolean, panelApi?: { isCollapsed: () => boolean } }} entry */
+  function syncRailBtn(entry) {
+    const expanded = entry.panelApi ? !entry.panelApi.isCollapsed() : entry.open;
+    const inDock = collapseMode ? entry.wasOpened : !entry.slot.hidden;
+    entry.btn.classList.toggle('on', inDock);
+    entry.btn.classList.toggle('is-expanded', inDock && expanded);
+    entry.btn.setAttribute('aria-pressed', inDock && expanded ? 'true' : 'false');
+  }
+
+  function syncAllRailBtns() {
+    for (const entry of panels.values()) syncRailBtn(entry);
+  }
+
+  /** @param {string} exceptId */
+  function collapseOthersExcept(exceptId) {
+    for (const [pid, entry] of panels) {
+      if (pid === exceptId) continue;
+      if (entry.slot.hidden) continue;
+      entry.panelApi?.setCollapsed(true);
+      entry.open = false;
+    }
+  }
+
+  /**
+   * @param {string} id
+   * @param {{ collapseOthers?: boolean }} [opt]
+   * collapseOthers — 레일 클릭 시: 다른 펼친 패널 접고 이 패널만 펼침
+   */
+  function expandPanel(id, opt = {}) {
+    const entry = panels.get(id);
+    if (!entry) return;
+    entry.slot.hidden = false;
+    entry.wasOpened = true;
+    if (opt.collapseOthers) collapseOthersExcept(id);
+    entry.panelApi?.setCollapsed(false);
+    entry.open = true;
+    syncAllRailBtns();
+  }
+
+  function registerPanel({
+    id,
+    icon,
+    label,
+    panelEl,
+    panelApi,
+    defaultOpen = false,
+    startCollapsed = false,
+  }) {
     if (!panelEl) return;
 
     const slot = document.createElement('div');
@@ -55,25 +109,92 @@ export function createPanelRail(root, opts = {}) {
     btn.setAttribute('aria-label', label);
     btn.dataset.panelId = id;
     btn.innerHTML = `<i class="${icon}" aria-hidden="true"></i>`;
-    if (defaultOpen) btn.classList.add('on');
     btn.addEventListener('click', () => togglePanel(id));
     rail.appendChild(btn);
 
-    panels.set(id, { slot, btn, open: defaultOpen });
+    const expanded = defaultOpen && !startCollapsed;
+    const entry = {
+      slot,
+      btn,
+      open: expanded,
+      wasOpened: defaultOpen,
+      panelApi,
+    };
+    panels.set(id, entry);
+
+    if (panelApi) {
+      panelApi.setCollapsed(!expanded);
+
+      if (collapseMode) {
+        // 패널 헤더 −/+ — 이 패널만 토글, 다른 패널은 건드리지 않음
+        panelEl.addEventListener('dock-collapsed', (e) => {
+          const collapsed = !!/** @type {CustomEvent} */ (e).detail?.collapsed;
+          entry.slot.hidden = false;
+          entry.wasOpened = true;
+          entry.open = !collapsed;
+          syncAllRailBtns();
+        });
+      }
+    }
+
+    syncRailBtn(entry);
+
     if (distribution === 'equal') requestAnimationFrame(rebalanceHeights);
+  }
+
+  function othersExpandedExcept(exceptId) {
+    for (const [pid, entry] of panels) {
+      if (pid === exceptId) continue;
+      if (!entry.wasOpened || entry.slot.hidden) continue;
+      const open = entry.panelApi ? !entry.panelApi.isCollapsed() : entry.open;
+      if (open) return true;
+    }
+    return false;
   }
 
   function togglePanel(id) {
     const entry = panels.get(id);
     if (!entry) return;
+
+    if (collapseMode) {
+      if (entry.slot.hidden || !entry.wasOpened) {
+        expandPanel(id, { collapseOthers: true });
+        return;
+      }
+
+      const selfExpanded = entry.panelApi ? !entry.panelApi.isCollapsed() : entry.open;
+
+      // 레일: 이 패널만 펼쳐진 solo 상태에서 다시 클릭 → 이 패널만 접기
+      if (selfExpanded && !othersExpandedExcept(id)) {
+        entry.panelApi?.setCollapsed(true);
+        entry.open = false;
+        syncAllRailBtns();
+        return;
+      }
+
+      // 레일: 나머지 접고 선택 패널만 펼치기 (이미 펼쳐져 있어도 유지)
+      expandPanel(id, { collapseOthers: true });
+      return;
+    }
+
     entry.open = !entry.open;
     entry.slot.hidden = !entry.open;
-    entry.btn.classList.toggle('on', entry.open);
+    syncRailBtn(entry);
     if (distribution === 'equal') rebalanceHeights();
+  }
+
+  function openPanel(id) {
+    if (collapseMode) {
+      expandPanel(id, { collapseOthers: true });
+      return;
+    }
+    const entry = panels.get(id);
+    if (!entry || entry.open) return;
+    togglePanel(id);
   }
 
   const ro = distribution === 'equal' ? new ResizeObserver(() => rebalanceHeights()) : null;
   ro?.observe(dock);
 
-  return { registerPanel, togglePanel, rebalanceHeights };
+  return { registerPanel, togglePanel, openPanel, rebalanceHeights };
 }

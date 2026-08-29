@@ -47,6 +47,8 @@ export class Track {
     this.locked = opts.locked === true;
     /** Audio track mix level (kind === 'audio') */
     this.audioVolume = Number.isFinite(opts.audioVolume) ? clamp01(opts.audioVolume) : 1;
+    /** Persisted motion restore hints (scene save) */
+    this.motionMeta = opts.motionMeta ?? null;
   }
 
   snapshot() {
@@ -66,6 +68,7 @@ export class Track {
       hidden: this.hidden,
       locked: this.locked,
       audioVolume: this.audioVolume,
+      motionMeta: this.motionMeta ?? undefined,
     };
   }
 
@@ -85,6 +88,7 @@ export class Track {
       hidden: data.hidden,
       locked: data.locked,
       audioVolume: data.audioVolume,
+      motionMeta: data.motionMeta ?? null,
     });
     t.keys.restore(data.keys);
     if (data.kind === 'audio' || (data.clips && data.clips.length)) {

@@ -31,12 +31,20 @@ export function createDockPanel(title, contentDom, opts = {}) {
   panel.appendChild(contentDom);
 
   let collapsed = false;
-  collapseBtn.addEventListener('click', () => {
-    collapsed = !collapsed;
+
+  /** @param {boolean} next */
+  function setCollapsed(next) {
+    collapsed = !!next;
     contentDom.hidden = collapsed;
     collapseBtn.textContent = collapsed ? '+' : '−';
     panel.classList.toggle('is-collapsed', collapsed);
-  });
+    panel.dispatchEvent(new CustomEvent('dock-collapsed', {
+      bubbles: true,
+      detail: { collapsed },
+    }));
+  }
+
+  collapseBtn.addEventListener('click', () => setCollapsed(!collapsed));
 
   attachPanelResizeHandle(panel, {
     storageKey: opts.storageKey,
@@ -45,5 +53,10 @@ export function createDockPanel(title, contentDom, opts = {}) {
     maxHeight: opts.maxHeight,
   });
 
-  return panel;
+  return {
+    el: panel,
+    setCollapsed,
+    isCollapsed: () => collapsed,
+    toggleCollapsed: () => setCollapsed(!collapsed),
+  };
 }

@@ -3,6 +3,14 @@ import { setWorkLightLevel, readWorkLightLevel } from './workLights.js';
 
 const STORAGE_KEY = 'houseStageLights';
 
+/** @type {import('../stage/StageManager.js').StageManager | null} */
+let _boundStageManager = null;
+
+/** @param {import('../stage/StageManager.js').StageManager | null} sm */
+export function bindHouseStageManager(sm) {
+  _boundStageManager = sm;
+}
+
 export const FOH_SPOT_SUFFIXES = Object.freeze(['L', 'C', 'R']);
 
 /** Beam size slider 0~1 → SpotLight.angle (rad) */
@@ -15,7 +23,7 @@ export const HOUSE_LIGHT_BASE = Object.freeze({
   foh: Object.freeze({ L: 6.2, C: 4.0, R: 6.2 }),
 });
 
-/** v3 Sidebar.Nanseol front spots */
+/** v3 Sidebar.Nanseol front spots + v4 proscenium shell X alignment */
 export const FOH_SPOT_PRESETS = Object.freeze([
   {
     suffix: 'L',
@@ -23,13 +31,13 @@ export const FOH_SPOT_PRESETS = Object.freeze([
     target: [-35, 2, 30],
     intensity: 6.2,
     distance: 520,
-    angle: 0.75,
+    angle: 0.65,
     penumbra: 0.14,
   },
   {
     suffix: 'C',
-    position: [1.89, 56.744, 225.001],
-    target: [0, 2, 30],
+    position: [15.89, 56.744, 225.001],
+    target: [14, 2, 30],
     intensity: 4.0,
     distance: 520,
     angle: 0.65,
@@ -37,8 +45,8 @@ export const FOH_SPOT_PRESETS = Object.freeze([
   },
   {
     suffix: 'R',
-    position: [86.55, 65.051, 218.534],
-    target: [35, 2, 30],
+    position: [118.55, 65.051, 218.534],
+    target: [67, 2, 30],
     intensity: 6.2,
     distance: 520,
     angle: 0.65,
@@ -96,6 +104,13 @@ export function getHouseFillLight(scene) {
 /** @param {THREE.Scene} scene @param {string} suffix */
 export function getFohSpot(scene, suffix) {
   return getStageGroup(scene)?.children?.find((c) => c.name === `_StageFrontSpot_${suffix}`) || null;
+}
+
+/** @param {THREE.Scene} scene @param {string} suffix */
+export function getFohSpotTarget(scene, suffix) {
+  return getStageGroup(scene)?.children?.find(
+    (c) => c.name === `_StageFrontSpotTarget_${suffix}`,
+  ) || null;
 }
 
 export function defaultHouseLightLevels() {
@@ -172,6 +187,7 @@ export function ensureHouseStageLights(stageManager) {
   }
 
   tagHouseLightsForBlackout(stageGroup);
+  applyFohSpotTransforms(stageManager.scene, stageManager, readHouseLightLevels(stageManager.scene));
   return added;
 }
 
@@ -217,16 +233,47 @@ function applyFoh(scene, suffix, levels) {
 }
 
 /**
+ * Apply v4 FOH preset positions (L/C/R fixed).
+ * @param {THREE.Scene} scene
+ * @param {import('../stage/StageManager.js').StageManager | null | undefined} _stageManager
+ * @param {Record<string, unknown>} [_levels]
+ */
+export function applyFohSpotTransforms(scene, _stageManager, _levels) {
+  if (!scene) return;
+  for (const cfg of FOH_SPOT_PRESETS) {
+    const spot = getFohSpot(scene, cfg.suffix);
+    const target = getFohSpotTarget(scene, cfg.suffix);
+    if (spot) {
+      spot.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
+    }
+    if (target) {
+      target.position.set(cfg.target[0], cfg.target[1], cfg.target[2]);
+    }
+    if (spot?.target) spot.target.updateMatrixWorld(true);
+  }
+}
+
+/**
  * @param {THREE.Scene} scene
  * @param {Record<string, unknown>} levels
+ * @param {import('../stage/StageManager.js').StageManager | null | undefined} [stageManager]
  */
-export function applyHouseLightLevels(scene, levels) {
+export function applyHouseLightLevels(scene, levels, stageManager) {
   if (!scene) return;
   const merged = { ...defaultHouseLightLevels(), ...levels };
   applyFill(scene, merged);
   applyFoh(scene, 'L', merged);
   applyFoh(scene, 'C', merged);
   applyFoh(scene, 'R', merged);
+  const sm = stageManager ?? _boundStageManager;
+  if (sm) applyFohSpotTransforms(scene, sm, merged);
+  delete merged.fohPanX;
+  delete merged.fohAimOffsetX;
+  delete merged.fohPanV1;
+  delete merged.fohAimOffsetAbsolute;
+  delete merged.fohAimOffsetV2;
+  delete merged.fohAimOffsetV3;
+  delete merged.fohAimOffsetV4;
   persistHouseLightLevels(scene, merged);
 }
 
