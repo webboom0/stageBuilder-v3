@@ -13,6 +13,7 @@ const fs = require('fs');
 const multer = require('multer');
 const cors = require('cors');
 const { mountProjectRoutes } = require('./projectsRoutes');
+const { mountAiPatternRoutes } = require('./aiPatternRoutes');
 
 const SECRET_KEY = process.env.SECRET_KEY || 'pivot-secret-key';
 const PORT = Number(process.env.PORT) || 3000;
@@ -305,6 +306,8 @@ mountProjectRoutes(app, {
   multer,
   createFileFilter,
 });
+
+mountAiPatternRoutes(app, { requireAuth });
 
 // ─── Static (pivot-compatible paths) ───
 if (RUNTIME_ROOT) {

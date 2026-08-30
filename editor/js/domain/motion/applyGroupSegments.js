@@ -42,21 +42,26 @@ export function applyGroupSegmentsToMotion(opts) {
 
   const clip = getGroupClipRange(group, engine.durationSec);
   const smooth = INTERPOLATION.SMOOTH ?? INTERPOLATION.LINEAR;
+  const startOpacity = clamp01(group.opacity ?? 1);
+  // Enter fade (opacity≈0): first key invisible, then fade to full during first span.
+  // Otherwise keep uniform opacity (e.g. semi-transparent 0.8 throughout).
+  const showOpacity = startOpacity <= 0.05 ? 1 : startOpacity;
 
   for (let i = 0; i < waypoints.length; i++) {
     const wp = waypoints[i];
     const next = waypoints[i + 1];
     const easing = wp.spanEasing || next?.spanEasing;
     const interp = easing === 'linear' ? INTERPOLATION.LINEAR : smooth;
+    const isFirst = i === 0;
     const isLast = i === waypoints.length - 1;
     const hide = clip.endsWithExit && isLast;
-    const baseOpacity = clamp01(group.opacity ?? 1);
+    const opacity = hide ? 0 : (isFirst ? startOpacity : showOpacity);
 
     const bag = asMotionKeyValue({
       position: [wp.x, feetY, wp.z],
       rotation: [0, THREE.MathUtils.degToRad(Number(wp.rotY) || 0), 0],
       scale: scale.slice(),
-      opacity: hide ? 0 : baseOpacity,
+      opacity,
       visible: !hide,
     });
     const keyTime = snapKeyframeTimeSec(wp.time, engine.fps);

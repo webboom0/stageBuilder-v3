@@ -100,30 +100,52 @@ export function getMotionAnimDuration(anim) {
 /**
  * @param {MotionAnim} anim
  * @param {'move'|'hold'|'exit'} kind
+ * @param {number} [atIndex] — 삽입 위치(미지정 시 맨 끝)
  */
-export function addMotionAnimSegment(anim, kind) {
+export function addMotionAnimSegment(anim, kind, atIndex) {
   const segs = anim.segments;
-  const last = segs[segs.length - 1];
+  const insertAt = Number.isInteger(atIndex)
+    ? Math.max(0, Math.min(atIndex, segs.length))
+    : segs.length;
+  const prev = insertAt > 0 ? segs[insertAt - 1] : null;
   const k = normalizeSegmentKind(kind);
-  const inheritEasing = resolveInheritEasing(segs);
+  const inheritEasing = resolveInheritEasing(segs.slice(0, insertAt));
   const seg = soloNormalize(
     {
       id: newSegmentId(),
       kind: k,
-      duration: k === SEGMENT_KIND.hold ? 2 : 3,
-      anchorX: last ? Number(last.anchorX) : anim.fromX,
-      anchorZ: last
-        ? Number(last.anchorZ) + (k === SEGMENT_KIND.hold ? 0 : 5)
+      duration: k === SEGMENT_KIND.hold ? 3 : 3,
+      anchorX: prev ? Number(prev.anchorX) : anim.fromX,
+      anchorZ: prev
+        ? Number(prev.anchorZ) + (k === SEGMENT_KIND.hold ? 0 : 5)
         : anim.fromZ + 5,
-      toRotY: last ? last.toRotY : anim.fromRotY,
+      toRotY: prev ? prev.toRotY : anim.fromRotY,
       easing: k === SEGMENT_KIND.hold ? 'linear' : inheritEasing,
     },
     anim,
   );
-  segs.push(seg);
+  segs.splice(insertAt, 0, seg);
   anim.selectedSegmentId = seg.id;
   syncSoloHold(anim);
   return seg;
+}
+
+/**
+ * @param {MotionAnim} anim
+ * @param {string} segId
+ * @param {number} toIndex
+ */
+export function moveMotionAnimSegment(anim, segId, toIndex) {
+  const segs = anim.segments;
+  const from = segs.findIndex((s) => s.id === segId);
+  if (from < 0) return false;
+  const dest = Math.max(0, Math.min(Number(toIndex) || 0, segs.length - 1));
+  if (from === dest) return true;
+  const [seg] = segs.splice(from, 1);
+  segs.splice(dest, 0, seg);
+  anim.selectedSegmentId = seg.id;
+  syncSoloHold(anim);
+  return true;
 }
 
 /** Skip hold (forced linear); default smooth */
@@ -174,13 +196,42 @@ export function syncMotionAnimStartFromObject(item) {
   return anim;
 }
 
+const PRESET_POS_EPS = 0.5;
+
+/**
+ * @param {number} ax
+ * @param {number} az
+ * @param {number} bx
+ * @param {number} bz
+ */
+function nearPos(ax, az, bx, bz) {
+  return Math.abs(Number(ax) - Number(bx)) < PRESET_POS_EPS
+    && Math.abs(Number(az) - Number(bz)) < PRESET_POS_EPS;
+}
+
+/**
+ * @param {{ id?: string, x?: number, z?: number }[]} presets
+ * @param {number} x
+ * @param {number} z
+ * @returns {string | null}
+ */
+function findPresetIdAt(presets, x, z) {
+  if (!presets?.length) return null;
+  const hit = presets.find((p) => p?.id && nearPos(p.x, p.z, x, z));
+  return hit?.id ?? null;
+}
+
 /**
  * 타임라인 키 → MotionAnim (Properties 구간 탭).
+ * 키프레임 적용 후에도 이전/좌표 매칭으로 위치 프리셋 연결을 복원한다.
  * @param {import('../timeline/Track.js').Track | null | undefined} track
  * @param {import('./MotionDirector.js').MotionItem} item
  * @param {number} [fallbackStartSec]
+ * @param {{
+ *   presets?: { id?: string, x?: number, z?: number }[],
+ * }} [opts]
  */
-export function importTrackKeyframesToMotionAnim(track, item, fallbackStartSec = 0) {
+export function importTrackKeyframesToMotionAnim(track, item, fallbackStartSec = 0, opts = {}) {
   const anim = ensureMotionAnim(item);
   if (!track?.keys) return anim;
 
@@ -199,6 +250,16 @@ export function importTrackKeyframesToMotionAnim(track, item, fallbackStartSec =
     return anim;
   }
 
+  const prevFromPresetId = anim.fromPresetId || null;
+  const prevFromX = Number(anim.fromX) || 0;
+  const prevFromZ = Number(anim.fromZ) || 0;
+  const prevSegLinks = (anim.segments || []).map((s) => ({
+    presetId: s.anchorPresetId || null,
+    x: Number(s.anchorX) || 0,
+    z: Number(s.anchorZ) || 0,
+  }));
+  const presets = Array.isArray(opts.presets) ? opts.presets : [];
+
   const draft = trackKeyframesToPatternDraft(track, item, fallbackStartSec);
   if (!draft?.keyframes?.length) return anim;
 
@@ -209,17 +270,35 @@ export function importTrackKeyframesToMotionAnim(track, item, fallbackStartSec =
   anim.fromRotY = normalizeRotYDeg(first.deltaRotY ?? 0);
   anim.opacity = Number.isFinite(Number(first.opacity)) ? Number(first.opacity) : 1;
   anim.startConfigured = true;
-  anim.fromPresetId = null;
 
-  anim.segments = draft.keyframes.slice(1).map((kf) => soloNormalize({
-    id: newSegmentId(),
-    kind: kf.kind || SEGMENT_KIND.move,
-    duration: Math.max(0.1, Number(kf.timeOffset) || 0.1),
-    anchorX: Number(kf.offsetX) || 0,
-    anchorZ: Number(kf.offsetZ) || 0,
-    toRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
-    easing: 'smooth',
-  }, anim));
+  if (prevFromPresetId && nearPos(anim.fromX, anim.fromZ, prevFromX, prevFromZ)) {
+    anim.fromPresetId = prevFromPresetId;
+  } else {
+    anim.fromPresetId = findPresetIdAt(presets, anim.fromX, anim.fromZ);
+  }
+
+  anim.segments = draft.keyframes.slice(1).map((kf) => {
+    const anchorX = Number(kf.offsetX) || 0;
+    const anchorZ = Number(kf.offsetZ) || 0;
+    const kind = kf.kind || SEGMENT_KIND.move;
+    let anchorPresetId = null;
+    if (kind !== SEGMENT_KIND.hold) {
+      const kept = prevSegLinks.find(
+        (p) => p.presetId && nearPos(p.x, p.z, anchorX, anchorZ),
+      );
+      anchorPresetId = kept?.presetId ?? findPresetIdAt(presets, anchorX, anchorZ);
+    }
+    return soloNormalize({
+      id: newSegmentId(),
+      kind,
+      duration: Math.max(0.1, Number(kf.timeOffset) || 0.1),
+      anchorX,
+      anchorZ,
+      toRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
+      anchorPresetId,
+      easing: 'smooth',
+    }, anim);
+  });
 
   anim.selectedSegmentId = anim.segments[anim.segments.length - 1]?.id ?? null;
   syncSoloHold(anim);

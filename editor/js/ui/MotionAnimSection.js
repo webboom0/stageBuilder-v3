@@ -6,7 +6,13 @@ import {
   removeMotionAnimSegment,
   syncMotionAnimStartFromObject,
   importTrackKeyframesToMotionAnim,
+  moveMotionAnimSegment,
 } from '../domain/motion/motionAnim.js';
+import {
+  applyAiPatternDraftToMotion,
+} from '../domain/motion/aiPatternDraft.js';
+import { requestAiPatternDraft } from '../domain/motion/requestAiPatternDraft.js';
+import { loadAiPatternDefaults } from '../domain/motion/aiPatternDefaults.js';
 import { renderSegmentStepList } from './segmentStepUi.js';
 
 /**
@@ -52,6 +58,14 @@ export function createMotionAnimSection(opts = {}) {
    *   fallbackStartSec?: number,
    * }} [bindOpts]
    */
+  function presetRefs() {
+    return (opts.getPresetStore?.()?.list() || []).map((p) => ({
+      id: p.id,
+      x: p.x,
+      z: p.z,
+    }));
+  }
+
   function bind(item, bindOpts) {
     motion = item;
     if (bindOpts?.track && bindOpts.importFromTrack !== false) {
@@ -59,6 +73,7 @@ export function createMotionAnimSection(opts = {}) {
         bindOpts.track,
         item,
         bindOpts.fallbackStartSec ?? 0,
+        { presets: presetRefs() },
       );
     }
     render();
@@ -66,7 +81,9 @@ export function createMotionAnimSection(opts = {}) {
 
   function refreshFromTrack(track, fallbackStartSec = 0) {
     if (!motion || !track) return;
-    importTrackKeyframesToMotionAnim(track, motion, fallbackStartSec);
+    importTrackKeyframesToMotionAnim(track, motion, fallbackStartSec, {
+      presets: presetRefs(),
+    });
     render();
   }
 
@@ -126,13 +143,17 @@ export function createMotionAnimSection(opts = {}) {
         commit((patch) => updateMotionAnimSegment(anim, segId, patch));
         render();
       },
-      onAddSegment: (kind) => {
-        const seg = addMotionAnimSegment(anim, kind);
+      onAddSegment: (kind, atIndex) => {
+        const seg = addMotionAnimSegment(anim, kind, atIndex);
         render();
         return seg.id;
       },
       onRemoveSegment: (segId) => {
         removeMotionAnimSegment(anim, segId);
+        render();
+      },
+      onMoveSegment: (segId, toIndex) => {
+        moveMotionAnimSegment(anim, segId, toIndex);
         render();
       },
       onSyncFromObject: () => {
@@ -155,6 +176,55 @@ export function createMotionAnimSection(opts = {}) {
           return;
         }
         await opts.onApply?.(motion.id);
+      },
+      onAiGenerate: async (prompt, opt) => {
+        const presets = (opts.getPresetStore?.()?.list() || []).map((p) => ({
+          id: p.id,
+          label: p.label,
+          x: p.x,
+          z: p.z,
+          rotY: p.rotY,
+          opacity: p.opacity,
+        }));
+        const obj = motion.object;
+        const result = await requestAiPatternDraft(prompt, {
+          presets,
+          defaultDurations: loadAiPatternDefaults(),
+          pattern: anim.startConfigured ? {
+            startConfigured: true,
+            startTime: anim.startTime,
+            fromX: anim.fromX,
+            fromZ: anim.fromZ,
+            fromRotY: anim.fromRotY,
+            fromPresetId: anim.fromPresetId ?? null,
+            opacity: anim.opacity,
+          } : null,
+          current: {
+            x: obj?.position?.x ?? anim.fromX,
+            z: obj?.position?.z ?? anim.fromZ,
+            rotY: obj
+              ? (obj.rotation.y * 180) / Math.PI
+              : anim.fromRotY,
+            opacity: anim.opacity,
+            startTime: anim.startTime,
+          },
+        });
+        if (!result.ok) {
+          window.alert(result.error || '생성 실패');
+          return;
+        }
+        applyAiPatternDraftToMotion(motion, result.draft);
+        opts.onChange?.();
+        render();
+        const status = stepsEl?.querySelector('[data-role="ai-status"]');
+        if (status instanceof HTMLElement) {
+          status.hidden = false;
+          const src = result.source === 'llm' ? 'AI' : '로컬';
+          status.textContent = `${src}: ${result.summary}`;
+        }
+        if (opt.apply) {
+          await opts.onApply?.(motion.id);
+        }
       },
       onChange: () => {
         opts.onChange?.();

@@ -50,14 +50,14 @@
 
         <div class="nav-group">오른쪽 패널</div>
         <a href="#right-panels" class="nav-l2">개요 · 데이터 범위</a>
-        <a href="#position-presets" class="nav-l3">위치 프리셋 (프로젝트)</a>
-        <a href="#pattern-library" class="nav-l3">패턴 라이브러리 (프로젝트)</a>
         <a href="#properties-panel" class="nav-l3">Properties (씬)</a>
-        <a href="#char-props" class="nav-l3">Characters · 속성</a>
         <a href="#char-pattern" class="nav-l3">Characters · 패턴</a>
-        <a href="#stage-props" class="nav-l3">Stage · 속성</a>
+        <a href="#char-props" class="nav-l3">Characters · 속성</a>
         <a href="#stage-pattern" class="nav-l3">Stage · 패턴</a>
+        <a href="#stage-props" class="nav-l3">Stage · 속성</a>
         <a href="#char-group" class="nav-l3">그룹 (씬)</a>
+        <a href="#pattern-library" class="nav-l3">패턴 라이브러리 (프로젝트)</a>
+        <a href="#position-presets" class="nav-l3">위치 프리셋 (프로젝트)</a>
         <a href="#light-props" class="nav-l3">조명 (씬)</a>
 
         <div class="nav-group">더보기</div>
@@ -521,11 +521,11 @@
             <tr><td>위치 편집</td><td>Properties·기즈모는 <strong>X/Z만</strong> (Y는 바닥 높이 고정)</td></tr>
             <tr><td>색</td><td>Properties <strong>속성</strong> 탭 · 틴트 색상</td></tr>
             <tr><td>등장·퇴장</td><td>클립 길이가 아니라 <strong>Opacity 키</strong>와 <strong>패턴</strong> 탭으로 연출</td></tr>
-            <tr><td>그룹</td><td>왼쪽 <strong>그룹</strong> 패널에 FBX 등록 가능 (Stage는 불가)</td></tr>
+            <tr><td>그룹</td><td>오른쪽 <strong>그룹</strong> 패널에 FBX 등록 가능 (Stage는 불가)</td></tr>
           </tbody>
         </table>
         <div class="note">
-          <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 Properties <strong>패턴</strong> 탭 또는 <strong>그룹</strong> 패널에서 만듭니다.
+          Properties는 기본으로 <strong>패턴</strong> 탭이 열립니다. <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 <strong>패턴</strong> · <strong>그룹</strong> · <strong>패턴 라이브러리</strong>에서 만듭니다.
         </div>
         <figure class="tutorial-figure" data-file="images/08-assets-characters.png">
           <img class="tutorial-shot" src="./images/08-assets-characters.png" alt="Assets · Characters · + 배치" width="1280" height="720" loading="lazy" decoding="async" />
@@ -563,7 +563,7 @@
         <table>
           <thead><tr><th>Characters와 다른 점</th><th>Stage</th></tr></thead>
           <tbody>
-            <tr><td>Properties 탭</td><td><strong>속성</strong> · <strong>패턴</strong> (Characters와 동일 패턴 UI, 포메이션 없음)</td></tr>
+            <tr><td>Properties 탭</td><td><strong>패턴</strong> · <strong>속성</strong> (기본은 패턴 · Characters와 동일 UI, 포메이션 없음)</td></tr>
             <tr><td>위치·회전·크기</td><td><strong>X/Y/Z</strong> 전부 편집</td></tr>
             <tr><td>바닥</td><td><strong>무대 바닥 아래</strong>로는 내려가지 않음 (기즈모·속성·재생)</td></tr>
             <tr><td>퇴장 연출</td><td>Opacity 0 키 · 크기/위치 키로 수동 연출</td></tr>
@@ -801,25 +801,25 @@
 
       <section id="right-panels" class="section-overview">
         <h2>오른쪽 패널</h2>
-        <p>화면 <strong>오른쪽</strong> 패널입니다. 타이틀 옆 뱃지로 <strong>프로젝트</strong>(공통) / <strong>씬</strong>(현재 씬)을 구분합니다. 배치는 위치 프리셋 · 패턴 라이브러리 → Properties · 그룹 · 조명 순입니다.</p>
+        <p>화면 <strong>오른쪽</strong> 패널입니다. 타이틀 옆 뱃지로 <strong>프로젝트</strong>(공통) / <strong>씬</strong>(현재 씬)을 구분합니다.</p>
         <table>
           <thead><tr><th>구역 · 패널</th><th>저장 범위</th><th>씬 전환 시</th></tr></thead>
           <tbody>
-            <tr><td><a href="#position-presets">위치 프리셋</a></td><td><strong>프로젝트</strong></td><td>유지</td></tr>
-            <tr><td><a href="#pattern-library">패턴 라이브러리</a></td><td><strong>프로젝트</strong></td><td>유지</td></tr>
             <tr><td><a href="#properties-panel">Properties</a></td><td><strong>씬</strong></td><td>갱신</td></tr>
             <tr><td><a href="#char-group">그룹</a></td><td><strong>씬</strong></td><td>갱신</td></tr>
+            <tr><td><a href="#pattern-library">패턴 라이브러리</a></td><td><strong>프로젝트</strong></td><td>유지</td></tr>
+            <tr><td><a href="#position-presets">위치 프리셋</a></td><td><strong>프로젝트</strong></td><td>유지</td></tr>
             <tr><td><a href="#light-props">조명</a></td><td><strong>씬</strong></td><td>갱신</td></tr>
           </tbody>
         </table>
         <ul class="section-toc">
-          <li><a href="#position-presets">위치 프리셋</a> — 프로젝트 공통 무대 좌표</li>
-          <li><a href="#pattern-library">패턴 라이브러리</a> — 저장된 동작 패턴 보관·적용</li>
-          <li><a href="#properties-panel">Properties</a> — 선택 객체·트랙의 <strong>속성 · 패턴</strong> 탭</li>
+          <li><a href="#properties-panel">Properties</a> — 선택 트랙의 <strong>패턴 · 속성</strong> 탭 (기본은 패턴)</li>
           <li><a href="#char-group">그룹</a> — Characters 묶음 · 포메이션 · 키프레임 적용</li>
+          <li><a href="#pattern-library">패턴 라이브러리</a> — 저장된 동작 패턴 보관·적용 · 위치 프리셋 링크 유지</li>
+          <li><a href="#position-presets">위치 프리셋</a> — 프로젝트 공통 무대 좌표</li>
           <li><a href="#light-props">조명</a> — HOUSE/Fixture 라이브 조절 · + 키</li>
         </ul>
-        <div class="note"><strong>Properties 패턴</strong>은 선택 트랙 1개(씬) 편집입니다. <strong>패턴 라이브러리</strong>는 프로젝트에 여러 패턴을 보관해 두었다가 어느 씬 트랙에나 적용합니다.</div>
+        <div class="note"><strong>Properties 패턴</strong>은 선택 트랙 1개(씬) 편집입니다. <strong>패턴 라이브러리</strong>는 프로젝트에 여러 패턴을 보관해 두었다가 어느 씬 트랙에나 적용합니다. 둘 다 시작·끝 지점에 <strong>위치 프리셋</strong>을 연결할 수 있습니다.</div>
       </section>
 
       <section id="position-presets">
@@ -832,9 +832,13 @@
             <tr><td>칩 클릭</td><td>무대 <strong>미리보기</strong> + <strong>선택 Character/Stage 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용</td></tr>
             <tr><td>+ 위치 추가</td><td>이름 · X/Z · Y 회전 · 무대 픽으로 프리셋 저장</td></tr>
             <tr><td>편집 · 삭제</td><td>칩 옆 아이콘 — 연결된 패턴·그룹 좌표도 함께 갱신</td></tr>
+            <tr><td>패턴·그룹에 연결</td><td>시작 위치·이동·퇴장 편집 창에서 칩을 고르면 <strong>프리셋 링크</strong>로 저장. 창을 다시 열면 같은 칩이 선택된 상태로 보입니다</td></tr>
           </tbody>
         </table>
-        <div class="note">Properties <strong>패턴</strong>·<strong>그룹</strong> 편집 창에서도 같은 프리셋 칩을 고를 수 있습니다.</div>
+        <div class="note">
+          Properties <strong>패턴</strong>·<strong>그룹</strong>·<strong>패턴 라이브러리</strong>·AI 문장의 <code>@등장</code> 등에서도 같은 프리셋에 연결됩니다.
+          프리셋 좌표를 수정하면 링크된 키·패턴도 따라갑니다. <strong>키프레임 적용</strong> 후에도 링크가 유지됩니다.
+        </div>
         <figure class="tutorial-figure" data-file="images/24-position-presets.png">
           <img class="tutorial-shot" src="./images/24-position-presets.png" alt="위치 프리셋 패널" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>위치 프리셋 — 칩 · ⓘ · + 위치 추가 · 뱃지「프로젝트」</figcaption>
@@ -848,11 +852,13 @@
           <thead><tr><th>동작</th><th>설명</th></tr></thead>
           <tbody>
             <tr><td>패턴 등록</td><td>+ 패턴 만들기 · 이름 변경 · 삭제 · 탭 선택</td></tr>
-            <tr><td>1 · 키프레임 패턴</td><td>시작 → + 이동·대기·퇴장 · <strong>키프레임 적용</strong></td></tr>
-            <tr><td>적용</td><td>선택 Character/Stage 트랙 · <strong>현재 무대 위치</strong>가 패턴 시작점</td></tr>
-            <tr><td>트랙에서 가져오기</td><td>트랙 <strong>우클릭 → 패턴 라이브러리에 저장</strong> (키 2개 이상)</td></tr>
+            <tr><td>1 · 키프레임 패턴</td><td>시작(시각·Opacity·위치) → 단계 사이 <strong>+</strong>로 중간 삽입 · 드래그로 순서 변경 · 단계 클릭으로 편집</td></tr>
+            <tr><td>위치 프리셋 링크</td><td>시작·끝 지점에 프리셋 칩을 고르면 링크가 패턴에 저장됩니다. 목록·편집 창에는 프리셋의 <strong>절대 좌표</strong>가 보입니다</td></tr>
+            <tr><td>키프레임 적용</td><td>선택 Character/Stage 트랙에 반영. 프리셋이 연결된 키는 캐릭터 <strong>현재 위치 상대 이동이 아니라</strong> 프리셋 <strong>절대 좌표</strong>로 갑니다</td></tr>
+            <tr><td>트랙에서 가져오기</td><td>트랙 <strong>우클릭 → 패턴 라이브러리에 저장</strong> (키 2개 이상) — 타임라인에 있던 프리셋 링크도 함께 저장</td></tr>
           </tbody>
         </table>
+        <div class="note">시작 위치 편집 창은 Properties·그룹과 같이 <strong>시작 시각 · Opacity</strong>가 위쪽에 있습니다. 프리셋만 고른 뒤 다시 열어도 칩 선택이 유지됩니다.</div>
         <figure class="tutorial-figure" data-file="images/25-pattern-library.png">
           <img class="tutorial-shot" src="./images/25-pattern-library.png" alt="패턴 라이브러리 패널" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>패턴 라이브러리 — 패턴 등록 · 키프레임 적용 · 뱃지「프로젝트」</figcaption>
@@ -861,20 +867,20 @@
 
       <section id="properties-panel">
         <h2>Properties <span class="kbd">씬</span></h2>
-        <p>오른쪽 레일 <strong>Properties</strong> — 무대·타임라인에서 <strong>선택한 객체·트랙</strong>에 맞춰 내용이 바뀝니다. Character·Stage는 상단 <strong>속성 · 패턴</strong> 탭으로 나뉩니다. 씬을 바꾸면 Properties 내용도 그 씬 기준으로 바뀝니다.</p>
+        <p>오른쪽 레일 <strong>Properties</strong> — 무대·타임라인에서 <strong>선택한 객체·트랙</strong>에 맞춰 내용이 바뀝니다. Character·Stage는 상단 <strong>패턴 · 속성</strong> 탭으로 나뉘며, <strong>기본으로 패턴</strong> 탭이 열립니다. 씬을 바꾸면 Properties 내용도 그 씬 기준으로 바뀝니다.</p>
         <table>
           <thead><tr><th>탭</th><th>역할</th></tr></thead>
           <tbody>
+            <tr><td><strong>패턴</strong> (기본)</td><td>이동 · 대기 · 퇴장 시퀀스 설계 → <strong>키프레임 적용</strong>으로 타임라인 compound 키 생성 · AI 패턴 · 위치 프리셋 링크</td></tr>
             <tr><td><strong>속성</strong></td><td>단일 키·객체 상태 — 위치·회전·색·Opacity · 선택 키의 시간·Easing</td></tr>
-            <tr><td><strong>패턴</strong></td><td>이동 · 대기 · 퇴장 시퀀스 설계 → <strong>키프레임 적용</strong>으로 타임라인 compound 키 생성</td></tr>
           </tbody>
         </table>
         <table>
           <thead><tr><th>선택 대상</th><th>Properties 내용</th></tr></thead>
           <tbody>
-            <tr><td>Character 트랙</td><td><a href="#char-props">속성</a> · <a href="#char-pattern">패턴</a></td></tr>
-            <tr><td>Stage 트랙</td><td><a href="#stage-props">속성</a> · <a href="#stage-pattern">패턴</a></td></tr>
-            <tr><td>조명 (HOUSE/Fixture)</td><td>트랙 선택 시 Dim·색·Pan/Tilt 등 — <a href="#light-props">조명 패널</a>과 연동</td></tr>
+            <tr><td>Character 트랙</td><td><a href="#char-pattern">패턴</a> · <a href="#char-props">속성</a></td></tr>
+            <tr><td>Stage 트랙</td><td><a href="#stage-pattern">패턴</a> · <a href="#stage-props">속성</a></td></tr>
+            <tr><td>조명 (HOUSE/Fixture)</td><td>패턴 탭 없음 · Dim·색·Pan/Tilt 등 — <a href="#light-props">조명 패널</a>과 연동</td></tr>
           </tbody>
         </table>
         <div class="note">Character·Stage <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 <strong>패턴</strong> 탭 · <strong>그룹</strong> · <strong>패턴 라이브러리</strong>에서 만듭니다. 트랙 표시 이름은 트랙 선택 후 <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong>으로 바꿉니다(Assets 라이브러리 이름과 별개).</div>
@@ -903,17 +909,40 @@
 
       <section id="char-pattern">
         <h2>Properties — Characters · 패턴</h2>
-        <p>Properties <strong>패턴</strong> 탭 — 선택 Character 트랙의 이동·대기·퇴장 설계 (포메이션 없음). 트랙에 키가 있으면 불러와 편집합니다. <a href="#char-group">그룹</a>·<a href="#pattern-library">패턴 라이브러리</a>와 같은 단계 UI입니다.</p>
+        <p>Properties <strong>패턴</strong> 탭(기본으로 열림) — 선택 Character 트랙의 이동·대기·퇴장 설계 (포메이션 없음). 트랙에 키가 있으면 불러와 편집합니다. <a href="#char-group">그룹</a>·<a href="#pattern-library">패턴 라이브러리</a>와 같은 단계 UI입니다.</p>
         <table>
           <thead><tr><th>영역 · 버튼</th><th>설명</th></tr></thead>
           <tbody>
-            <tr><td>시작 위치</td><td>시작 시각 · X/Z · Opacity · Y 회전 · 무대 픽 · <a href="#position-presets">위치 프리셋</a> 칩</td></tr>
-            <tr><td>+ 이동 / 대기 / 퇴장</td><td>추가 시 바로 편집 창 · Duration · 끝 X/Z · Easing</td></tr>
+            <tr><td>시작 위치</td><td>편집 창 위쪽: <strong>시작 시각 · Opacity</strong> · X/Z · Y 회전 · 무대 픽 · <a href="#position-presets">위치 프리셋</a> 칩. 칩을 고르면 링크가 저장되고, 다시 열면 선택 상태가 유지됩니다</td></tr>
+            <tr><td>+ 이동 / 대기 / 퇴장</td><td>종류를 고르면 <strong>바로 편집 창</strong>이 열립니다</td></tr>
+            <tr><td>단계 사이 + · 드래그</td><td>사이 <strong>+</strong>로 중간 삽입(뒤 단계는 삭제하지 않음) · 단계 카드 드래그로 순서 변경</td></tr>
             <tr><td>현재 위치 → 시작</td><td>기즈모 위치를 시작점으로</td></tr>
-            <tr><td>키프레임 적용</td><td>설계 → <strong>선택 트랙</strong> 타임라인 compound 키 생성·갱신</td></tr>
+            <tr><td>키프레임 적용</td><td>설계 → <strong>선택 트랙</strong> 타임라인 compound 키 생성·갱신. 프리셋 링크·Opacity(등장 페이드)도 함께 반영</td></tr>
+            <tr><td>AI 패턴</td><td>자연어 초안 — <strong>초안 만들기</strong> / <strong>초안 만들고 적용</strong> · <strong>?</strong> 도움말 · <strong>⏱</strong> 기본 Duration · <code>@</code> 위치 프리셋</td></tr>
           </tbody>
         </table>
         <p>Easing: <strong>Linear</strong> 등속 · <strong>Smooth</strong> 가감속 · 새 구간은 앞 구간 Easing 상속.</p>
+        <div class="note">
+          <strong>등장(Opacity 0) 프리셋</strong>을 시작에 연결해도, 재생 시 객체가 통째로 숨겨지지 않습니다.
+          첫 키는 보이되 Opacity 0이고, 다음 키에서 페이드 인됩니다. AI·수동 패턴 모두 <strong>키프레임 적용</strong> 후에도 <code>@</code>·칩 링크가 유지됩니다.
+        </div>
+        <h3>AI 패턴 규칙 요약</h3>
+        <table>
+          <thead><tr><th>구분</th><th>쓰는 말</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Duration</strong> (구간 길이)</td><td><code>3초 이동</code> · <code>10초 대기</code> · <code>1분 대기</code> · <code>1분 30초 대기</code></td><td>그 동작이 걸리는 시간 (「1분 대기」= 대기 구간 60초)</td></tr>
+            <tr><td><strong>절대 시각</strong></td><td><code>1분까지 대기</code> · <code>90초까지 대기</code></td><td>타임라인 그 시점까지 대기 (예: 이동 3초 후 → 대기 57초로 1:00에 맞춤)</td></tr>
+            <tr><td><strong>시작 시각</strong></td><td><code>시작 5초</code> · <code>1분부터</code></td><td>패턴 startTime</td></tr>
+            <tr><td><strong>@ 위치</strong></td><td><code>@등장</code> <code>@중앙</code> <code>@퇴장</code></td><td>위치 프리셋 연결 (입력 시 보라색 · 키·패턴에 링크 저장)</td></tr>
+            <tr><td><strong>키워드 색</strong></td><td>이동·대기·퇴장·회전 (머무르다→[대기] 등 동의어)</td><td>입력칸 밑줄 색 · 아래 「키 예정」칩으로 미리보기</td></tr>
+            <tr><td><strong>⏱ 기본 Duration</strong></td><td>이동·회전·대기·퇴장 숫자(초)</td><td>문장에 시간을 안 쓸 때 사용. 절대 시각(「~까지」)과는 별개</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <strong>예 — Duration 대기:</strong> <code>@등장에서 @중앙으로 이동, 1분 대기 후 @퇴장으로 퇴장</code> → 이동 3초 · 대기 60초 · 퇴장<br>
+          <strong>예 — 절대 시각:</strong> <code>@왼쪽에서 @중앙으로 이동하고 1분까지 대기하고 있다가 @퇴장으로 퇴장</code> → 이동 3초 · 대기 57초 · 퇴장<br>
+          시간을 안 쓰면 ⏱ 기본 Duration(각 3초). 자세한 규칙·예시는 패턴 탭 AI 옆 <strong>?</strong> 참고.
+        </div>
         <figure class="tutorial-figure" data-file="images/14-char-segments.png">
           <img class="tutorial-shot" src="./images/14-char-segments.png" alt="Properties — Characters 패턴" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>Properties — Characters 패턴</figcaption>
@@ -944,17 +973,18 @@
 
       <section id="stage-pattern">
         <h2>Properties — Stage · 패턴</h2>
-        <p>Properties <strong>패턴</strong> 탭 — Stage 트랙의 이동·대기·퇴장 키프레임 설계. Character <a href="#char-pattern">패턴</a>과 동일 UI · <strong>키프레임 적용</strong>으로 선택 트랙에 반영.</p>
+        <p>Properties <strong>패턴</strong> 탭(기본) — Stage 트랙의 이동·대기·퇴장 키프레임 설계. Character <a href="#char-pattern">패턴</a>과 동일 UI · <strong>키프레임 적용</strong>으로 선택 트랙에 반영. <strong>AI 패턴</strong>도 사용할 수 있습니다.</p>
         <table>
           <thead><tr><th>영역 · 버튼</th><th>설명</th></tr></thead>
           <tbody>
-            <tr><td>시작 위치</td><td>시작 시각 · X/Y/Z · Opacity · 회전 · 무대 픽 · <a href="#position-presets">위치 프리셋</a> 칩</td></tr>
-            <tr><td>+ 이동 / 대기 / 퇴장</td><td>Duration · 끝 XYZ · Easing</td></tr>
+            <tr><td>시작 위치</td><td>시작 시각 · Opacity · X/Y/Z · 회전 · 무대 픽 · <a href="#position-presets">위치 프리셋</a> 칩(링크 유지)</td></tr>
+            <tr><td>+ 이동 / 대기 / 퇴장</td><td>종류 선택 후 바로 편집 창 · Duration · 끝 XYZ · Easing</td></tr>
+            <tr><td>단계 사이 + · 드래그</td><td>중간 삽입 · 순서 변경 (Character와 동일)</td></tr>
             <tr><td>현재 위치 → 시작</td><td>기즈모 위치를 시작점으로</td></tr>
             <tr><td>키프레임 적용</td><td>설계 → 선택 Stage 트랙에 compound 키 생성·갱신</td></tr>
           </tbody>
         </table>
-        <div class="note">Stage는 포메이션·그룹 없음. <a href="#position-presets">위치 프리셋</a> 칩으로 등장·퇴장 지점을 빠르게 지정할 수 있습니다.</div>
+        <div class="note">Stage는 포메이션·그룹 없음. <a href="#position-presets">위치 프리셋</a> 칩·AI <code>@</code>로 등장·퇴장 지점을 빠르게 지정할 수 있습니다.</div>
         <figure class="tutorial-figure" data-file="images/26-stage-pattern.png">
           <img class="tutorial-shot" src="./images/26-stage-pattern.png" alt="Properties — Stage 패턴" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>Properties — Stage · 패턴</figcaption>
@@ -969,12 +999,13 @@
           <tbody>
             <tr><td>그룹 관리</td><td>+ 그룹 · 이름 변경 · 삭제 · 탭 색상(멤버 틴트)</td></tr>
             <tr><td>1 · 객체 등록</td><td>Characters 목록 ↔ 등록 멤버 · 화살표 또는 <strong>드래그</strong></td></tr>
-            <tr><td>2 · 그룹 애니메이션</td><td>시작(시각·위치·포메이션) · +이동·대기·퇴장 · <a href="#position-presets">위치 프리셋</a> 칩</td></tr>
+            <tr><td>2 · 그룹 애니메이션</td><td>시작(시각·Opacity·위치·포메이션) · <a href="#position-presets">위치 프리셋</a> 칩 링크 · +이동·대기·퇴장</td></tr>
+            <tr><td>+ 구간 추가</td><td>이동·대기·퇴장을 고르면 Properties 패턴과 같이 <strong>바로 편집 창</strong>이 열립니다. 단계 사이 <strong>+</strong>·드래그로 중간 삽입·순서 변경</td></tr>
             <tr><td>키프레임 적용</td><td>이미 트랙 있음 → <strong>키프레임 적용</strong> · 없음 → <strong>트랙 추가 및 키프레임 적용</strong></td></tr>
           </tbody>
         </table>
         <p>포메이션: grid · line · lineZ · circle · scatter</p>
-        <div class="note">단일 Character는 Properties <a href="#char-pattern">패턴</a> 탭(포메이션 없음). 퇴장은 속성이 아니라 패턴·그룹의 <strong>+ 퇴장</strong>.</div>
+        <div class="note">단일 Character는 Properties <a href="#char-pattern">패턴</a> 탭(포메이션 없음). 퇴장은 속성이 아니라 패턴·그룹의 <strong>+ 퇴장</strong>. 시작·끝 프리셋 링크는 적용 후에도 유지됩니다.</div>
         <figure class="tutorial-figure" data-file="images/15-char-group.png">
           <img class="tutorial-shot" src="./images/15-char-group.png" alt="그룹 패널 · 등록 · 키프레임 적용" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>그룹 패널 · 등록 · 키프레임 적용</figcaption>

@@ -219,6 +219,7 @@ export function mountEditorShell(root, ctx) {
       motion: ctx.motion,
       getTemplateStore: () => ctx.motionTemplateStore ?? null,
       getPresetStore: () => ctx.positionPresetStore ?? null,
+      getSegmentStagePreview: () => ctx.segmentStagePreview ?? null,
       onPickPoint: (pick) => ctx.onPickMacroPoint?.(pick),
       onPresetUpdated: (p) => ctx.onPresetUpdated?.(p),
       onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
@@ -273,7 +274,7 @@ export function mountEditorShell(root, ctx) {
     dataScope: 'scene',
     titleHelp:
       '<strong>씬 전용</strong> — 선택한 트랙·키는 지금 씬 타임라인에 속합니다.<br>'
-      + 'Character·Stage는 <strong>속성 · 패턴</strong> 탭으로 나뉩니다',
+      + 'Character·Stage는 <strong>패턴 · 속성</strong> 탭으로 나뉩니다',
   });
 
   if (ctx.groupStore) {
@@ -330,29 +331,7 @@ export function mountEditorShell(root, ctx) {
     });
   }
 
-  // Right dock order: 프로젝트 공통 → 씬
-  if (posPresetsPanel) {
-    rightRail.registerPanel({
-      id: 'position-presets',
-      icon: 'fas fa-map-marker-alt',
-      label: '위치 프리셋',
-      panelEl: posPresetsPanel.el,
-      panelApi: posPresetsPanel,
-      defaultOpen: true,
-      startCollapsed: true,
-    });
-  }
-  if (tplPanel) {
-    rightRail.registerPanel({
-      id: 'keyframe-macros',
-      icon: 'fas fa-layer-group',
-      label: '패턴 라이브러리',
-      panelEl: tplPanel.el,
-      panelApi: tplPanel,
-      defaultOpen: true,
-      startCollapsed: true,
-    });
-  }
+  // Right dock order: 속성 → 그룹 → 패턴 라이브러리 → 위치 프리셋 → 조명
   if (propsPanel) {
     rightRail.registerPanel({
       id: 'properties',
@@ -370,6 +349,28 @@ export function mountEditorShell(root, ctx) {
       label: '그룹',
       panelEl: groupsPanel.el,
       panelApi: groupsPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+  if (tplPanel) {
+    rightRail.registerPanel({
+      id: 'keyframe-macros',
+      icon: 'fas fa-layer-group',
+      label: '패턴 라이브러리',
+      panelEl: tplPanel.el,
+      panelApi: tplPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+  if (posPresetsPanel) {
+    rightRail.registerPanel({
+      id: 'position-presets',
+      icon: 'fas fa-map-marker-alt',
+      label: '위치 프리셋',
+      panelEl: posPresetsPanel.el,
+      panelApi: posPresetsPanel,
       defaultOpen: true,
       startCollapsed: true,
     });

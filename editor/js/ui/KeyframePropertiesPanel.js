@@ -8,7 +8,7 @@ import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
 
 /**
- * Properties — tabs: 속성 (object/key) · 패턴 (move/hold/exit keyframe pattern).
+ * Properties — tabs: 패턴 (move/hold/exit keyframe pattern) · 속성 (object/key).
  * Exit is only in the 패턴 tab (not 속성). HOUSE light tracks edit dim/color/size.
  *
  * @param {{
@@ -54,16 +54,16 @@ export function createKeyframePropertiesPanel(opts) {
   root.className = 'sb-panel-body sb-kf-props';
   root.innerHTML = `
     <div class="sb-props-tabs" role="tablist">
-      <button type="button" class="sb-props-tab is-on" data-tab="props" role="tab" aria-selected="true">속성</button>
-      <button type="button" class="sb-props-tab" data-tab="segments" role="tab" aria-selected="false"
+      <button type="button" class="sb-props-tab is-on" data-tab="segments" role="tab" aria-selected="true"
         data-role="segments-tab"
         title="이동·대기·퇴장 키프레임 패턴 → 키프레임 적용">패턴</button>
+      <button type="button" class="sb-props-tab" data-tab="props" role="tab" aria-selected="false">속성</button>
     </div>
     <div class="sb-kf-props-empty" data-role="empty">
       씬에서 <strong>모션</strong>을 선택하거나, 타임라인에서 <strong>HOUSE / Fixture</strong> 트랙을 선택하세요.
     </div>
     <div class="sb-kf-props-form" data-role="form" hidden>
-      <div class="sb-props-pane is-on" data-pane="props">
+      <div class="sb-props-pane" data-pane="props" hidden>
         <div class="ec-row"><label>타입</label><span class="ec-val-text" data-role="obj-type">Group</span></div>
         <div class="ec-row">
           <label>이름</label>
@@ -182,7 +182,7 @@ export function createKeyframePropertiesPanel(opts) {
         </div>
       </div>
 
-      <div class="sb-props-pane" data-pane="segments" hidden>
+      <div class="sb-props-pane is-on" data-pane="segments">
         <p class="sb-ens-subtitle sb-props-pane-hint">
           <strong>시작 위치</strong> → <strong>+</strong> 이동·대기·퇴장 · 위치 프리셋 · <strong>키프레임 적용</strong>
         </p>
@@ -246,7 +246,7 @@ export function createKeyframePropertiesPanel(opts) {
   animHost.appendChild(animSection.root);
 
   /** @type {'props' | 'segments'} */
-  let activeTab = 'props';
+  let activeTab = 'segments';
 
   function setTab(tab) {
     activeTab = tab === 'segments' ? 'segments' : 'props';
@@ -265,6 +265,7 @@ export function createKeyframePropertiesPanel(opts) {
   root.querySelectorAll('.sb-props-tab').forEach((btn) => {
     btn.addEventListener('click', () => setTab(/** @type {any} */ (btn.dataset.tab)));
   });
+  setTab('segments');
 
   let syncing = false;
   /** @type {string | null} */

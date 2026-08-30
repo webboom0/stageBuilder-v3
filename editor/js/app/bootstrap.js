@@ -1124,7 +1124,9 @@ async function main(initialProjectStore) {
     if (track?.locked) return false;
     timeline.pause();
     segmentStagePreview.resetPreview();
-    const ok = applyKeyframeTemplateToMotion(item, tpl, pose, timeline);
+    const ok = applyKeyframeTemplateToMotion(item, tpl, pose, timeline, {
+      presets: positionPresetStore.list(),
+    });
     if (ok) {
       const t = snapKeyframeTimeSec(pose.startTime ?? timeline.playheadSec, timeline.fps);
       timeline.setPlayhead(t);
@@ -1771,9 +1773,14 @@ async function main(initialProjectStore) {
       segmentStagePreview.resetPreview();
       const anim = item.anim;
       const ok = applyMotionSegmentsToTrack({ engine: timeline, motionItem: item });
-      const t = anim && Number.isFinite(anim.startTime)
+      let t = anim && Number.isFinite(anim.startTime)
         ? snapKeyframeTimeSec(Math.max(0, anim.startTime), timeline.fps)
         : timeline.playheadSec;
+      // 등장(opacity≈0) 시작이면 첫 구간 끝으로 — 무대에서 바로 보이게
+      if (anim && (anim.opacity ?? 1) <= 0.05 && anim.segments?.length) {
+        const endFirst = t + Math.max(0.1, Number(anim.segments[0].duration) || 0.1);
+        t = snapKeyframeTimeSec(endFirst, timeline.fps);
+      }
       timeline.setPlayhead(t);
       applyAllDirectorsAtPlayhead();
       markSceneDirty();

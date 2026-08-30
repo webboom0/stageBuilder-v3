@@ -244,7 +244,7 @@ export function createGroupsPanelBody(opts) {
       return;
     }
     normalizeGroupAnimation(active);
-    const segs = ensureGroupSegments(active);
+    ensureGroupSegments(active);
     const configured = inferGroupStartConfigured(active);
     active.startConfigured = configured;
     const total = getGroupTotalDuration(active);
@@ -263,7 +263,7 @@ export function createGroupsPanelBody(opts) {
       showFormation: true,
       applyLabel: groupHasTrack ? KEYFRAME_APPLY_LABEL : GROUP_TRACK_DEPLOY_APPLY_LABEL,
       getStart: () => active,
-      getSegments: () => segs,
+      getSegments: () => ensureGroupSegments(active),
       getPresetStore: () => opts.getPresetStore?.() ?? null,
       onPreviewBegin: () => stagePreview?.begin(),
       onPreviewEnd: () => stagePreview?.end(),
@@ -293,13 +293,17 @@ export function createGroupsPanelBody(opts) {
         commit((patch) => store.updateSegment(active.id, segId, patch));
         renderSegments();
       },
-      onAddSegment: (kind) => {
-        const seg = store.addSegment(active.id, kind);
+      onAddSegment: (kind, atIndex) => {
+        const seg = store.addSegment(active.id, kind, atIndex);
         renderSegments();
         return seg?.id ?? null;
       },
       onRemoveSegment: (segId) => {
         store.removeSegment(active.id, segId);
+        renderSegments();
+      },
+      onMoveSegment: (segId, toIndex) => {
+        store.moveSegment(active.id, segId, toIndex);
         renderSegments();
       },
       onPickPoint: (pick) => {

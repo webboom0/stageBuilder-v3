@@ -165,22 +165,26 @@ export class MotionGroupStore {
   /**
    * @param {string} groupId
    * @param {'move' | 'hold' | 'exit'} kind
+   * @param {number} [atIndex] — 삽입 위치(미지정 시 맨 끝)
    */
-  addSegment(groupId, kind) {
+  addSegment(groupId, kind, atIndex) {
     const g = this.groups.get(groupId);
     if (!g) return null;
     const segments = ensureGroupSegments(g);
-    const last = segments[segments.length - 1];
+    const insertAt = Number.isInteger(atIndex)
+      ? Math.max(0, Math.min(atIndex, segments.length))
+      : segments.length;
+    const prev = insertAt > 0 ? segments[insertAt - 1] : null;
     const k = normalizeSegmentKind(kind);
     /** Inherit easing from previous non-hold segment; first/default = smooth */
-    const inheritEasing = resolveInheritEasing(segments);
+    const inheritEasing = resolveInheritEasing(segments.slice(0, insertAt));
     const base = {
       kind: k,
-      formation: last?.formation || g.formation || 'grid',
-      formationSpacing: Number(last?.formationSpacing) || g.formationSpacing || 30,
-      anchorX: Number(last?.anchorX) || Number(g.fromX) || 0,
-      anchorZ: Number(last?.anchorZ) || Number(g.fromZ) || 0,
-      toRotY: Number(last?.toRotY) || 0,
+      formation: prev?.formation || g.formation || 'grid',
+      formationSpacing: Number(prev?.formationSpacing) || g.formationSpacing || 30,
+      anchorX: Number(prev?.anchorX) || Number(g.fromX) || 0,
+      anchorZ: Number(prev?.anchorZ) || Number(g.fromZ) || 0,
+      toRotY: Number(prev?.toRotY) || 0,
     };
     let seg;
     if (k === SEGMENT_KIND.hold) {
@@ -189,21 +193,40 @@ export class MotionGroupStore {
       seg = normalizeSegment({
         ...base,
         duration: 4,
-        anchorZ: (Number(last?.anchorZ) || 0) + 8,
+        anchorZ: (Number(prev?.anchorZ) || Number(g.fromZ) || 0) + 8,
         easing: inheritEasing,
       }, g);
     } else {
       seg = normalizeSegment({
         ...base,
         duration: 5,
-        anchorZ: (Number(last?.anchorZ) || 0) + 5,
+        anchorZ: (Number(prev?.anchorZ) || Number(g.fromZ) || 0) + 5,
         easing: inheritEasing,
       }, g);
     }
-    segments.push(seg);
+    segments.splice(insertAt, 0, seg);
     this.selectedSegmentId = seg.id;
     syncLegacyFieldsFromSegments(g);
     return seg;
+  }
+
+  /**
+   * @param {string} groupId
+   * @param {string} segId
+   * @param {number} toIndex
+   */
+  moveSegment(groupId, segId, toIndex) {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+    const segments = ensureGroupSegments(g);
+    const from = segments.findIndex((s) => s.id === segId);
+    if (from < 0) return false;
+    const dest = Math.max(0, Math.min(Number(toIndex) || 0, segments.length - 1));
+    if (from === dest) return true;
+    const [seg] = segments.splice(from, 1);
+    segments.splice(dest, 0, seg);
+    syncLegacyFieldsFromSegments(g);
+    return true;
   }
 
   /**

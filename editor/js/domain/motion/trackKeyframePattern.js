@@ -103,14 +103,17 @@ export function trackKeyframesToPatternDraft(track, motionItem, fallbackStartSec
     }
     const prev = collapsed[i - 1];
     const prevBag = asMotionKeyValue(prev.value);
+    const prevRotY = normalizeRotYDeg((prevBag.rotation[1] * 180) / Math.PI);
     const dur = Math.max(0.1, k.timeSec - prev.timeSec);
     const samePos = Math.abs(bag.position[0] - prevBag.position[0]) < POS_EPS
       && Math.abs(bag.position[2] - prevBag.position[2]) < POS_EPS;
+    const sameRot = Math.abs(normalizeRotYDeg(rotY - prevRotY)) < 0.5;
     const isLast = i === collapsed.length - 1;
     const isExit = isLast && (clamp01(bag.opacity ?? 1) <= 0.05 || bag.visible === false);
     /** @type {'move'|'hold'|'exit'} */
     let kind = 'move';
-    if (samePos) kind = 'hold';
+    if (samePos && sameRot) kind = 'hold';
+    else if (isExit && samePos) kind = 'exit';
     else if (isExit) kind = 'exit';
     keyframes.push({
       id: newTrackPatternKeyframeId(),

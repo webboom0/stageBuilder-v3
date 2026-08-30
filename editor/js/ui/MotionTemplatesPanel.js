@@ -75,6 +75,7 @@ export function createMotionTemplatesPanelBody(opts) {
           deltaRotY: draft.keyframes[0].deltaRotY,
           opacity: draft.keyframes[0].opacity,
           visible: draft.keyframes[0].visible !== false,
+          presetId: draft.keyframes[0].presetId ?? null,
         }] : active.keyframes,
       });
     } else {
@@ -130,6 +131,7 @@ export function createMotionTemplatesPanelBody(opts) {
       stepsEl.innerHTML = '<div class="sb-ens-empty">패턴을 선택하거나 + 로 추가하세요.</div>';
       return;
     }
+    const stagePreview = opts.getSegmentStagePreview?.();
     renderKeyframeTemplateSteps(stepsEl, {
       getDraft: () => draft,
       macroLibraryMode: true,
@@ -137,10 +139,38 @@ export function createMotionTemplatesPanelBody(opts) {
       onPersist: () => persistDraft(),
       onApply: () => applyActiveMacro(),
       getPresetStore: opts.getPresetStore,
+      getPlayheadSec: () => opts.engine?.playheadSec ?? 0,
       onPickPoint: opts.onPickPoint,
       onPresetUpdated: opts.onPresetUpdated,
       onPositionPresetsChanged: opts.onPositionPresetsChanged,
       onPresetRemoved: opts.onPresetRemoved,
+      onPreviewBegin: () => stagePreview?.begin(),
+      onPreviewEnd: () => stagePreview?.end(),
+      onPreviewReset: () => stagePreview?.resetPreview?.(),
+      onPreviewStart: (form) => {
+        stagePreview?.previewPresetLocation?.({
+          x: Number(form.fromX ?? form.x) || 0,
+          z: Number(form.fromZ ?? form.z) || 0,
+          rotY: Number(form.fromRotY ?? form.rotY) || 0,
+          opacity: form.opacity ?? 1,
+        });
+      },
+      onPreviewSegment: (_id, form) => {
+        stagePreview?.previewPresetLocation?.({
+          x: Number(form.anchorX ?? form.x) || 0,
+          z: Number(form.anchorZ ?? form.z) || 0,
+          rotY: Number(form.toRotY ?? form.rotY) || 0,
+          opacity: 1,
+        });
+      },
+      onPreviewPreset: (form) => {
+        stagePreview?.previewPresetLocation?.({
+          x: Number(form.x ?? form.fromX ?? form.anchorX) || 0,
+          z: Number(form.z ?? form.fromZ ?? form.anchorZ) || 0,
+          rotY: Number(form.rotY ?? form.fromRotY ?? form.toRotY) || 0,
+          opacity: form.opacity ?? 1,
+        });
+      },
     });
   }
 

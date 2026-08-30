@@ -16,6 +16,7 @@ export function newMotionTemplateId() {
  *   opacity: number,
  *   visible: boolean,
  *   interpolation?: number,
+ *   presetId?: string | null,
  * }} RelativeKeyframe
  */
 
@@ -55,6 +56,7 @@ function normalizeRelativeKeyframe(kf) {
     opacity: clamp01(kf?.opacity ?? 1),
     visible: kf?.visible !== false,
     interpolation: Number.isFinite(Number(kf?.interpolation)) ? Number(kf.interpolation) : undefined,
+    presetId: typeof kf?.presetId === 'string' && kf.presetId ? kf.presetId : null,
   };
 }
 
