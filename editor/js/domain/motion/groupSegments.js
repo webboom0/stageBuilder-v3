@@ -75,6 +75,7 @@ export function normalizeSegment(seg, groupDefaults = {}) {
     anchorX: Number.isFinite(Number(seg.anchorX)) ? Number(seg.anchorX) : Number(groupDefaults.toX) || 0,
     anchorZ: Number.isFinite(Number(seg.anchorZ)) ? Number(seg.anchorZ) : Number(groupDefaults.toZ) || 2,
     toRotY: normalizeRotYDeg(seg.toRotY),
+    anchorPresetId: seg.anchorPresetId || null,
     easing: kind === SEGMENT_KIND.hold ? SEGMENT_EASING.linear : normalizeSegmentEasing(seg.easing),
   };
 }
@@ -82,25 +83,63 @@ export function normalizeSegment(seg, groupDefaults = {}) {
 /** 레거시 단일 구간 → segments 배열 */
 export function ensureGroupSegments(group) {
   if (!group) return [];
-  if (Array.isArray(group.segments) && group.segments.length) {
-    group.segments = group.segments.map((s) => normalizeSegment(s, group));
+    if (Array.isArray(group.segments)) {
+    if (group.segments.length) {
+      group.segments = group.segments.map((s) => normalizeSegment(s, group));
+      return group.segments;
+    }
+    // 빈 segments[] — 레거시 필드 마이그레이션 (배포된 타임라인 없을 때만)
+    if (hasLegacySegmentFields(group) && !group.deployedFolderId) {
+      group.segments = [legacySegmentFromGroup(group)];
+      return group.segments;
+    }
     return group.segments;
   }
-  group.segments = [
-    normalizeSegment(
-      {
-        duration: group.duration,
-        formation: group.formation,
-        formationSpacing: group.formationSpacing,
-        anchorX: group.toX,
-        anchorZ: group.toZ,
-        toRotY: group.toRotY,
-        kind: SEGMENT_KIND.move,
-      },
-      group,
-    ),
-  ];
+  group.segments = [legacySegmentFromGroup(group)];
   return group.segments;
+}
+
+function hasLegacySegmentFields(group) {
+  return group.duration != null
+    || group.toX != null
+    || group.toZ != null
+    || group.toRotY != null;
+}
+
+function legacySegmentFromGroup(group) {
+  return normalizeSegment(
+    {
+      duration: group.duration,
+      formation: group.formation,
+      formationSpacing: group.formationSpacing,
+      anchorX: group.toX,
+      anchorZ: group.toZ,
+      toRotY: group.toRotY,
+      kind: SEGMENT_KIND.move,
+    },
+    group,
+  );
+}
+
+/** 저장/로드·UI — 구간·시작 데이터가 있으면 true (startConfigured:false 덮어씀 방지) */
+export function inferGroupStartConfigured(group) {
+  if (!group) return false;
+  const segs = ensureGroupSegments(group);
+  if (segs.length > 0) return true;
+  if (Number.isFinite(group.fromX) || Number.isFinite(group.fromZ)) {
+    if (hasLegacySegmentFields(group)) return true;
+    if (group.members?.length) return true;
+  }
+  return !!group.startConfigured;
+}
+
+/** 씬 로드·패널 표시 전 그룹 애니메이션 필드 정규화 */
+export function normalizeGroupAnimation(group) {
+  if (!group) return group;
+  ensureGroupSegments(group);
+  syncLegacyFieldsFromSegments(group);
+  group.startConfigured = inferGroupStartConfigured(group);
+  return group;
 }
 
 export function getGroupTotalDuration(group) {

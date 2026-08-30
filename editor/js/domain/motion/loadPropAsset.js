@@ -5,6 +5,8 @@ import { getStageWorldPerMeter } from '../stage/stageGridAdaptive.js';
 
 /** Default max bounding size for props on stage (meters). */
 export const PROP_MAX_SIZE_M = 3;
+/** Scale up props whose largest axis is below this (meters) on the floor grid. */
+export const PROP_MIN_SIZE_M = 0.5;
 
 /**
  * Load stage prop (FBX or OBJ). No human-height scaling — fit to stage meters.
@@ -68,8 +70,13 @@ function fitPropScale(root, stageManager, maxSizeM) {
   const maxDim = Math.max(size.x, size.y, size.z);
   const wpm = getStageWorldPerMeter(stageManager) || 1;
   const maxWorld = maxSizeM * wpm;
-  if (maxDim > 1e-6 && maxDim > maxWorld) {
-    root.scale.multiplyScalar(maxWorld / maxDim);
+  const minWorld = PROP_MIN_SIZE_M * wpm;
+  if (maxDim > 1e-6) {
+    if (maxDim > maxWorld) {
+      root.scale.multiplyScalar(maxWorld / maxDim);
+    } else if (maxDim < minWorld) {
+      root.scale.multiplyScalar(minWorld / maxDim);
+    }
   }
   root.userData.propMaxSizeM = maxSizeM;
 }

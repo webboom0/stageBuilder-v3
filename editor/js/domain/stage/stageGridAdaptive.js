@@ -52,9 +52,9 @@ export function getDefaultWorldPerMeter() {
 
 /**
  * World units per meter for grid / formation / human scale.
- * Uses the v3 proscenium floor plate as the canonical meter ruler so proscenium
- * and arena share the same character size at the same profile W×D (arena circle
- * mesh is smaller in world units but must not shrink performers).
+ * Proscenium: measure the live floor mesh (matches pre–phase6 spawn sizing).
+ * Arena: the circle floor mesh is smaller in world units — use the larger
+ * proscenium-plate ruler so performers are not shrunk on arena stages.
  *
  * @param {import('./StageManager.js').StageManager | null} stageManager
  */
@@ -66,15 +66,32 @@ export function getStageWorldPerMeter(stageManager) {
 
   const stageType = normalizeStageType(stageManager?.stageType ?? 'proscenium');
   const factors = getClampedProfileFactors(profile, stageType);
+  const effectiveW = factors.effectiveWidthM;
+
   const [gw] = V3_PROSCENIUM_FLOOR.geometry;
   const [sx] = V3_PROSCENIUM_FLOOR.scale;
-  const plateWorldWidth = gw * sx * factors.widthFactor;
-  const perM = plateWorldWidth / profile.widthM;
+  const platePerM = (gw * sx * factors.widthFactor) / effectiveW;
 
-  if (!Number.isFinite(perM) || perM < 1e-6) {
+  const floor = stageManager?.floor;
+  if (floor) {
+    floor.updateWorldMatrix(true, true);
+    _box.setFromObject(floor);
+    if (!_box.isEmpty()) {
+      _box.getSize(_size);
+      const floorPerM = _size.x / effectiveW;
+      if (Number.isFinite(floorPerM) && floorPerM > 1e-6) {
+        if (stageType === 'proscenium') {
+          return floorPerM;
+        }
+        return Math.max(floorPerM, platePerM);
+      }
+    }
+  }
+
+  if (!Number.isFinite(platePerM) || platePerM < 1e-6) {
     return getDefaultWorldPerMeter();
   }
-  return perM;
+  return platePerM;
 }
 
 /**

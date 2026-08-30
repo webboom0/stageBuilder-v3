@@ -4,17 +4,49 @@
 import { collectManifestAssets } from './SceneDocument.js';
 import { resolveProjectAssetUrl } from './projectPaths.js';
 
+/** @param {string} label @param {string} [detail] */
+function missingFileKey(label, detail) {
+  const d = String(detail || '');
+  if (!d.includes('404') && !d.includes('파일 없음') && !d.includes('Not Found')) return null;
+  const base = String(label).replace(/\.[^.]+$/i, '').toLowerCase().trim();
+  return base || null;
+}
+
+/** @param {string} [detail] */
+export function formatLoadWarningDetail(detail) {
+  if (!detail) return undefined;
+  const d = String(detail);
+  if (d.includes('404') || d.includes('Not Found') || d.includes('파일 없음')) {
+    const m = d.match(/\/([^/?#"']+\.[^/?#"']+)/);
+    if (m) {
+      try {
+        return `파일 없음 — ${decodeURIComponent(m[1])}`;
+      } catch {
+        return `파일 없음 — ${m[1]}`;
+      }
+    }
+    return '파일 없음 (HTTP 404)';
+  }
+  if (d.length > 96) return `${d.slice(0, 93)}…`;
+  return d;
+}
+
 export function createSceneLoadReport() {
-  /** @type {Array<{ kind: string, label: string, detail?: string }>} */
+  /** @type {Array<{ kind: string, label: string, detail?: string, _mk?: string }>} */
   const warnings = [];
 
   return {
     /** @param {string} kind @param {string} label @param {string} [detail] */
     addWarning(kind, label, detail) {
-      warnings.push({ kind, label, detail: detail || undefined });
+      const formatted = formatLoadWarningDetail(detail);
+      const mk = missingFileKey(label, detail || formatted);
+      if (mk && warnings.some((w) => w._mk === mk)) return;
+      const dup = warnings.find((w) => w.kind === kind && w.label === label && w.detail === formatted);
+      if (dup) return;
+      warnings.push({ kind, label, detail: formatted, _mk: mk || undefined });
     },
     get warnings() {
-      return [...warnings];
+      return warnings.map(({ kind, label, detail }) => ({ kind, label, detail }));
     },
     hasIssues() {
       return warnings.length > 0;

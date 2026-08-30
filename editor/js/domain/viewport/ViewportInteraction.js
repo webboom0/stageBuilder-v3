@@ -79,11 +79,15 @@ export function createViewportInteraction(opts) {
       const m = motion.get(selectedMotionId);
       if (!m) return;
       const track = engine.getTrack(m.trackId);
+      const beforeLocked = snapshotObject(m.object);
       if (track?.locked) {
-        // Cancel drag start — leave orbit as-is next frame
+        applySnapshot(m.object, beforeLocked);
         orbit.enabled = true;
+        dragging = false;
+        dragSnap = null;
         transform.enabled = false;
         requestAnimationFrame(() => { transform.enabled = true; });
+        motion.apply(engine.playheadSec);
         return;
       }
       dragging = true;
@@ -116,9 +120,11 @@ export function createViewportInteraction(opts) {
   });
 
   transform.addEventListener('objectChange', () => {
-    if (!selectedMotionId) return;
+    if (!selectedMotionId || !dragSnap) return;
     const m = motion.get(selectedMotionId);
     if (!m) return;
+    const track = engine.getTrack(m.trackId);
+    if (track?.locked) return;
     // Character translate is XZ only — lock Y to pre-drag height
     if (mode === 'translate' && dragSnap?.lockY !== false) {
       const lockY = dragSnap?.before?.position?.y ?? m.object.position.y;
@@ -169,6 +175,7 @@ export function createViewportInteraction(opts) {
       return;
     }
     transform.attach(m.object);
+    transform.enabled = !engine.getTrack(m.trackId)?.locked;
     updateTranslateYVisibility();
     if (opt.selectKey !== false && !engine.selectedKeyframeId) {
       const track = engine.getTrack(m.trackId);
@@ -184,8 +191,12 @@ export function createViewportInteraction(opts) {
     onSelectionChange?.();
   }
 
+  /** @type {(() => void) | null} */
+  let pickPointCancelCallback = null;
+
   function beginStagePick(motionId) {
     pickPointCallback = null;
+    pickPointCancelCallback = null;
     pickMotionId = motionId;
     selectMotion(motionId, { selectKey: false });
     showPickBanner('무대에서 위치 지정 — 바닥을 클릭하세요 (Esc 취소)');
@@ -196,19 +207,24 @@ export function createViewportInteraction(opts) {
    * Group ensemble path pick — returns xz on deck (no motion move).
    * @param {(pt: { x: number, z: number }) => void} onPicked
    * @param {string} [banner]
+   * @param {() => void} [onCancelled]
    */
-  function beginPointPick(onPicked, banner) {
+  function beginPointPick(onPicked, banner, onCancelled) {
     pickMotionId = null;
     pickPointCallback = onPicked;
+    pickPointCancelCallback = onCancelled ?? null;
     showPickBanner(banner || '그룹 위치 지정 — 바닥을 클릭하세요 (Esc 취소)');
     setPickCursor(true);
   }
 
   function cancelStagePick() {
+    const cancelCb = pickPointCancelCallback;
     pickMotionId = null;
     pickPointCallback = null;
+    pickPointCancelCallback = null;
     clearPickBanner();
     setPickCursor(false);
+    cancelCb?.();
   }
 
   function applyPointPick(e) {
@@ -252,6 +268,11 @@ export function createViewportInteraction(opts) {
       cancelStagePick();
       return false;
     }
+    const track = engine.getTrack(m.trackId);
+    if (track?.locked) {
+      cancelStagePick();
+      return true;
+    }
     ndcFromEvent(e);
     raycaster.setFromCamera(pointer, camera);
     const deckY = getStageDeckWorldY(stageManager);
@@ -281,6 +302,11 @@ export function createViewportInteraction(opts) {
   function commitTransform(m, before, trackId, keyId, keyBeforeSnap) {
     const after = snapshotObject(m.object);
     const track = trackId ? engine.getTrack(trackId) : null;
+    if (track?.locked) {
+      applySnapshot(m.object, before);
+      motion.apply(engine.playheadSec);
+      return;
+    }
     const target = track ? resolveWritableKeyframe(track, keyId) : null;
     if (!target) {
       motion.apply(engine.playheadSec);
@@ -319,8 +345,9 @@ export function createViewportInteraction(opts) {
   }
 
   function syncLiveKeyPreview(m) {
-    if (engine.selectedTrackId !== m.trackId || !engine.selectedKeyframeId) return;
+    if (!dragSnap || engine.selectedTrackId !== m.trackId || !engine.selectedKeyframeId) return;
     const track = engine.getTrack(m.trackId);
+    if (track?.locked) return;
     const kf = track?.keys.get(engine.selectedKeyframeId);
     if (!kf) return;
     const bag = asMotionKeyValue(kf.value);
@@ -380,6 +407,11 @@ export function createViewportInteraction(opts) {
     beginPointPick,
     cancelStagePick,
     isPicking: () => !!(pickMotionId || pickPointCallback),
+    refreshTransformLock() {
+      const m = selectedMotionId ? motion.get(selectedMotionId) : null;
+      if (!m) return;
+      transform.enabled = !engine.getTrack(m.trackId)?.locked;
+    },
     destroy() {
       dom.removeEventListener('pointerdown', onPointerDown);
       dom.removeEventListener('click', onClick);

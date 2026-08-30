@@ -215,6 +215,7 @@ function mountProjectRoutes(app, deps) {
       stageProfile: meta.stageProfile || null,
       scenes: [{ id: sceneId, name: '1막', order: 0, file: sceneFile }],
       activeSceneId: sceneId,
+      positionPresets: [],
       createdAt: now,
       updatedAt: now,
     };

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { INTERPOLATION } from '../timeline/types.js';
+import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
 import { buildMemberWaypoints, getGroupClipRange, ensureGroupSegments } from './groupSegments.js';
 import { asMotionKeyValue } from './motionKeyValue.js';
 
@@ -12,6 +13,7 @@ import { asMotionKeyValue } from './motionKeyValue.js';
  *   group: import('./MotionGroupStore.js').MotionGroup,
  *   memberIndex: number,
  *   feetY?: number,
+ *   quiet?: boolean,
  * }} opts
  */
 export function applyGroupSegmentsToMotion(opts) {
@@ -57,7 +59,8 @@ export function applyGroupSegmentsToMotion(opts) {
       opacity: hide ? 0 : baseOpacity,
       visible: !hide,
     });
-    engine.addKeyframe(track.id, wp.time, bag, interp);
+    const keyTime = snapKeyframeTimeSec(wp.time, engine.fps);
+    engine.addKeyframe(track.id, keyTime, bag, interp);
   }
 
   // Pose object at first waypoint
@@ -66,8 +69,10 @@ export function applyGroupSegmentsToMotion(opts) {
   motionItem.object.rotation.set(0, THREE.MathUtils.degToRad(Number(first.rotY) || 0), 0);
   motionItem.object.visible = true;
 
-  engine.emit('keys');
-  engine.emit('tracks');
+  if (!opts.quiet) {
+    engine.emit('keys');
+    engine.emit('tracks');
+  }
   return true;
 }
 

@@ -1,4 +1,5 @@
 import { repairMotionsFromTracks, repairMotionsFromGroups } from './sceneMotionPersistence.js';
+import { repairGroupsFromTracks } from './sceneGroupRepair.js';
 
 /**
  * Repair motion/track desync in saved scene documents (Phase 6 load).
@@ -11,6 +12,7 @@ export function repairSceneDocument(doc) {
   doc.folders = Array.isArray(doc.folders) ? doc.folders : [];
   repairMotionsFromTracks(doc);
   repairMotionsFromGroups(doc);
+  repairGroupsFromTracks(doc);
 
   /** @type {Map<string, object>} */
   const trackById = new Map();

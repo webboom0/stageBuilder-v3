@@ -39,41 +39,29 @@ export function createProjectPanelBody(opts) {
 
 
   root.innerHTML = `
-
-    <div class="sb-project-panel__summary" data-role="summary">
-
-      <button type="button" class="sb-project-panel__edit" data-act="edit" title="프로젝트 정보 수정">수정</button>
-
-      <div class="sb-project-panel__name" data-role="name">—</div>
-
-      <div class="sb-project-panel__detail" data-role="detail"></div>
-
-    </div>
-
-    <p class="sb-project-panel__status" data-role="dirty"></p>
-
-    <div class="sb-project-panel__scenes-head">
-
-      <span class="sb-project-panel__scenes-title">씬 (막)</span>
-
-      <div class="sb-project-panel__scenes-ctrls">
-
-        <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="save" title="씬 저장">
-
-          <i class="fas fa-save" aria-hidden="true"></i>
-
-        </button>
-
-        <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="add-scene" title="씬 추가">+</button>
-
+    <div class="sb-project-panel__main">
+      <div class="sb-project-panel__scenes-head">
+        <div class="sb-project-panel__scenes-lead">
+          <span class="sb-project-panel__scenes-title">씬 (막)</span>
+          <span class="sb-project-panel__dirty" data-role="dirty" hidden>저장 안 됨</span>
+        </div>
+        <div class="sb-project-panel__scenes-ctrls">
+          <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="save" title="씬 저장">
+            <i class="fas fa-save" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="add-scene" title="씬 추가">+</button>
+        </div>
       </div>
-
+      <ul class="sb-project-scene-list" data-role="scenes"></ul>
+      <p class="sb-project-panel__hint">클릭 전환 · ↑↓ 순서 · 더블클릭 이름 · 복제/삭제</p>
     </div>
-
-    <ul class="sb-project-scene-list" data-role="scenes"></ul>
-
-    <p class="sb-project-panel__hint">클릭 전환 · ↑↓ 순서 · 더블클릭 이름 · 복제/삭제</p>
-
+    <div class="sb-project-panel__footer">
+      <div class="sb-project-panel__summary" data-role="summary">
+        <button type="button" class="sb-project-panel__edit" data-act="edit" title="프로젝트 정보 수정">수정</button>
+        <div class="sb-project-panel__name" data-role="name">—</div>
+        <div class="sb-project-panel__detail" data-role="detail"></div>
+      </div>
+    </div>
   `;
 
 
@@ -152,7 +140,7 @@ export function createProjectPanelBody(opts) {
 
       detailEl.textContent = '';
 
-      dirtyEl.textContent = '';
+      dirtyEl.hidden = true;
 
       listEl.innerHTML = '';
 
@@ -172,7 +160,7 @@ export function createProjectPanelBody(opts) {
 
     if (editBtn instanceof HTMLButtonElement) editBtn.disabled = false;
 
-    dirtyEl.textContent = store.dirty ? '저장 안 됨 *' : '';
+    dirtyEl.hidden = !store.dirty;
 
 
 

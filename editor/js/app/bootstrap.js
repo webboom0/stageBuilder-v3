@@ -16,10 +16,29 @@ import { TimelineEngine } from '../domain/timeline/TimelineEngine.js';
 import { mountTimelineShell } from '../ui/timeline/TimelineShell.js';
 import { MotionDirector } from '../domain/motion/MotionDirector.js';
 import { MotionGroupStore } from '../domain/motion/MotionGroupStore.js';
+import { PositionPresetStore } from '../domain/motion/PositionPresetStore.js';
 import { applyGroupSegmentsToMotion } from '../domain/motion/applyGroupSegments.js';
+import { isGroupDeployed, reapplyGroupKeyframes, groupBakePlayheadSec } from '../domain/motion/applyGroupKeyframes.js';
+import { snapKeyframeTimeSec } from '../domain/timeline/KeyframeStore.js';
+import {
+  propagatePositionPresetUpdate,
+  unlinkPositionPreset,
+  sanitizePresetLinks,
+} from '../domain/motion/positionPresetLinks.js';
 import { applyImportedKeysToTrack, importV3MotionJson } from '../domain/motion/importV3MotionJson.js';
 import { applyMotionSegmentsToTrack } from '../domain/motion/applyMotionSegments.js';
 import { ensureGroupSegments } from '../domain/motion/groupSegments.js';
+import {
+  clearPresetLocationMarker,
+  clearSegmentPreviewGhosts,
+  initSegmentPreviewGhosts,
+  previewGroupSegmentPose,
+  previewGroupStartPose,
+  previewPositionOnStage,
+  previewSoloMotionSegmentPose,
+  previewSoloMotionStartPose,
+  showPresetLocationMarker,
+} from '../domain/motion/segmentStagePreview.js';
 import { colorForGroup, recolorGroupDeployedMembers } from '../domain/motion/walkLitePerformer.js';
 import { getStageDeckCenter, getStageWorldPerMeter } from '../domain/stage/stageGridAdaptive.js';
 import { getHumanFormationSpacingWorld } from '../domain/stage/HumanScale.js';
@@ -36,9 +55,12 @@ import { runProjectHub } from '../ui/project/ProjectHub.js';
 import { showProjectPickerDialog } from '../ui/project/ProjectPickerDialog.js';
 import { showProjectManagerDialog } from '../ui/project/ProjectManagerDialog.js';
 import { showSceneLoadReportDialog } from '../ui/project/SceneLoadReportDialog.js';
+import { enrichWarningsWithLibraryHints } from '../ui/project/sceneLoadReportAssets.js';
 import { showProjectMetaPopup } from '../ui/project/ProjectMetaPopup.js';
 import { createProject, exportProjectBundle, exportProjectSnapshot, importProjectBundle, restoreProjectSnapshot, listProjects, probeProjectsApi } from '../domain/project/projectApi.js';
 import { ProjectStore } from '../domain/project/ProjectStore.js';
+import { resolveProjectAssetUrl } from '../domain/project/projectPaths.js';
+import { memberDeployTrackName, relinkGroupDeployments } from '../domain/project/sceneGroups.js';
 import { createEditorLoadingOverlay } from '../ui/EditorLoadingOverlay.js';
 import { MultiViewManager } from '../domain/viewport/MultiViewManager.js';
 import { MultiViewPopup } from '../domain/viewport/MultiViewPopup.js';
@@ -96,6 +118,12 @@ const MENU_PHASE_HINTS = {
 
 function setStatus(text) {
   if (statusEl) statusEl.textContent = text;
+}
+
+function yieldForLoadingPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
 }
 
 function formatStatus(api, stageManager, extra = '', projectStore = null) {
@@ -242,6 +270,7 @@ async function main(initialProjectStore) {
     stageManager,
   });
   const groupStore = new MotionGroupStore();
+  const positionPresetStore = new PositionPresetStore();
   const light = new LightDirector({
     scene: stageManager.scene,
     engine: timeline,
@@ -273,6 +302,9 @@ async function main(initialProjectStore) {
     if (ev.type === 'selection') {
       syncStageFromTimelineSelection();
     }
+    if (ev.type === 'tracks' || ev.type === 'change') {
+      interaction?.refreshTransformLock?.();
+    }
     if (
       !suppressSceneDirty
       && (ev.type === 'keys' || ev.type === 'tracks' || ev.type === 'duration' || ev.type === 'view')
@@ -280,6 +312,8 @@ async function main(initialProjectStore) {
       markSceneDirty();
     }
     if (ev.type === 'play' && timeline.playing) {
+      // Saved-position / segment modal preview leaves suspendApply on — unblock before tick loop.
+      segmentStagePreview.resetPreview();
       audio.preloadAllClips();
     }
     if (timeline.playing) {
@@ -342,6 +376,28 @@ async function main(initialProjectStore) {
   /** @type {ReturnType<typeof createViewportInteraction> | null} */
   let interaction = null;
 
+  /** @type {(entry: object) => Promise<void>} */
+  let onStageAssetDrop = async () => {};
+  /** @type {(entry: object) => Promise<void>} */
+  let onCharacterAssetDrop = async () => {};
+
+  /** Undo/redo — restore timeline rows + matching stage objects. */
+  async function applyTimelineHistoryChange() {
+    const projectId = projectStore?.projectId ?? null;
+    const resolveUrl = (p) => resolveProjectAssetUrl(projectId, p);
+    await motion.reconcileAfterTimelineHistory(
+      resolveUrl,
+      projectStore?.activeSceneDoc?.motions,
+    );
+    motion.apply(timeline.playheadSec);
+    light.apply(timeline.playheadSec);
+    fixtures.apply(timeline.playheadSec);
+    audio.apply(timeline.playheadSec);
+    shellRef.current?.syncKeyframeProps?.();
+    shellRef.current?.syncLightingPanel?.();
+    interaction?.refreshTransformLock?.();
+  }
+
   if (timelineHost) {
     mountTimelineShell(timelineHost, {
       engine: timeline,
@@ -374,6 +430,11 @@ async function main(initialProjectStore) {
         else shellRef.current?.syncKeyframeProps?.();
         return removed;
       },
+      onStageAssetDrop: (entry) => onStageAssetDrop(entry),
+      onCharacterAssetDrop: (entry) => onCharacterAssetDrop(entry),
+      onHistoryChange: () => {
+        void applyTimelineHistoryChange();
+      },
     });
   }
 
@@ -395,6 +456,83 @@ async function main(initialProjectStore) {
     motion.suspendApply = !!ev.value;
   });
 
+  initSegmentPreviewGhosts(stageManager.scene);
+
+  let segmentPreviewDepth = 0;
+  const segmentStagePreview = {
+    begin() {
+      segmentPreviewDepth += 1;
+      motion.suspendApply = true;
+    },
+    end() {
+      segmentPreviewDepth = Math.max(0, segmentPreviewDepth - 1);
+      // Pin marker is preset-editor scoped — clear on every preview end (nested modals keep depth > 0).
+      clearPresetLocationMarker();
+      if (segmentPreviewDepth === 0) {
+        clearSegmentPreviewGhosts();
+        motion.suspendApply = false;
+        motion.apply(timeline.playheadSec);
+      }
+    },
+    /** After keyframe bake / scene load — exit preview suspend so play/scrub apply keys immediately. */
+    resetPreview() {
+      segmentPreviewDepth = 0;
+      clearSegmentPreviewGhosts();
+      clearPresetLocationMarker();
+      motion.suspendApply = false;
+      motion.apply(timeline.playheadSec);
+    },
+    previewGroupStart(group, draft) {
+      const groupIndex = groupStore.list().findIndex((g) => g.id === group.id);
+      const memberCount = Math.max(
+        group?.members?.length || 0,
+        Number(draft._previewMemberCount) || 0,
+        1,
+      );
+      previewGroupStartPose(group, draft, (id) => motion.get(id), stageManager, {
+        memberCount,
+        groupIndex: groupIndex >= 0 ? groupIndex : 0,
+      });
+    },
+    previewGroupSegment(group, segmentId, draft) {
+      const groupIndex = groupStore.list().findIndex((g) => g.id === group.id);
+      const memberCount = Math.max(
+        group?.members?.length || 0,
+        Number(draft._previewMemberCount) || 0,
+        1,
+      );
+      previewGroupSegmentPose(group, segmentId, draft, (id) => motion.get(id), stageManager, {
+        memberCount,
+        groupIndex: groupIndex >= 0 ? groupIndex : 0,
+      });
+    },
+    previewMotionStart(motionId, draft) {
+      const item = motion.get(motionId);
+      if (item) previewSoloMotionStartPose(item, draft);
+    },
+    previewMotionSegment(motionId, segmentId, draft) {
+      const item = motion.get(motionId);
+      if (item) previewSoloMotionSegmentPose(item, segmentId, draft);
+    },
+    previewPosition(pose) {
+      previewPositionOnStage(pose, {
+        groupStore,
+        stageManager,
+        getMotion: (id) => motion.get(id),
+        getSelectedMotionId: () => interaction.getSelectedMotionId?.() ?? null,
+      });
+    },
+    previewPresetLocation(pose) {
+      showPresetLocationMarker(
+        stageManager,
+        pose.x,
+        pose.z,
+        pose.rotY ?? 0,
+        pose.opacity ?? 1,
+      );
+    },
+  };
+
   const refreshStatus = (extra = '') => setStatus(formatStatus(api, stageManager, extra, projectStore));
 
   /** 씬 load 중 타임라인 emit → dirty 오탐 방지 */
@@ -414,6 +552,7 @@ async function main(initialProjectStore) {
       engine: timeline,
       motion,
       groupStore,
+      positionPresetStore,
       videoBg: videoBgRef.current,
       audio,
       stageManager,
@@ -434,10 +573,19 @@ async function main(initialProjectStore) {
         shellRef.current?.refreshProjectPanel?.();
         syncActiveVideoIndicator();
       },
+      /** Clear segment preview suspend before applyScene (saved-position preview leaves suspendApply on). */
+      onPrepareSceneLoad: () => {
+        segmentStagePreview.resetPreview();
+      },
     };
   }
 
   function afterSceneSwitch() {
+    segmentStagePreview.resetPreview();
+    motion.apply(timeline.playheadSec);
+    light.apply(timeline.playheadSec);
+    fixtures.apply(timeline.playheadSec);
+    audio.apply(timeline.playheadSec);
     interaction?.clearSelection?.();
     refreshStatus(`씬: ${projectStore?.sceneName?.() ?? ''}`);
   }
@@ -488,19 +636,48 @@ async function main(initialProjectStore) {
     return item;
   }
 
+  onStageAssetDrop = async (entry) => {
+    try {
+      const item = await addMotionEntry({ ...entry, assetRole: 'stage' });
+      refreshStatus(`Stage added: ${item.name}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`Stage load failed: ${err.message}`);
+    }
+  };
+
+  onCharacterAssetDrop = async (entry) => {
+    try {
+      const item = await addMotionEntry({ ...entry, assetRole: 'character' });
+      refreshStatus(`Character added: ${item.name}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`Character load failed: ${err.message}`);
+    }
+  };
+
+  function listGroupFolderMotions(group) {
+    if (!group?.deployedFolderId) return [];
+    const order = new Map();
+    timeline.listTracks().forEach((t, idx) => order.set(t.id, idx));
+    return motion.list()
+      .filter((m) => m.folderId === group.deployedFolderId)
+      .sort((a, b) => (order.get(a.trackId) ?? 0) - (order.get(b.trackId) ?? 0));
+  }
+
   function syncGroupNameToTimeline(group) {
     if (!group?.deployedFolderId) return;
     timeline.renameFolder(group.deployedFolderId, group.name);
-    for (const mem of group.members || []) {
-      if (!mem.deployedMotionId) continue;
+    (group.members || []).forEach((mem, i) => {
+      if (!mem.deployedMotionId) return;
       const item = motion.get(mem.deployedMotionId);
-      if (!item) continue;
-      const nextName = `${group.name} · ${mem.name}`;
+      if (!item) return;
+      const nextName = memberDeployTrackName(group, mem, i);
       item.name = nextName;
       if (item.object) item.object.name = nextName;
       const track = timeline.getTrack(item.trackId);
       if (track) track.name = nextName;
-    }
+    });
     timeline.emit('tracks');
   }
 
@@ -555,6 +732,22 @@ async function main(initialProjectStore) {
     input.click();
   }
 
+  function applyAllDirectorsAtPlayhead() {
+    motion.apply(timeline.playheadSec);
+    light.apply(timeline.playheadSec);
+    fixtures.apply(timeline.playheadSec);
+    audio.apply(timeline.playheadSec);
+  }
+
+  /** Seek to group clip start (frame-snapped) and apply motion keys — ready for immediate play. */
+  function finalizeGroupMotionBake(group) {
+    segmentStagePreview.resetPreview();
+    timeline.pause();
+    const t = group ? groupBakePlayheadSec(group, timeline) : timeline.playheadSec;
+    timeline.setPlayhead(t);
+    applyAllDirectorsAtPlayhead();
+  }
+
   async function deployGroup(groupId) {
     const group = groupStore.get(groupId);
     if (!group?.members?.length) return;
@@ -583,11 +776,11 @@ async function main(initialProjectStore) {
           mem.deployedMotionId = null;
         }
         const groupIndex = groupStore.list().findIndex((g) => g.id === group.id);
-        const tint = mem.color ?? colorForGroup(group, groupIndex >= 0 ? groupIndex : 0);
+        const tint = colorForGroup(group, groupIndex >= 0 ? groupIndex : 0);
         const item = await addMotionEntry(
           {
             url: mem.url,
-            name: `${group.name} · ${mem.name}`,
+            name: memberDeployTrackName(group, mem, i),
             procedural: mem.procedural,
             color: tint,
           },
@@ -608,10 +801,149 @@ async function main(initialProjectStore) {
         throw err;
       }
     }
-    motion.apply(timeline.playheadSec);
+    finalizeGroupMotionBake(group);
+    const gIdx = groupStore.list().findIndex((g) => g.id === group.id);
+    recolorGroupDeployedMembers(
+      group,
+      (id) => motion.get(id),
+      gIdx >= 0 ? gIdx : 0,
+      () => listGroupFolderMotions(group),
+    );
     refreshStatus(
       `그룹 배치: ${group.name} (${group.members.length}) · 구간 ${group.segments?.length || 0}`,
     );
+  }
+
+  /** Deploy members that lack a live motion instance (e.g. added after first GO). */
+  async function deployMissingGroupMembers(group) {
+    if (!group?.members?.length) return 0;
+    ensureGroupSegments(group);
+    const folder = timeline.ensureFolder({
+      id: group.deployedFolderId || undefined,
+      name: group.name,
+      collapsed: false,
+    });
+    group.deployedFolderId = folder.id;
+    const spacing = group.formationSpacing ?? group.spacing
+      ?? Math.round(getHumanFormationSpacingWorld(stageManager));
+    const formation = group.fromFormation || group.formation || 'line';
+    const offsets = MotionGroupStore.formationOffsets(
+      group.members.length,
+      spacing,
+      formation,
+    );
+    const groupIndex = groupStore.list().findIndex((g) => g.id === group.id);
+    const tint = colorForGroup(group, groupIndex >= 0 ? groupIndex : 0);
+    let deployed = 0;
+    for (let i = 0; i < group.members.length; i++) {
+      const mem = group.members[i];
+      if (mem.deployedMotionId && motion.get(mem.deployedMotionId)) continue;
+      if (mem.deployedMotionId) {
+        motion.remove(mem.deployedMotionId);
+        mem.deployedMotionId = null;
+      }
+      const item = await addMotionEntry(
+        {
+          url: mem.url,
+          name: memberDeployTrackName(group, mem, i),
+          procedural: mem.procedural,
+          color: tint,
+        },
+        { folderId: folder.id, positionOffset: offsets[i] },
+      );
+      mem.deployedMotionId = item.id;
+      applyGroupSegmentsToMotion({
+        engine: timeline,
+        motionItem: item,
+        group,
+        memberIndex: i,
+        feetY: item.object.position.y,
+      });
+      deployed++;
+    }
+    if (deployed > 0) {
+      relinkGroupDeployments(motion, groupStore, timeline);
+    }
+    return deployed;
+  }
+
+  /**
+   * First apply → full deploy; re-apply → rebuild keys on existing motion items only.
+   */
+  async function applyGroupKeyframes(groupId) {
+    const group = groupStore.get(groupId);
+    if (!group?.members?.length) return false;
+    timeline.pause();
+    ensureGroupSegments(group);
+
+    if (!isGroupDeployed(group, (id) => motion.get(id))) {
+      await deployGroup(groupId);
+      return true;
+    }
+
+    await deployMissingGroupMembers(group);
+
+    const count = reapplyGroupKeyframes({
+      engine: timeline,
+      group,
+      getMotionItem: (id) => motion.get(id),
+    });
+    if (count === 0) {
+      await deployGroup(groupId);
+      return true;
+    }
+
+    finalizeGroupMotionBake(group);
+    relinkGroupDeployments(motion, groupStore, timeline);
+    const gIdx = groupStore.list().findIndex((g) => g.id === group.id);
+    recolorGroupDeployedMembers(
+      group,
+      (id) => motion.get(id),
+      gIdx >= 0 ? gIdx : 0,
+      () => listGroupFolderMotions(group),
+    );
+    markSceneDirty();
+    refreshStatus(`키프레임 적용: ${group.name} (${count}명)`);
+    return true;
+  }
+
+  function handlePositionPresetUpdated(preset) {
+    if (!preset) return;
+    const { groups, motions } = propagatePositionPresetUpdate(preset, {
+      groupStore,
+      motion,
+      timeline,
+    });
+    void persistPositionPresetsNow();
+    if (groups || motions) {
+      markSceneDirty();
+      refreshStatus(
+        `저장 위치 «${preset.label}» 연결 갱신 · 그룹 ${groups} · 모션 ${motions}`,
+      );
+    }
+  }
+
+  function handlePositionPresetRemoved(presetId) {
+    if (!presetId) return;
+    const { groups, motions } = unlinkPositionPreset(presetId, { groupStore, motion });
+    if (groups || motions) {
+      markSceneDirty();
+      shellRef.current?.refreshGroups?.();
+      shellRef.current?.syncKeyframeProps?.();
+      refreshStatus(`저장 위치 삭제 · 연결 해제 · 그룹 ${groups} · 모션 ${motions}`);
+    }
+  }
+
+  async function persistPositionPresetsNow() {
+    if (!projectStore) return;
+    try {
+      await projectStore.persistPositionPresets(positionPresetStore);
+      shellRef.current?.refreshGroups?.();
+      shellRef.current?.syncKeyframeProps?.();
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`저장 위치 저장 실패: ${err.message}`);
+    }
   }
 
   const applyCam = (presetId) => {
@@ -630,13 +962,35 @@ async function main(initialProjectStore) {
     return window.confirm('저장하지 않은 변경이 있습니다. 계속할까요?');
   }
 
-  function presentSceneLoadReport(result, sceneName) {
-    if (result?.loadReport?.hasIssues?.()) {
-      showSceneLoadReportDialog({
-        sceneName: sceneName || projectStore?.sceneName?.(),
-        warnings: result.loadReport.warnings,
-      });
-    }
+  async function presentSceneLoadReport(result, sceneName) {
+    if (!result?.loadReport?.hasIssues?.()) return;
+    const shell = shellRef.current;
+    const warnings = await enrichWarningsWithLibraryHints(result.loadReport.warnings);
+    showSceneLoadReportDialog({
+      sceneName: sceneName || projectStore?.sceneName?.(),
+      warnings,
+      assetsActions: shell ? {
+        openAssetsPanel: () => shell.openAssetsPanel?.(),
+        pickUpload: (tab, opts) => shell.assetsPickUpload?.(tab, opts),
+        pickLibrary: (tab, opts) => shell.assetsPickLibrary?.(tab, opts),
+      } : undefined,
+      onReloadScene: projectStore ? async () => {
+        suppressSceneDirty = true;
+        try {
+          shellRef.current?.setStageBusy?.(true);
+          const reloadResult = await projectStore.loadActiveScene(getSceneCtx());
+          afterSceneSwitch();
+          shellRef.current?.refreshProjectPanel?.();
+          refreshStatus();
+          if (reloadResult?.loadReport?.hasIssues?.()) {
+            void presentSceneLoadReport(reloadResult, projectStore.sceneName());
+          }
+        } finally {
+          suppressSceneDirty = false;
+          shellRef.current?.setStageBusy?.(false);
+        }
+      } : undefined,
+    });
   }
 
   async function assignProject(store, opts = {}) {
@@ -1159,6 +1513,8 @@ async function main(initialProjectStore) {
     helpers,
     engine: timeline,
     groupStore,
+    positionPresetStore,
+    segmentStagePreview,
     light,
     fixtures,
     getProjectId: () => projectStore?.projectId ?? null,
@@ -1194,6 +1550,7 @@ async function main(initialProjectStore) {
       }
     },
     getMotion: (trackId) => motion.findByTrackId(trackId),
+    getMotionSnapshot: () => motion.list().map((m) => ({ ...m })),
     getLight: (trackId) => light.findByTrackId(trackId) ?? fixtures.findByTrackId(trackId),
     onWriteLight: (trackId, patch) => {
       if (light.findByTrackId(trackId)) {
@@ -1203,22 +1560,35 @@ async function main(initialProjectStore) {
       fixtures.writeBagOnSelectedKey(trackId, patch);
     },
     onStagePick: (motionId) => interaction?.beginStagePick(motionId),
+    onPickPoint: (onPicked) => {
+      interaction?.beginPointPick(onPicked, '저장 위치 — 바닥 클릭 (Esc 취소)');
+    },
     onPickAnimPoint: (pick) => {
       const label = pick.mode === 'from'
         ? '단일 모션 시작 위치 — 바닥 클릭 (Esc 취소)'
         : '구간 끝 위치 — 바닥 클릭 (Esc 취소)';
       interaction?.beginPointPick((pt) => {
         pick.onPicked?.(pt);
-      }, label);
+      }, label, () => {
+        pick.onCancelled?.();
+      });
     },
     onApplyMotionAnim: (motionId) => {
       const item = motion.get(motionId);
       if (!item) return;
+      timeline.pause();
+      segmentStagePreview.resetPreview();
+      const anim = item.anim;
       const ok = applyMotionSegmentsToTrack({ engine: timeline, motionItem: item });
-      motion.apply(timeline.playheadSec);
+      const t = anim && Number.isFinite(anim.startTime)
+        ? snapKeyframeTimeSec(Math.max(0, anim.startTime), timeline.fps)
+        : timeline.playheadSec;
+      timeline.setPlayhead(t);
+      applyAllDirectorsAtPlayhead();
+      markSceneDirty();
       refreshStatus(ok
-        ? `구간 적용: ${item.name}`
-        : `구간 적용 실패: ${item.name}`);
+        ? `키프레임 적용: ${item.name}`
+        : `키프레임 적용 실패: ${item.name}`);
     },
     onTransformMode: (mode) => interaction?.setMode(mode),
     onTransformSpace: (local) => interaction?.setLocal(local),
@@ -1304,11 +1674,22 @@ async function main(initialProjectStore) {
     },
     onDeployGroup: async (groupId) => {
       try {
-        await deployGroup(groupId);
+        await applyGroupKeyframes(groupId);
         shell.refreshGroups?.();
       } catch (err) {
         console.error(err);
       }
+    },
+    onPresetUpdated: (preset) => {
+      handlePositionPresetUpdated(preset);
+      shell.refreshGroups?.();
+    },
+    onPositionPresetsChanged: () => {
+      void persistPositionPresetsNow();
+    },
+    onPresetRemoved: (presetId) => {
+      handlePositionPresetRemoved(presetId);
+      void persistPositionPresetsNow();
     },
     onGroupRename: (group) => {
       syncGroupNameToTimeline(group);
@@ -1316,7 +1697,27 @@ async function main(initialProjectStore) {
     },
     onGroupColor: (group) => {
       const idx = groupStore.list().findIndex((g) => g.id === group.id);
-      recolorGroupDeployedMembers(group, (id) => motion.get(id), idx >= 0 ? idx : 0);
+      relinkGroupDeployments(motion, groupStore, timeline);
+      recolorGroupDeployedMembers(
+        group,
+        (id) => motion.get(id),
+        idx >= 0 ? idx : 0,
+        () => listGroupFolderMotions(group),
+      );
+      markSceneDirty();
+    },
+    onGroupPresetApplied: (group) => {
+      segmentStagePreview.resetPreview();
+      if (isGroupDeployed(group, (id) => motion.get(id))) {
+        reapplyGroupKeyframes({
+          engine: timeline,
+          group,
+          getMotionItem: (id) => motion.get(id),
+        });
+        motion.apply(timeline.playheadSec);
+        timeline.emit('keys');
+        markSceneDirty();
+      }
     },
     onPickGroupPoint: (pick) => {
       const label = pick.mode === 'from'
@@ -1325,7 +1726,9 @@ async function main(initialProjectStore) {
       interaction?.beginPointPick((pt) => {
         pick.onPicked?.(pt);
         shell.refreshGroups?.();
-      }, label);
+      }, label, () => {
+        pick.onCancelled?.();
+      });
     },
     getGroupDefaultSpawn: () => {
       const c = getStageDeckCenter(stageManager);
@@ -1338,22 +1741,20 @@ async function main(initialProjectStore) {
     onMenuAction: (action) => {
       if (action === 'edit:undo') {
         const ok = timeline.undo();
-        motion.apply(timeline.playheadSec);
-        light.apply(timeline.playheadSec);
-        fixtures.apply(timeline.playheadSec);
-        audio.apply(timeline.playheadSec);
-        shellRef.current?.syncLightingPanel?.();
-        refreshStatus(ok ? 'Undo' : 'Undo 없음');
+        if (ok) {
+          void applyTimelineHistoryChange().then(() => refreshStatus('Undo'));
+        } else {
+          refreshStatus('Undo 없음');
+        }
         return;
       }
       if (action === 'edit:redo') {
         const ok = timeline.redo();
-        motion.apply(timeline.playheadSec);
-        light.apply(timeline.playheadSec);
-        fixtures.apply(timeline.playheadSec);
-        audio.apply(timeline.playheadSec);
-        shellRef.current?.syncLightingPanel?.();
-        refreshStatus(ok ? 'Redo' : 'Redo 없음');
+        if (ok) {
+          void applyTimelineHistoryChange().then(() => refreshStatus('Redo'));
+        } else {
+          refreshStatus('Redo 없음');
+        }
         return;
       }
       if (action === 'file:new') {
@@ -1486,24 +1887,36 @@ async function main(initialProjectStore) {
       const hint = MENU_PHASE_HINTS[action] ?? '준비 중';
       refreshStatus(`메뉴 «${action}» → ${hint}`);
     },
-    onApplyProfile: (widthM, depthM, extras = {}) => {
-      stageManager.applyProfile({ widthM, depthM, ...extras });
-      videoBgRef.current.syncToStage(stageManager);
-      light.ensureHouseLights();
-      fixtures.refit();
-      applyDefaultStageCamera(
-        viewport.camera,
-        viewport.controls,
-        stageManager.stageType,
-        stageManager.profile,
-        stageManager,
-      );
-      multiViewPopup.syncPresetCameras();
-      shell.syncStagePanel();
-      refreshStatus();
+    onApplyProfile: async (widthM, depthM, extras = {}) => {
+      editorLoading.show('무대 규격 변경 중…');
+      shell.setStageBusy(true);
+      try {
+        await yieldForLoadingPaint();
+        stageManager.applyProfile({ widthM, depthM, ...extras });
+        videoBgRef.current.syncToStage(stageManager);
+        light.ensureHouseLights();
+        fixtures.refit();
+        applyDefaultStageCamera(
+          viewport.camera,
+          viewport.controls,
+          stageManager.stageType,
+          stageManager.profile,
+          stageManager,
+        );
+        multiViewPopup.syncPresetCameras();
+        shell.syncStagePanel();
+        refreshStatus();
+      } catch (err) {
+        console.error(err);
+        refreshStatus(`무대 변경 실패: ${err.message}`);
+      } finally {
+        shell.setStageBusy(false);
+        editorLoading.hide();
+      }
     },
     onStageTypeChange: async (type) => {
-      refreshStatus('Loading…');
+      const typeLabel = STAGE_TYPES[type]?.label ?? type;
+      editorLoading.show(`${typeLabel} 무대 불러오는 중…`);
       shell.setStageBusy(true);
       try {
         await stageManager.setStageType(type);
@@ -1528,6 +1941,7 @@ async function main(initialProjectStore) {
         refreshStatus(`Load error: ${err.message}`);
       } finally {
         shell.setStageBusy(false);
+        editorLoading.hide();
       }
     },
     onChange: () => {

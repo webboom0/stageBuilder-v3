@@ -257,6 +257,13 @@ export class MotionDirector {
       section,
     };
     this.motions.set(id, item);
+    this._syncTrackMotionMeta(track, {
+      fileUrl: meta.fileUrl || '',
+      assetRole,
+      color: track.color,
+      folderId: meta.folderId ?? null,
+      procedural: inferProcedural(meta.fileUrl, null),
+    });
     this.engine.emit('tracks');
     this.apply(this.engine.playheadSec);
     return item;
@@ -327,11 +334,70 @@ export class MotionDirector {
   removeByTrackId(trackId) {
     const m = this.findByTrackId(trackId);
     if (!m) return false;
+    this._persistTrackMetaFromMotion(m);
     this.root.remove(m.object);
     m.mixer?.stopAllAction();
     disposeObject(m.object);
     this.motions.delete(m.id);
     return true;
+  }
+
+  /**
+   * After timeline undo/redo — drop orphan scene objects and restore missing ones.
+   * @param {(path: string) => string} resolveUrl
+   * @param {object[] | null | undefined} [docMotions] optional doc.motions fallback
+   */
+  async reconcileAfterTimelineHistory(resolveUrl, docMotions = null) {
+    for (const [id, m] of [...this.motions.entries()]) {
+      if (this.engine.getTrack(m.trackId)) continue;
+      this.root.remove(m.object);
+      m.mixer?.stopAllAction();
+      disposeObject(m.object);
+      this.motions.delete(id);
+    }
+
+    /** @type {Map<string, object>} */
+    const refsById = new Map();
+    /** @type {Map<string, object>} */
+    const refsByTrackId = new Map();
+    for (const ref of docMotions || []) {
+      if (!ref?.id) continue;
+      refsById.set(ref.id, ref);
+      if (ref.trackId) refsByTrackId.set(ref.trackId, ref);
+    }
+
+    for (const track of this.engine.listTracks()) {
+      if (!this._isMotionTrack(track)) continue;
+      const motionId = track.motionId || parseMotionIdFromGroup(track.group);
+      if (!motionId) continue;
+      if (this.motions.has(motionId) || this.findByTrackId(track.id)) continue;
+
+      const ref = refsById.get(motionId)
+        || refsByTrackId.get(track.id)
+        || this._motionRefFromTrack(track, motionId);
+      if (!ref) continue;
+      try {
+        await this.restoreFromSaved({ ...ref, id: motionId, trackId: track.id }, resolveUrl);
+      } catch (err) {
+        console.warn('[MotionDirector] history reconcile restore failed:', ref.name, err);
+      }
+    }
+
+    this.apply(this.engine.playheadSec);
+    this.engine.emit('tracks');
+  }
+
+  /** @param {MotionItem} m */
+  _persistTrackMetaFromMotion(m) {
+    const track = this.engine.getTrack(m.trackId);
+    if (!track) return;
+    this._syncTrackMotionMeta(track, {
+      fileUrl: m.fileUrl,
+      assetRole: m.assetRole,
+      color: m.color,
+      folderId: m.folderId,
+      procedural: inferProcedural(m.fileUrl, null),
+    });
   }
 
   /** Dispose all motion objects (tracks managed separately). */
@@ -502,18 +568,7 @@ export class MotionDirector {
       if (this.findByTrackId(track.id)) continue;
 
       let ref = refsById.get(motionId) || refsByTrackId.get(track.id);
-      if (!ref && track.motionMeta) {
-        ref = {
-          id: motionId,
-          trackId: track.id,
-          name: track.name,
-          fileUrl: track.motionMeta.fileUrl || '',
-          assetRole: track.motionMeta.assetRole || (track.section === 'stage' ? 'stage' : 'character'),
-          procedural: track.motionMeta.procedural || inferProcedural(track.motionMeta.fileUrl, null),
-          color: track.motionMeta.color ?? track.color ?? null,
-          folderId: track.motionMeta.folderId ?? track.folderId ?? null,
-        };
-      }
+      if (!ref) ref = this._motionRefFromTrack(track, motionId);
       if (!ref) {
         console.warn('[MotionDirector] motion track without restore data:', track.name, track.id);
         continue;
@@ -532,6 +587,24 @@ export class MotionDirector {
       || !!track.motionId
       || String(track.group || '').startsWith('motion:')
       || String(track.group || '').startsWith('stage:');
+  }
+
+  /**
+   * @param {import('../timeline/Track.js').Track} track
+   * @param {string} motionId
+   */
+  _motionRefFromTrack(track, motionId) {
+    if (!track?.motionMeta) return null;
+    return {
+      id: motionId,
+      trackId: track.id,
+      name: track.name,
+      fileUrl: track.motionMeta.fileUrl || '',
+      assetRole: track.motionMeta.assetRole || (track.section === 'stage' ? 'stage' : 'character'),
+      procedural: track.motionMeta.procedural || inferProcedural(track.motionMeta.fileUrl, null),
+      color: track.motionMeta.color ?? track.color ?? null,
+      folderId: track.motionMeta.folderId ?? track.folderId ?? null,
+    };
   }
 
   /**

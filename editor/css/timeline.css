@@ -510,16 +510,32 @@ body.sb-tl-resize-active * {
 }
 
 .sb-tl-folder-label {
-  height: 24px;
+  height: 28px;
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 6px 0 4px;
+  padding: 0 4px 0 4px;
   font-size: 11px;
   font-weight: 600;
   color: #9ad4b8;
   background: rgba(76, 175, 122, 0.08);
   border-bottom: 1px solid var(--line-soft);
+}
+
+.sb-tl-folder-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-tl-folder-label.is-hidden {
+  opacity: 0.55;
+}
+
+.sb-tl-folder-label.is-locked .sb-tl-folder-name {
+  color: #c8a060;
 }
 
 .sb-tl-folder-toggle {
@@ -535,7 +551,7 @@ body.sb-tl-resize-active * {
 }
 
 .sb-tl-folder-lane {
-  height: 24px;
+  height: 28px;
   border-bottom: 1px solid var(--line-soft);
   background: rgba(76, 175, 122, 0.05);
 }
@@ -558,6 +574,21 @@ body.sb-tl-resize-active * {
   height: 20px;
   background: #161616;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sb-tl-sec-lane.is-asset-drop-target,
+.sb-tl-track[data-section="stage"].is-asset-drop-target,
+.sb-tl-label[data-section="stage"].is-asset-drop-target,
+.sb-tl-track[data-section="motion"].is-asset-drop-target,
+.sb-tl-label[data-section="motion"].is-asset-drop-target {
+  outline: 1px dashed rgba(166, 124, 82, 0.85);
+  outline-offset: -1px;
+  background: rgba(166, 124, 82, 0.12);
+}
+
+body.sb-asset-dragging-stage .sb-tl [data-section="stage"],
+body.sb-asset-dragging-character .sb-tl [data-section="motion"] {
+  cursor: copy;
 }
 
 .sb-tl-track-stub {

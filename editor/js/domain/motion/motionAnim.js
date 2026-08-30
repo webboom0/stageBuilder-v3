@@ -21,6 +21,8 @@ import {
  *   opacity: number,
  *   segments: ReturnType<typeof normalizeSegment>[],
  *   selectedSegmentId: string | null,
+ *   fromPresetId?: string | null,
+ *   startConfigured?: boolean,
  * }} MotionAnim
  */
 
@@ -32,11 +34,9 @@ import {
 export function ensureMotionAnim(item) {
   if (item.anim && Array.isArray(item.anim.segments)) {
     item.anim.segments = item.anim.segments.map((s) => soloNormalize(s, item.anim));
-    if (!item.anim.segments.length) {
-      item.anim.segments = [defaultMoveSegment(item.anim)];
-    }
-    if (!item.anim.selectedSegmentId) {
-      item.anim.selectedSegmentId = item.anim.segments[0]?.id || null;
+    if (item.anim.startConfigured == null) {
+      item.anim.startConfigured = item.anim.segments.length > 0
+        || Number.isFinite(item.anim.fromX);
     }
     return item.anim;
   }
@@ -57,9 +57,9 @@ export function ensureMotionAnim(item) {
     opacity: 1,
     segments: [],
     selectedSegmentId: null,
+    fromPresetId: null,
+    startConfigured: false,
   };
-  anim.segments = [defaultMoveSegment(anim)];
-  anim.selectedSegmentId = anim.segments[0].id;
   item.anim = anim;
   return anim;
 }
@@ -154,7 +154,6 @@ export function updateMotionAnimSegment(anim, segId, patch) {
 
 /** @param {MotionAnim} anim @param {string} segId */
 export function removeMotionAnimSegment(anim, segId) {
-  if (anim.segments.length <= 1) return;
   anim.segments = anim.segments.filter((s) => s.id !== segId);
   if (anim.selectedSegmentId === segId) {
     anim.selectedSegmentId = anim.segments[0]?.id || null;
@@ -170,6 +169,7 @@ export function syncMotionAnimStartFromObject(item) {
   anim.fromX = obj.position.x;
   anim.fromZ = obj.position.z;
   anim.fromRotY = normalizeRotYDeg((obj.rotation.y * 180) / Math.PI);
+  anim.startConfigured = true;
   return anim;
 }
 

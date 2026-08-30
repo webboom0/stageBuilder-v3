@@ -1,15 +1,14 @@
 import { loadMotionCatalog } from '../domain/motion/motionCatalog.js';
 import { loadProjectAssets } from '../domain/project/projectAssets.js';
 import {
-  SEGMENT_KIND_LABELS,
-  SEGMENT_EASING,
-  SEGMENT_EASING_LABELS,
   ensureGroupSegments,
   getGroupTotalDuration,
-  normalizeRotYDeg,
+  inferGroupStartConfigured,
+  normalizeGroupAnimation,
 } from '../domain/motion/groupSegments.js';
-import { FORMATION_LABELS, FORMATION_TYPES } from '../domain/motion/groupFormation.js';
+import { renderSegmentStepList, KEYFRAME_APPLY_LABEL, mountPositionPresetBar } from './segmentStepUi.js';
 import { normalizeColorHex } from '../domain/motion/walkLitePerformer.js';
+import { repairGroupFromTimeline } from '../domain/project/sceneGroupRepair.js';
 
 /**
  * Groups / Ensemble panel — v3 segment editor (이동/대기/퇴장 + 무대 픽).
@@ -17,16 +16,33 @@ import { normalizeColorHex } from '../domain/motion/walkLitePerformer.js';
  * @param {{
  *   store: import('../domain/motion/MotionGroupStore.js').MotionGroupStore,
  *   onDeploy?: (groupId: string) => void | Promise<void>,
+ *   onPresetUpdated?: (preset: import('../domain/motion/positionPresets.js').PositionPreset) => void,
+ *   onPositionPresetsChanged?: () => void,
+ *   onPresetRemoved?: (presetId: string) => void,
  *   onChange?: () => void,
  *   onGroupRename?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onGroupColor?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
+ *   onGroupPresetApplied?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup, preset: import('../domain/motion/positionPresets.js').PositionPreset) => void,
  *   onPickGroupPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
  *     groupId: string,
  *     segmentId?: string | null,
  *     onPicked: (pt: { x: number, z: number }) => void,
  *   }) => void,
+ *   getPresetStore?: () => import('../domain/motion/PositionPresetStore.js').PositionPresetStore | null,
+ *   getTimelineSnapshot?: () => object[],
+ *   getFoldersSnapshot?: () => object[],
+ *   getMotionsSnapshot?: () => object[],
  *   getDefaultSpawn?: () => { fromX: number, fromZ: number, formationSpacing?: number },
+ *   getSegmentStagePreview?: () => {
+ *     begin: () => void,
+ *     end: () => void,
+ *     resetPreview: () => void,
+ *     previewGroupStart: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup, draft: Record<string, any>) => void,
+ *     previewGroupSegment: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup, segmentId: string, draft: Record<string, any>) => void,
+ *     previewPosition: (pose: { x: number, z: number, rotY?: number, opacity?: number }) => void,
+ *     previewPresetLocation?: (pose: { x: number, z: number, rotY?: number, opacity?: number }) => void,
+ *   } | null,
  *   getProjectId?: () => string | null,
  * }} opts
  */
@@ -35,43 +51,50 @@ export function createGroupsPanelBody(opts) {
   const root = document.createElement('div');
   root.className = 'sb-panel-body sb-ens';
   root.innerHTML = `
-    <div class="sb-ens-toolbar">
-      <button type="button" class="sb-chip acc" data-act="new">+ 그룹 만들기</button>
-      <button type="button" class="sb-chip" data-act="rename">이름 변경</button>
-      <button type="button" class="sb-chip del" data-act="delete">삭제</button>
+    <div class="sb-ens-section sb-ens-section--groups">
+      <div class="sb-ens-section-hd">
+        <span class="sb-ens-section-title">그룹 등록</span>
+        <div class="sb-ens-icon-actions">
+          <button type="button" class="sb-ens-icon-btn acc" data-act="new" title="그룹 만들기">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="sb-ens-icon-btn edit" data-act="rename" title="이름 변경">
+            <i class="fas fa-pen" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="sb-ens-icon-btn del" data-act="delete" title="삭제">
+            <i class="fas fa-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div class="sb-ens-groups-grid" data-role="groups"></div>
     </div>
-    <div class="sb-ens-groups" data-role="groups"></div>
 
-    <div class="sb-ens-step">
+    <div class="sb-ens-step sb-ens-step--reg">
       <div class="sb-ens-step-num">1 · 객체 등록</div>
-      <div class="sb-ens-subtitle" data-role="reg-sub">FBX 선택 → [그룹에 등록]</div>
-      <div class="sb-ens-list" data-role="catalog"></div>
-      <div class="sb-ens-actions">
-        <button type="button" class="sb-chip acc" data-act="register">선택 → 그룹에 등록</button>
-      </div>
-      <div class="sb-ens-subtitle">등록된 멤버 · 클릭 선택</div>
-      <div class="sb-ens-list sb-ens-members" data-role="members"></div>
-      <div class="sb-ens-actions">
-        <button type="button" class="sb-chip del" data-act="unregister">선택 해제 (그룹 밖으로)</button>
+      <div class="sb-ens-transfer">
+        <div class="sb-ens-transfer-col">
+          <div class="sb-ens-transfer-label">Characters</div>
+          <div class="sb-ens-transfer-list" data-role="catalog" data-drop="unregister"></div>
+        </div>
+        <div class="sb-ens-transfer-mid">
+          <button type="button" class="sb-ens-transfer-btn" data-act="register" title="선택 → 그룹에 등록">
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="sb-ens-transfer-btn" data-act="unregister" title="그룹에서 선택 해제">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="sb-ens-transfer-col">
+          <div class="sb-ens-transfer-label">등록 멤버</div>
+          <div class="sb-ens-transfer-list" data-role="members" data-drop="register"></div>
+        </div>
       </div>
     </div>
 
     <div class="sb-ens-step">
-      <div class="sb-ens-step-num">2 · 그룹 애니메이션 (구간)</div>
-      <div class="sb-ens-subtitle" data-role="seg-sub">이동·대기·퇴장 구간 · 무대 클릭으로 위치</div>
+      <div class="sb-ens-step-num">2 · 그룹 애니메이션</div>
+      <div data-role="group-presets"></div>
       <div class="sb-ens-segments" data-role="segments"></div>
-      <div class="sb-ens-actions">
-        <button type="button" class="sb-chip seg-move" data-act="seg-move">+ 이동</button>
-        <button type="button" class="sb-chip seg-hold" data-act="seg-hold">+ 대기</button>
-        <button type="button" class="sb-chip seg-exit" data-act="seg-exit">+ 퇴장</button>
-      </div>
-    </div>
-
-    <div class="sb-ens-step">
-      <div class="sb-ens-step-num">3 · 배치</div>
-      <div class="sb-ens-actions">
-        <button type="button" class="sb-chip acc go" data-act="go">그룹 GO (스테이지 배치)</button>
-      </div>
     </div>
   `;
 
@@ -79,8 +102,7 @@ export function createGroupsPanelBody(opts) {
   const catalogEl = root.querySelector('[data-role="catalog"]');
   const membersEl = root.querySelector('[data-role="members"]');
   const segmentsEl = root.querySelector('[data-role="segments"]');
-  const regSub = root.querySelector('[data-role="reg-sub"]');
-  const segSub = root.querySelector('[data-role="seg-sub"]');
+  const groupPresetsEl = root.querySelector('[data-role="group-presets"]');
 
   /** @type {any[]} */
   let catalog = [];
@@ -104,75 +126,178 @@ export function createGroupsPanelBody(opts) {
     const active = store.getActive();
 
     if (!groups.length) {
-      groupsEl.innerHTML = '<span class="sb-ens-empty">그룹이 없습니다. [+ 그룹 만들기]를 누르세요.</span>';
+      groupsEl.innerHTML = '<span class="sb-ens-empty sb-ens-empty--grid">그룹 없음 · + 로 추가</span>';
     } else {
       groupsEl.innerHTML = groups.map((g, gi) => {
         const hex = normalizeColorHex(g.color, gi);
         const on = g.id === active?.id ? ' is-on' : '';
         return `
-        <div class="sb-ens-group-tab-wrap${on}" data-group-wrap="${escapeAttr(g.id)}">
+        <div class="sb-ens-group-cell${on}" data-group-wrap="${escapeAttr(g.id)}">
           <input type="color" class="sb-ens-group-color" data-grp-color="${escapeAttr(g.id)}"
-            value="${escapeAttr(hex)}" title="그룹 모션 객체 색상" />
+            value="${escapeAttr(hex)}" title="그룹 색상" />
           <button type="button" class="sb-ens-tab${on}"
             data-act="select" data-id="${escapeAttr(g.id)}"
-            style="border-color:${escapeAttr(hex)}">${escapeHtml(g.name)}</button>
+            style="--grp-accent:${escapeAttr(hex)}">${escapeHtml(g.name)}</button>
         </div>`;
       }).join('');
     }
 
-    regSub.textContent = active
-      ? `FBX 선택 → [그룹에 등록] · ${active.name}`
-      : 'FBX 선택 → [그룹에 등록] · 그룹 선택';
-
-    if (active) {
-      const total = getGroupTotalDuration(active);
-      segSub.textContent = `시작 ${Number(active.startTime || 0).toFixed(1)}s · 총 ${total.toFixed(1)}s · 무대 클릭으로 위치`;
-    } else {
-      segSub.textContent = '이동·대기·퇴장 구간 · 무대 클릭으로 위치';
-    }
+    renderGroupPresets();
 
     renderCatalog();
     renderMembers();
+    if (active) tryRecoverGroupFromTimeline(active);
     renderSegments();
+  }
+
+  function tryRecoverGroupFromTimeline(active) {
+    const tracks = opts.getTimelineSnapshot?.();
+    if (!tracks?.length) return;
+    const needsMembers = !active.members?.length;
+    const span = (active.segments || []).reduce((s, seg) => s + (Number(seg.duration) || 0), 0);
+    const needsSegs = !active.segments?.length
+      || (active.segments.length === 1 && span <= 5.1);
+    const needsFolder = !active.deployedFolderId;
+    if (!needsMembers && !needsSegs && !needsFolder) return;
+    const before = JSON.stringify({
+      members: active.members,
+      segments: active.segments,
+      fromX: active.fromX,
+      fromZ: active.fromZ,
+      deployedFolderId: active.deployedFolderId,
+    });
+    repairGroupFromTimeline(
+      active,
+      tracks,
+      opts.getMotionsSnapshot?.() || [],
+      opts.getFoldersSnapshot?.() || [],
+    );
+    const after = JSON.stringify({
+      members: active.members,
+      segments: active.segments,
+      fromX: active.fromX,
+      fromZ: active.fromZ,
+      deployedFolderId: active.deployedFolderId,
+    });
+    if (before !== after) opts.onChange?.();
+  }
+
+  function presetStagePreview(form) {
+    const preview = opts.getSegmentStagePreview?.();
+    preview?.previewPresetLocation?.({
+      x: Number(form.x ?? form.fromX ?? form.anchorX) || 0,
+      z: Number(form.z ?? form.fromZ ?? form.anchorZ) || 0,
+      rotY: Number(form.rotY ?? form.fromRotY ?? form.toRotY) || 0,
+      opacity: form.opacity ?? 1,
+    });
+  }
+
+  function renderGroupPresets() {
+    if (!groupPresetsEl) return;
+    const active = store.getActive();
+    if (!active) {
+      groupPresetsEl.innerHTML = '';
+      return;
+    }
+    mountPositionPresetBar(groupPresetsEl, {
+      presetStore: opts.getPresetStore?.() ?? null,
+      variant: 'compact',
+      onApplyPreset: (preset) => {
+        store.updateGroup(active.id, {
+          fromX: preset.x,
+          fromZ: preset.z,
+          fromRotY: preset.rotY,
+          opacity: preset.opacity ?? 1,
+          fromPresetId: preset.id,
+          startConfigured: true,
+        });
+        renderSegments();
+        opts.onGroupPresetApplied?.(active, preset);
+        opts.onChange?.();
+      },
+      onPickStage: (onPicked, onCancelled) => {
+        opts.onPickGroupPoint?.({
+          mode: 'from',
+          groupId: active.id,
+          onPicked: (pt) => onPicked(pt),
+          onCancelled: () => onCancelled?.(),
+        });
+      },
+      onPickPoint: (pick) => {
+        opts.onPickGroupPoint?.({
+          mode: pick.mode || 'from',
+          groupId: active.id,
+          segmentId: pick.segmentId,
+          onPicked: pick.onPicked,
+          onCancelled: pick.onCancelled,
+        });
+      },
+      onCaptureHint: () => ({
+        x: Number(active.fromX) || 0,
+        z: Number(active.fromZ) || 0,
+        rotY: Number(active.fromRotY) || 0,
+        opacity: Number(active.opacity ?? 1),
+      }),
+      onPreviewBegin: () => opts.getSegmentStagePreview?.()?.begin(),
+      onPreviewEnd: () => opts.getSegmentStagePreview?.()?.end(),
+      onPreviewReset: () => opts.getSegmentStagePreview?.()?.resetPreview(),
+      onPreview: (form) => opts.getSegmentStagePreview?.()?.previewPosition({
+        x: Number(form.x ?? form.fromX) || 0,
+        z: Number(form.z ?? form.fromZ) || 0,
+        rotY: Number(form.rotY ?? form.fromRotY ?? active.fromRotY) || 0,
+        opacity: form.opacity ?? active.opacity ?? 1,
+      }),
+      onPreviewPreset: presetStagePreview,
+      onPresetUpdated: (preset) => opts.onPresetUpdated?.(preset),
+      onPositionPresetsChanged: () => opts.onPositionPresetsChanged?.(),
+      onPresetRemoved: (id) => opts.onPresetRemoved?.(id),
+      onChange: () => {
+        renderGroupPresets();
+        opts.onChange?.();
+      },
+    });
   }
 
   function renderCatalog() {
     if (!catalogReady) {
-      catalogEl.innerHTML = '<div class="sb-ens-empty">목록 불러오는 중…</div>';
+      catalogEl.innerHTML = '<span class="sb-ens-empty sb-ens-empty--inline">불러오는 중…</span>';
       return;
     }
     if (!catalog.length) {
-      catalogEl.innerHTML = '<div class="sb-ens-empty">Characters 에셋이 없습니다.</div>';
+      catalogEl.innerHTML = '<span class="sb-ens-empty sb-ens-empty--inline">Characters 에셋 없음</span>';
       return;
     }
     catalogEl.innerHTML = catalog.map((entry, index) => {
-      const num = index + 1;
-      const label = entry.displayName || entry.name || `#${num}`;
-      const badge = entry.procedural ? '<span class="sb-ens-badge">테스터</span>' : '';
+      const label = entry.displayName || entry.name || `#${index + 1}`;
+      const badge = entry.procedural ? ' *' : '';
       const on = selectedSlots.has(index) ? ' is-on' : '';
+      const short = label.length > 14 ? `${label.slice(0, 13)}…` : label;
       return `
-        <button type="button" class="sb-ens-row${on}" data-act="slot" data-i="${index}">
-          <span class="sb-ens-row-num">${num}</span>
-          <span class="sb-ens-row-name">${escapeHtml(label)}${badge}</span>
-          <span class="sb-ens-row-st">OPEN</span>
-        </button>`;
+        <div class="sb-ens-pick-chip${on}" draggable="true" role="button" tabindex="0"
+          data-act="slot" data-i="${index}" data-drag="catalog"
+          title="${escapeAttr(label)}">${escapeHtml(short)}${badge}</div>`;
     }).join('');
   }
 
   function renderMembers() {
     const active = store.getActive();
-    if (!active?.members?.length) {
-      membersEl.innerHTML = '<div class="sb-ens-empty">그룹을 만든 뒤 FBX를 선택하고 [그룹에 등록]하세요.</div>';
+    if (!active) {
+      membersEl.innerHTML = '<span class="sb-ens-empty sb-ens-empty--inline">그룹 선택</span>';
+      return;
+    }
+    if (!active.members?.length) {
+      membersEl.innerHTML = '<span class="sb-ens-empty sb-ens-empty--inline">등록된 멤버 없음</span>';
       return;
     }
     membersEl.innerHTML = active.members.map((m, i) => {
       const on = selectedMemberIds.has(m.id) ? ' is-on' : '';
+      const short = m.name.length > 12 ? `${m.name.slice(0, 11)}…` : m.name;
       return `
-        <button type="button" class="sb-ens-row${on}" data-act="member" data-id="${escapeAttr(m.id)}">
-          <span class="sb-ens-row-num">${i + 1}</span>
-          <span class="sb-ens-row-name">${escapeHtml(m.name)}</span>
-          <span class="sb-ens-row-st">MEMBER</span>
-        </button>`;
+        <div class="sb-ens-pick-chip sb-ens-pick-chip--mem${on}" draggable="true" role="button" tabindex="0"
+          data-act="member" data-id="${escapeAttr(m.id)}" data-drag="member"
+          title="${escapeAttr(m.name)}">
+          <span class="sb-ens-mem-n">${i + 1}</span>${escapeHtml(short)}
+        </div>`;
     }).join('');
   }
 
@@ -182,143 +307,112 @@ export function createGroupsPanelBody(opts) {
       segmentsEl.innerHTML = '<div class="sb-ens-empty">그룹을 선택하세요.</div>';
       return;
     }
+    normalizeGroupAnimation(active);
     const segs = ensureGroupSegments(active);
-    const selId = store.selectedSegmentId || segs[0]?.id;
+    const configured = inferGroupStartConfigured(active);
+    active.startConfigured = configured;
+    const total = getGroupTotalDuration(active);
+    const subtitle = configured
+      ? `시작 ${Number(active.startTime || 0).toFixed(1)}s · 총 ${total.toFixed(1)}s`
+      : '시작 위치를 설정한 뒤 + 로 구간을 추가하세요';
 
-    let html = `
-      <div class="sb-ens-seg-card sb-ens-seg-start">
-        <div class="sb-ens-seg-hd"><strong>시작 위치</strong></div>
-        <div class="sb-ens-seg-body">
-          <div class="sb-ens-seg-fields">
-            <label>시작 시각<input type="number" data-grp="startTime" step="0.1" min="0" value="${fmtCoord(active.startTime || 0)}" /></label>
-            <label>From X<input type="number" data-grp="fromX" step="0.1" value="${fmtCoord(active.fromX || 0)}" /></label>
-            <label>From Z<input type="number" data-grp="fromZ" step="0.1" value="${fmtCoord(active.fromZ || 0)}" /></label>
-            <label>Opacity<input type="number" data-grp="opacity" min="0" max="1" step="0.01" value="${clamp01(active.opacity ?? 1)}" title="GO 시 멤버 키 opacity (퇴장 끝은 0)" /></label>
-          </div>
-          <button type="button" class="sb-stage-pick-btn sb-ens-pick" data-act="pick-from">
-            <span class="sb-stage-pick-ico">◎</span>
-            <span><strong>시작 위치 (무대 클릭)</strong><small>버튼을 누른 뒤 무대 클릭</small></span>
-          </button>
-          <div class="sb-ens-seg-row">
-            <div class="sb-ens-subtitle">포메이션</div>
-            <div class="sb-ens-seg-fmt" data-role="from-fmt"></div>
-          </div>
-          <div class="sb-ens-seg-row">
-            <div class="sb-ens-subtitle">Y 회전</div>
-            <div class="sb-ens-seg-rot" data-role="from-rot"></div>
-          </div>
-        </div>
-      </div>
-    `;
+    const stagePreview = opts.getSegmentStagePreview?.();
 
-    segs.forEach((seg, idx) => {
-      const kind = seg.kind || 'move';
-      const isHold = kind === 'hold';
-      const isExit = kind === 'exit';
-      const isSel = seg.id === selId;
-      const selected = isSel ? ' is-selected' : ' is-collapsed';
-      const axLbl = isExit ? '퇴장 X' : '끝 X';
-      const azLbl = isExit ? '퇴장 Z' : '끝 Z';
-      const pickLbl = isExit ? '퇴장 위치' : '끝 위치';
-      const summary = isHold
-        ? `${fmtCoord(seg.duration || 0)}s · 대기`
-        : `${fmtCoord(seg.duration || 0)}s · X ${fmtCoord(seg.anchorX || 0)} · Z ${fmtCoord(seg.anchorZ || 0)}`;
-
-      html += `
-        <div class="sb-ens-seg-card sb-ens-seg--${escapeAttr(kind)}${selected}" data-seg-card="${escapeAttr(seg.id)}">
-          <div class="sb-ens-seg-hd">
-            <strong>${idx + 1}. ${SEGMENT_KIND_LABELS[kind] || kind}</strong>
-            <span class="sb-chip sb-seg-kind ${escapeAttr(kind)}">${SEGMENT_KIND_LABELS[kind] || kind}</span>
-            <span class="sb-ens-seg-meta">${FORMATION_LABELS[seg.formation] || seg.formation || ''}</span>
-            ${segs.length > 1 ? `<button type="button" class="sb-chip del" data-act="seg-rm" data-id="${escapeAttr(seg.id)}">삭제</button>` : ''}
-          </div>
-          <div class="sb-ens-seg-summary">${summary}</div>
-          <div class="sb-ens-seg-body">
-            <div class="sb-ens-seg-fields">
-              <label>Duration<input type="number" data-seg="duration" data-id="${escapeAttr(seg.id)}" step="0.1" min="0.1" value="${fmtCoord(seg.duration || 3)}" /></label>
-              ${isHold ? '' : `
-                <label>${axLbl}<input type="number" data-seg="anchorX" data-id="${escapeAttr(seg.id)}" step="0.1" value="${fmtCoord(seg.anchorX || 0)}" /></label>
-                <label>${azLbl}<input type="number" data-seg="anchorZ" data-id="${escapeAttr(seg.id)}" step="0.1" value="${fmtCoord(seg.anchorZ || 0)}" /></label>
-              `}
-            </div>
-            ${isHold ? '<div class="sb-ens-empty">자세 유지 (직전 위치·포메이션)</div>' : `
-              <button type="button" class="sb-stage-pick-btn sb-ens-pick" data-act="pick-seg" data-id="${escapeAttr(seg.id)}">
-                <span class="sb-stage-pick-ico">◎</span>
-                <span><strong>${pickLbl} (무대 클릭)</strong><small>버튼을 누른 뒤 무대 클릭</small></span>
-              </button>
-              <div class="sb-ens-seg-row">
-                <div class="sb-ens-subtitle">포메이션</div>
-                <div class="sb-ens-seg-fmt" data-fmt="${escapeAttr(seg.id)}"></div>
-              </div>
-              <div class="sb-ens-seg-row sb-ens-seg-row--inline">
-                <label class="sb-ens-inline-field">간격
-                  <input type="number" data-seg="formationSpacing" data-id="${escapeAttr(seg.id)}" step="1" min="0.5" value="${fmtCoord(seg.formationSpacing || 36)}" title="멤버 중심 간격 · 포메이션과 함께 적용" />
-                </label>
-              </div>
-              <div class="sb-ens-seg-row">
-                <div class="sb-ens-subtitle">Y 회전</div>
-                <div class="sb-ens-seg-rot" data-rot="${escapeAttr(seg.id)}"></div>
-              </div>
-              <div class="sb-ens-seg-row">
-                <div class="sb-ens-subtitle">Easing</div>
-                <div class="sb-ens-seg-ease" data-ease="${escapeAttr(seg.id)}"></div>
-              </div>
-            `}
-          </div>
-        </div>`;
-    });
-
-    segmentsEl.innerHTML = html;
-
-    // formation / rot / ease chips
-    mountFormationChips(
-      segmentsEl.querySelector('[data-role="from-fmt"]'),
-      active.fromFormation || active.formation || 'grid',
-      (fmt) => {
-        store.updateGroup(active.id, { fromFormation: fmt, formation: fmt });
-        render();
+    renderSegmentStepList(segmentsEl, {
+      startConfigured: configured,
+      subtitle,
+      showFormation: true,
+      getStart: () => active,
+      getSegments: () => segs,
+      getPresetStore: () => opts.getPresetStore?.() ?? null,
+      onPreviewBegin: () => stagePreview?.begin(),
+      onPreviewEnd: () => stagePreview?.end(),
+      onPreviewReset: () => stagePreview?.resetPreview(),
+      onPreviewStart: (draft) => {
+        const g = store.getActive();
+        if (g) stagePreview?.previewGroupStart(g, draft);
+      },
+      onPreviewSegment: (segId, draft) => {
+        const g = store.getActive();
+        if (g) stagePreview?.previewGroupSegment(g, segId, draft);
+      },
+      onPreviewPreset: presetStagePreview,
+      onPresetUpdated: (preset) => opts.onPresetUpdated?.(preset),
+      onPositionPresetsChanged: () => opts.onPositionPresetsChanged?.(),
+      onPresetRemoved: (id) => opts.onPresetRemoved?.(id),
+      getPreviewMemberCount: () => Math.max(store.getActive()?.members?.length || 0, 1),
+      getStagePreviewDeployed: () => store.getActive()?.members?.some((m) => m.deployedMotionId) ?? false,
+      onEditStart: (commit) => {
+        commit((patch) => {
+          store.updateGroup(active.id, patch);
+          if (patch.startConfigured) active.startConfigured = true;
+        });
+        renderSegments();
+      },
+      onEditSegment: (segId, commit) => {
+        commit((patch) => store.updateSegment(active.id, segId, patch));
+        renderSegments();
+      },
+      onAddSegment: (kind) => {
+        store.addSegment(active.id, kind);
+        renderSegments();
+      },
+      onRemoveSegment: (segId) => {
+        store.removeSegment(active.id, segId);
+        renderSegments();
+      },
+      onPickPoint: (pick) => {
+        opts.onPickGroupPoint?.({
+          mode: pick.mode,
+          groupId: active.id,
+          segmentId: pick.segmentId,
+          onPicked: (pt) => {
+            if (pick.mode === 'from') {
+              store.updateGroup(active.id, {
+                fromX: roundCoord(pt.x),
+                fromZ: roundCoord(pt.z),
+                fromPresetId: null,
+                startConfigured: true,
+              });
+            } else if (pick.segmentId) {
+              store.updateSegment(active.id, pick.segmentId, {
+                anchorX: roundCoord(pt.x),
+                anchorZ: roundCoord(pt.z),
+                anchorPresetId: null,
+              });
+            }
+            pick.onPicked?.(pt);
+            renderSegments();
+            opts.onChange?.();
+          },
+          onCancelled: () => pick.onCancelled?.(),
+        });
+      },
+      onChange: () => {
         opts.onChange?.();
       },
-    );
-    mountRotChips(
-      segmentsEl.querySelector('[data-role="from-rot"]'),
-      active.fromRotY || 0,
-      (deg) => {
-        store.updateGroup(active.id, { fromRotY: deg });
+      onApply: async () => {
+        const g = store.getActive();
+        if (!g) {
+          window.alert('그룹을 선택하세요.');
+          return;
+        }
+        if (!g.members.length) {
+          window.alert('멤버를 등록하세요.');
+          return;
+        }
+        if (!g.startConfigured) {
+          window.alert('먼저 시작 위치를 설정하세요.');
+          return;
+        }
+        ensureGroupSegments(g);
+        if (!g.segments?.length) {
+          window.alert('적용할 구간이 없습니다. + 버튼으로 이동·대기·퇴장을 추가하세요.');
+          return;
+        }
+        await opts.onDeploy?.(g.id);
         render();
-        opts.onChange?.();
       },
-    );
-
-    segs.forEach((seg) => {
-      if (seg.kind === 'hold') return;
-      mountFormationChips(
-        segmentsEl.querySelector(`[data-fmt="${CSS.escape(seg.id)}"]`),
-        seg.formation || 'grid',
-        (fmt) => {
-          store.updateSegment(active.id, seg.id, { formation: fmt });
-          render();
-          opts.onChange?.();
-        },
-      );
-      mountRotChips(
-        segmentsEl.querySelector(`[data-rot="${CSS.escape(seg.id)}"]`),
-        seg.toRotY || 0,
-        (deg) => {
-          store.updateSegment(active.id, seg.id, { toRotY: deg });
-          render();
-          opts.onChange?.();
-        },
-      );
-      mountEaseChips(
-        segmentsEl.querySelector(`[data-ease="${CSS.escape(seg.id)}"]`),
-        seg.easing || 'smooth',
-        (ease) => {
-          store.updateSegment(active.id, seg.id, { easing: ease });
-          render();
-          opts.onChange?.();
-        },
-      );
     });
   }
 
@@ -334,7 +428,7 @@ export function createGroupsPanelBody(opts) {
     if (g) opts.onGroupColor?.(g);
     const wrap = groupsEl.querySelector(`[data-group-wrap="${CSS.escape(id)}"]`);
     const tab = wrap?.querySelector('.sb-ens-tab');
-    if (tab instanceof HTMLElement) tab.style.borderColor = hex;
+    if (tab instanceof HTMLElement) tab.style.setProperty('--grp-accent', hex);
   });
 
   root.addEventListener('change', (e) => {
@@ -373,6 +467,138 @@ export function createGroupsPanelBody(opts) {
       store.updateSegment(active.id, id, { [key]: val });
       opts.onChange?.();
     }
+  });
+
+  function registerSlots(indices) {
+    const active = store.getActive();
+    if (!active) {
+      window.alert('먼저 그룹을 선택하거나 만드세요.');
+      return;
+    }
+    indices.forEach((i) => {
+      const entry = catalog[i];
+      if (entry) {
+        store.addMember(active.id, {
+          url: entry.url,
+          name: entry.displayName || entry.name,
+          procedural: entry.procedural,
+          color: entry.color,
+          catalogIndex: i,
+        });
+      }
+    });
+    selectedSlots.clear();
+    render();
+    opts.onChange?.();
+  }
+
+  function unregisterMembers(ids) {
+    const active = store.getActive();
+    if (!active) return;
+    ids.forEach((id) => store.removeMember(active.id, id));
+    selectedMemberIds.clear();
+    render();
+    opts.onChange?.();
+  }
+
+  const DND_MIME = 'application/x-sb-ens-dnd';
+
+  /** @param {DragEvent} e */
+  function onDragStart(e) {
+    const chip = e.target.closest?.('[data-drag]');
+    if (!chip || !(chip instanceof HTMLElement)) return;
+    e.stopPropagation();
+    const kind = chip.dataset.drag;
+    let payload = /** @type {{ kind: string, ids: string[] }} */ ({ kind: '', ids: [] });
+    if (kind === 'catalog') {
+      const i = chip.dataset.i || '';
+      const ids = (chip.dataset.i && selectedSlots.has(Number(chip.dataset.i)))
+        ? [...selectedSlots].map(String)
+        : [i];
+      payload = { kind: 'catalog', ids };
+    } else if (kind === 'member') {
+      const id = chip.dataset.id || '';
+      const ids = (id && selectedMemberIds.has(id))
+        ? [...selectedMemberIds]
+        : [id];
+      payload = { kind: 'member', ids: ids.filter(Boolean) };
+    } else {
+      return;
+    }
+    const json = JSON.stringify(payload);
+    e.dataTransfer?.setData(DND_MIME, json);
+    e.dataTransfer?.setData('text/plain', json);
+    e.dataTransfer.effectAllowed = 'move';
+    chip.classList.add('is-dragging');
+  }
+
+  /** @param {DragEvent} e */
+  function onDragEnd(e) {
+    const chip = e.target.closest?.('[data-drag]');
+    chip?.classList.remove('is-dragging');
+    catalogEl.classList.remove('is-drag-over');
+    membersEl.classList.remove('is-drag-over');
+  }
+
+  /** @param {DragEvent} e */
+  function onDragOver(e) {
+    const list = e.currentTarget;
+    if (!(list instanceof HTMLElement) || !list.dataset.drop) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    list.classList.add('is-drag-over');
+  }
+
+  /** @param {DragEvent} e */
+  function onDragLeave(e) {
+    const list = e.currentTarget;
+    if (!(list instanceof HTMLElement)) return;
+    const related = /** @type {Node | null} */ (e.relatedTarget);
+    if (related && list.contains(related)) return;
+    list.classList.remove('is-drag-over');
+  }
+
+  /** @param {DragEvent} e */
+  function onDrop(e) {
+    const list = e.currentTarget;
+    if (!(list instanceof HTMLElement)) return;
+    list.classList.remove('is-drag-over');
+    e.preventDefault();
+    e.stopPropagation();
+    const drop = list.dataset.drop;
+    const raw = e.dataTransfer?.getData(DND_MIME) || e.dataTransfer?.getData('text/plain');
+    if (!raw || !drop) return;
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (drop === 'register' && payload.kind === 'catalog') {
+      registerSlots(payload.ids.map(Number).filter((n) => Number.isFinite(n)));
+      return;
+    }
+    if (drop === 'unregister' && payload.kind === 'member') {
+      unregisterMembers(payload.ids.filter(Boolean));
+    }
+  }
+
+  catalogEl.addEventListener('dragstart', onDragStart);
+  membersEl.addEventListener('dragstart', onDragStart);
+  catalogEl.addEventListener('dragend', onDragEnd);
+  membersEl.addEventListener('dragend', onDragEnd);
+  catalogEl.addEventListener('dragover', onDragOver);
+  membersEl.addEventListener('dragover', onDragOver);
+  catalogEl.addEventListener('dragleave', onDragLeave);
+  membersEl.addEventListener('dragleave', onDragLeave);
+  catalogEl.addEventListener('drop', onDrop);
+  membersEl.addEventListener('drop', onDrop);
+
+  root.addEventListener('keydown', (e) => {
+    const chip = e.target.closest?.('.sb-ens-pick-chip[role="button"]');
+    if (!chip || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    chip.click();
   });
 
   root.addEventListener('click', async (e) => {
@@ -431,24 +657,10 @@ export function createGroupsPanelBody(opts) {
         return;
       }
       if (!selectedSlots.size) {
-        window.alert('FBX를 선택하세요.');
+        window.alert('캐릭터를 선택하세요.');
         return;
       }
-      [...selectedSlots].sort((a, b) => a - b).forEach((i) => {
-        const entry = catalog[i];
-        if (entry) {
-          store.addMember(active.id, {
-            url: entry.url,
-            name: entry.displayName || entry.name,
-            procedural: entry.procedural,
-            color: entry.color,
-            catalogIndex: i,
-          });
-        }
-      });
-      selectedSlots.clear();
-      render();
-      opts.onChange?.();
+      registerSlots([...selectedSlots].sort((a, b) => a - b));
       return;
     }
     if (act === 'member') {
@@ -461,90 +673,25 @@ export function createGroupsPanelBody(opts) {
     if (act === 'unregister') {
       const active = store.getActive();
       if (!active) return;
-      [...selectedMemberIds].forEach((id) => store.removeMember(active.id, id));
-      selectedMemberIds.clear();
-      render();
-      opts.onChange?.();
-      return;
-    }
-    if (act === 'seg-move' || act === 'seg-hold' || act === 'seg-exit') {
-      const active = store.getActive();
-      if (!active) {
-        window.alert('그룹을 선택하세요.');
+      if (!selectedMemberIds.size) {
+        window.alert('해제할 멤버를 선택하세요.');
         return;
       }
-      const kind = act === 'seg-move' ? 'move' : act === 'seg-hold' ? 'hold' : 'exit';
-      store.addSegment(active.id, kind);
-      render();
-      opts.onChange?.();
+      unregisterMembers([...selectedMemberIds]);
       return;
-    }
-    if (act === 'seg-rm') {
-      const active = store.getActive();
-      if (!active || !btn.dataset.id) return;
-      store.removeSegment(active.id, btn.dataset.id);
-      render();
-      opts.onChange?.();
-      return;
-    }
-    if (act === 'pick-from') {
-      const active = store.getActive();
-      if (!active) return;
-      opts.onPickGroupPoint?.({
-        mode: 'from',
-        groupId: active.id,
-        onPicked: (pt) => {
-          store.updateGroup(active.id, { fromX: roundCoord(pt.x), fromZ: roundCoord(pt.z) });
-          render();
-          opts.onChange?.();
-        },
-      });
-      return;
-    }
-    if (act === 'pick-seg') {
-      const active = store.getActive();
-      const segId = btn.dataset.id;
-      if (!active || !segId) return;
-      store.setSelectedSegmentId(segId);
-      opts.onPickGroupPoint?.({
-        mode: 'segmentAnchor',
-        groupId: active.id,
-        segmentId: segId,
-        onPicked: (pt) => {
-          store.updateSegment(active.id, segId, { anchorX: roundCoord(pt.x), anchorZ: roundCoord(pt.z) });
-          render();
-          opts.onChange?.();
-        },
-      });
-      return;
-    }
-    if (act === 'go') {
-      const active = store.getActive();
-      if (!active) {
-        window.alert('그룹을 선택하세요.');
-        return;
-      }
-      if (!active.members.length) {
-        window.alert('멤버를 등록하세요.');
-        return;
-      }
-      ensureGroupSegments(active);
-      btn.disabled = true;
-      try {
-        await opts.onDeploy?.(active.id);
-      } finally {
-        btn.disabled = false;
-        render();
-      }
     }
   });
 
-  // select segment card
-  segmentsEl.addEventListener('click', (e) => {
-    const card = e.target.closest?.('[data-seg-card]');
-    if (!card || e.target.closest?.('[data-act], input, button')) return;
-    store.setSelectedSegmentId(card.getAttribute('data-seg-card'));
-    renderSegments();
+  root.addEventListener('dblclick', (e) => {
+    const chip = e.target.closest?.('.sb-ens-pick-chip');
+    if (!chip) return;
+    if (chip.closest('[data-role="catalog"]')) {
+      const i = Number(chip.dataset.i);
+      if (Number.isFinite(i)) registerSlots([i]);
+    } else if (chip.closest('[data-role="members"]')) {
+      const id = chip.dataset.id;
+      if (id) unregisterMembers([id]);
+    }
   });
 
   loadCatalog().then(render);
@@ -566,48 +713,6 @@ export function createGroupsPanelBody(opts) {
       renderCatalog();
     },
   };
-}
-
-function mountFormationChips(host, current, onPick) {
-  if (!host) return;
-  host.innerHTML = FORMATION_TYPES.map((t) => `
-    <button type="button" class="sb-chip${t === current ? ' on' : ''}" data-fmt-pick="${t}">${FORMATION_LABELS[t]}</button>
-  `).join('');
-  host.querySelectorAll('[data-fmt-pick]').forEach((b) => {
-    b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      onPick(b.getAttribute('data-fmt-pick'));
-    });
-  });
-}
-
-function mountRotChips(host, currentDeg, onPick) {
-  if (!host) return;
-  const cur = normalizeRotYDeg(currentDeg);
-  const opts = [0, 30, 60, 90, 120, 150, 180, -30, -60, -90];
-  host.innerHTML = opts.map((d) => `
-    <button type="button" class="sb-chip${normalizeRotYDeg(d) === cur ? ' on' : ''}" data-rot-pick="${d}">${d}°</button>
-  `).join('');
-  host.querySelectorAll('[data-rot-pick]').forEach((b) => {
-    b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      onPick(normalizeRotYDeg(Number(b.getAttribute('data-rot-pick'))));
-    });
-  });
-}
-
-function mountEaseChips(host, current, onPick) {
-  if (!host) return;
-  const kinds = [SEGMENT_EASING.smooth, SEGMENT_EASING.linear];
-  host.innerHTML = kinds.map((k) => `
-    <button type="button" class="sb-chip${k === current ? ' on' : ''}" data-ease-pick="${k}">${SEGMENT_EASING_LABELS[k]}</button>
-  `).join('');
-  host.querySelectorAll('[data-ease-pick]').forEach((b) => {
-    b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      onPick(b.getAttribute('data-ease-pick'));
-    });
-  });
 }
 
 function escapeHtml(s) {

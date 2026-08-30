@@ -6,6 +6,7 @@ import {
   serializeGroupsForScene,
   normalizeGroupsOnLoad,
   relinkGroupDeployments,
+  recolorAllGroupsAfterLoad,
 } from './sceneGroups.js';
 import {
   serializeMotionsForScene,
@@ -13,6 +14,7 @@ import {
 } from './sceneMotionPersistence.js';
 import { serializeSceneLighting, applySceneLighting } from './sceneLighting.js';
 import { setWorkLightActive } from '../lighting/houseStageLights.js';
+import { sanitizePresetLinks } from '../motion/positionPresetLinks.js';
 
 /**
  * @param {{
@@ -117,6 +119,8 @@ export function collectManifestAssets(doc) {
  *   fixtures?: import('../lighting/FixtureDirector.js').FixtureDirector,
  *   onStageReload?: () => Promise<void>,
  *   onSceneApplied?: () => void,
+ *   onPrepareSceneLoad?: () => void,
+ *   positionPresetStore?: import('../motion/PositionPresetStore.js').PositionPresetStore | null,
  *   loadReport?: ReturnType<import('./sceneLoadReport.js').createSceneLoadReport>,
  * }} ctx
  */
@@ -133,10 +137,14 @@ export async function applyScene(doc, ctx) {
     fixtures,
     onStageReload,
     onSceneApplied,
+    onPrepareSceneLoad,
+    positionPresetStore,
     loadReport,
   } = ctx;
 
   const warn = (kind, label, detail) => loadReport?.addWarning(kind, label, detail);
+
+  onPrepareSceneLoad?.();
 
   motion.clearAll();
   audio.dispose();
@@ -182,7 +190,7 @@ export async function applyScene(doc, ctx) {
       await motion.restoreFromSaved(ref, resolveUrl);
     } catch (err) {
       console.warn('[SceneDocument] motion restore failed:', ref.name, err);
-      warn('motion', ref.name || ref.id || '모션', err.message || String(err));
+      warn(ref.assetRole === 'stage' ? 'stage' : 'character', ref.name || ref.id || '캐릭터', err.message || String(err));
     }
   }
   try {
@@ -205,7 +213,9 @@ export async function applyScene(doc, ctx) {
   }
 
   motion.reconcileTracks();
-  relinkGroupDeployments(motion, groupStore);
+  sanitizePresetLinks(positionPresetStore, { groupStore, motion });
+  relinkGroupDeployments(motion, groupStore, engine);
+  recolorAllGroupsAfterLoad(groupStore, motion, engine);
   audio.preloadAllClips();
 
   if (doc.lighting) {

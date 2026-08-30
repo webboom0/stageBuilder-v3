@@ -46,4 +46,12 @@
 
   if (location.hash) setActive(location.hash.slice(1));
   else if (sections[0]) setActive(sections[0].id);
+
+  document.querySelectorAll('.tutorial-figure').forEach((fig) => {
+    const img = fig.querySelector('img');
+    if (!img) return;
+    const markMissing = () => fig.classList.add('is-missing');
+    img.addEventListener('error', markMissing);
+    if (img.complete && img.naturalWidth === 0) markMissing();
+  });
 })();

@@ -72,27 +72,45 @@ export function applyMotionTint(object, color) {
 
 /**
  * Recolor deployed group members (v3 recolorGroupMotionMembers).
- * Member tintColor / scCustomTint wins over group color.
+ * Member tintColor wins over group color.
  *
  * @param {import('./MotionGroupStore.js').MotionGroup} group
  * @param {(id: string) => import('./MotionDirector.js').MotionItem | null} getMotion
  * @param {number} [groupIndex]
+ * @param {() => import('./MotionDirector.js').MotionItem[]} [listFolderMotions]
  */
-export function recolorGroupDeployedMembers(group, getMotion, groupIndex = 0) {
+export function recolorGroupDeployedMembers(group, getMotion, groupIndex = 0, listFolderMotions) {
   if (!group || typeof getMotion !== 'function') return;
   const groupColor = colorForGroup(group, groupIndex);
-  for (const m of group.members || []) {
-    if (!m?.deployedMotionId) continue;
-    const item = getMotion(m.deployedMotionId);
-    const obj = item?.object;
-    if (!obj) continue;
-    if (m.tintColor != null && m.tintColor !== '') {
-      applyMotionTint(obj, m.tintColor);
+  /** @type {Set<string>} */
+  const tinted = new Set();
+
+  /** @param {import('./MotionDirector.js').MotionItem | null | undefined} item @param {object} [member] */
+  const tintItem = (item, member) => {
+    if (!item?.object || tinted.has(item.id)) return;
+    tinted.add(item.id);
+    const obj = item.object;
+    if (member?.tintColor != null && member.tintColor !== '') {
+      applyMotionTint(obj, member.tintColor);
       obj.userData.scCustomTint = true;
-      continue;
+      return;
     }
-    if (obj.userData?.scCustomTint) continue;
+    delete obj.userData.scCustomTint;
     applyMotionTint(obj, groupColor);
+  };
+
+  const members = group.members || [];
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i];
+    if (m?.deployedMotionId) tintItem(getMotion(m.deployedMotionId), m);
+  }
+
+  // Folder sweep — fixes duplicate deployedMotionId / stale relink (same catalog name members)
+  if (typeof listFolderMotions === 'function') {
+    const folderItems = listFolderMotions();
+    for (let i = 0; i < folderItems.length; i++) {
+      tintItem(folderItems[i], members[i]);
+    }
   }
 }
 

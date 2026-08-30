@@ -295,6 +295,109 @@ tr:last-child td { border-bottom: none; }
   color: var(--ink-soft);
 }
 
+/* Tutorial screenshots — PNG in ./images/ (see images/manifest.txt) */
+.tutorial-figure {
+  margin: 0.9rem 0 1.15rem;
+}
+
+.tutorial-figure img {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(26, 31, 36, 0.06);
+}
+
+.tutorial-figure figcaption {
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
+
+.tutorial-figure.is-missing img {
+  display: none;
+}
+
+.tutorial-figure.is-missing {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+}
+
+.tutorial-figure.is-missing::before {
+  content: "그림 없음 · ";
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.tutorial-figure.is-missing::after {
+  content: attr(data-file) " 에 PNG 저장 (manifest.txt 참고)";
+}
+
+/* Inline toolbar icons (matches editor Assets panel SVG) */
+.tut-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -3px;
+  margin-right: 4px;
+  color: #4a5560;
+}
+
+.tut-icon svg {
+  display: block;
+}
+
+.tut-icon--accent {
+  color: #7c6bdc;
+}
+
+.tut-icon--upload {
+  color: #4a8f6a;
+}
+
+/* 타임라인 트랙 헤더 — 에디터 .sb-tl-hbtn 과 동일 (Font Awesome 5.15.4) */
+.tut-tl-hbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #5a6570;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.tut-tl-hbtn i {
+  line-height: 1;
+}
+
+.tut-tl-fa-inline {
+  font-size: 11px;
+  color: #e8a030;
+  vertical-align: 0;
+}
+
+.tut-tl-diamond {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: #dfe6ee;
+  border: 1px solid #1a1a1a;
+  transform: rotate(45deg);
+  vertical-align: 0.12em;
+  margin: 0 3px;
+  box-sizing: border-box;
+}
+
 pre, code {
   font-family: "JetBrains Mono", "Consolas", monospace;
   font-size: 0.82rem;

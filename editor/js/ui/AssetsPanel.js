@@ -8,6 +8,18 @@ import {
   deleteProjectAsset,
   importProjectAssetFromLibrary,
 } from '../domain/project/projectAssets.js';
+import { getPropThumbnailDataUrl, getCharacterThumbnailDataUrl } from '../domain/assets/propThumbnail.js';
+import { getVideoThumbnailDataUrl } from '../domain/assets/mediaThumbnail.js';
+import { drawAudioWaveform } from '../domain/audio/audioPaths.js';
+import {
+  ASSET_DRAG_MIME,
+  ASSET_DELETE_DRAG_MIME,
+  hasAssetDeleteDrag,
+  parseAssetDeleteDrag,
+  serializeAssetDrag,
+  serializeAssetDeleteDrag,
+} from '../domain/assets/stageAssetDrag.js';
+import { ASSETS_TOOLBAR_ICONS } from './assetsToolbarIcons.js';
 
 /** Must match server/server.js MEDIA_EXTS + limits */
 const UPLOAD_RULES = Object.freeze({
@@ -76,23 +88,30 @@ export function createAssetsPanelBody(opts = {}) {
       <button type="button" class="sb-assets-tab" data-tab="audio" role="tab">Audio</button>
     </div>
     <div class="sb-assets-toolbar">
-      <button type="button" class="sb-assets-refresh" data-act="refresh" title="목록 새로고침">↻</button>
-      <button type="button" class="sb-assets-lib" data-act="library" title="공용 라이브러리에서 가져오기">Lib</button>
-      <label class="sb-assets-upload" title="업로드">
-        ⬆
+      <button type="button" class="sb-assets-tool" data-act="refresh" title="목록 새로고침" aria-label="목록 새로고침">
+        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.refresh}</span>
+      </button>
+      <button type="button" class="sb-assets-tool" data-act="library" title="공용 라이브러리에서 가져오기" aria-label="공용 라이브러리">
+        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.library}</span>
+      </button>
+      <label class="sb-assets-tool sb-assets-upload" title="업로드" aria-label="업로드">
+        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.upload}</span>
         <input type="file" data-role="file" hidden />
       </label>
-      <button type="button" class="sb-assets-del" data-act="delete" title="선택 삭제">🗑</button>
+      <button type="button" class="sb-assets-tool sb-assets-del" data-act="delete" title="선택 삭제 · 항목을 여기로 드래그" aria-label="선택 삭제">
+        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.delete}</span>
+      </button>
       <span class="sb-assets-status" data-role="status">…</span>
     </div>
     <div class="sb-assets-list" data-role="list"></div>
-    <p class="sb-assets-hint" data-role="hint">WalkLite 기본 · Lib · 업로드 · + 로 추가 · 색은 속성</p>
+    <p class="sb-assets-hint" data-role="hint">WalkLite 기본 · Lib · 업로드 · + 또는 드래그로 추가 · 색은 속성</p>
   `;
 
   const listEl = root.querySelector('[data-role="list"]');
   const statusEl = root.querySelector('[data-role="status"]');
   const hintEl = root.querySelector('[data-role="hint"]');
   const fileInput = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="file"]'));
+  const delBtn = /** @type {HTMLButtonElement | null} */ (root.querySelector('[data-act="delete"]'));
 
   /** @type {'character' | 'stage' | 'video' | 'audio'} */
   let tab = 'character';
@@ -105,10 +124,110 @@ export function createAssetsPanelBody(opts = {}) {
   let items = [];
   /** @type {number} */
   let loadGen = 0;
+  /** @type {number} */
+  let thumbGen = 0;
   /** @type {boolean | null} */
   let propApiAvailable = null;
   /** @type {HTMLElement | null} */
   let libraryOverlay = null;
+  /** @type {{ resolve: (v: { ok: boolean, filename?: string }) => void } | null} */
+  let libraryPickWaiter = null;
+  /** @type {{ resolve: (v: { ok: boolean, filename?: string }) => void } | null} */
+  let uploadPickWaiter = null;
+  /** @type {HTMLAudioElement | null} */
+  let previewAudio = null;
+  /** @type {string | null} */
+  let previewAudioKey = null;
+
+  function stopPreviewAudio() {
+    if (previewAudio) {
+      previewAudio.pause();
+      previewAudio.removeAttribute('src');
+      previewAudio.load();
+      previewAudio = null;
+    }
+    previewAudioKey = null;
+    listEl.querySelectorAll('.sb-assets-preview-btn.is-playing').forEach((el) => {
+      el.classList.remove('is-playing');
+      el.setAttribute('aria-label', '듣기');
+      el.title = '듣기';
+    });
+  }
+
+  /** @param {HTMLElement} wrap */
+  function startVideoHoverPreview(wrap) {
+    const thumb = wrap.querySelector('.sb-assets-media-thumb.is-video');
+    const video = wrap.querySelector('.sb-assets-video-preview');
+    if (!thumb || !video) return;
+    thumb.classList.add('is-hover-preview');
+    video.currentTime = 0;
+    void video.play().catch(() => {});
+  }
+
+  /** @param {HTMLElement} wrap */
+  function stopVideoHoverPreview(wrap) {
+    const thumb = wrap.querySelector('.sb-assets-media-thumb.is-video');
+    const video = wrap.querySelector('.sb-assets-video-preview');
+    if (!thumb || !video) return;
+    thumb.classList.remove('is-hover-preview');
+    video.pause();
+    video.currentTime = 0;
+  }
+
+  function stopAllVideoPreviews() {
+    listEl.querySelectorAll('.sb-assets-media-card .sb-assets-thumb-wrap').forEach((wrap) => {
+      stopVideoHoverPreview(wrap);
+    });
+  }
+
+  function stopMediaPreview() {
+    stopPreviewAudio();
+    stopAllVideoPreviews();
+  }
+
+  /** @param {number} i */
+  function setPreviewAudioPlaying(i, playing) {
+    listEl.querySelectorAll('.sb-assets-preview-btn').forEach((el) => {
+      el.classList.remove('is-playing');
+      el.setAttribute('aria-label', '듣기');
+      el.title = '듣기';
+    });
+    if (!playing) return;
+    const btn = listEl.querySelector(`.sb-assets-preview-btn[data-i="${i}"]`);
+    btn?.classList.add('is-playing');
+    btn?.setAttribute('aria-label', '일시정지');
+    if (btn instanceof HTMLButtonElement) btn.title = '일시정지';
+  }
+
+  /** @param {number} i @param {any} entry */
+  async function togglePreviewAudio(i, entry) {
+    const key = entry.filename || entry.url || String(i);
+    if (previewAudioKey === key && previewAudio && !previewAudio.paused) {
+      previewAudio.pause();
+      setPreviewAudioPlaying(i, false);
+      return;
+    }
+    stopPreviewAudio();
+    const audio = new Audio(entry.url);
+    previewAudio = audio;
+    previewAudioKey = key;
+    audio.addEventListener('ended', () => {
+      stopPreviewAudio();
+    });
+    audio.addEventListener('pause', () => {
+      if (previewAudio === audio && audio.paused && audio.currentTime > 0 && audio.currentTime < (audio.duration || Infinity)) {
+        setPreviewAudioPlaying(i, false);
+      }
+    });
+    try {
+      await audio.play();
+      setPreviewAudioPlaying(i, true);
+    } catch (err) {
+      console.error(err);
+      stopPreviewAudio();
+      window.alert('오디오를 재생할 수 없습니다.');
+    }
+  }
 
   function projectFilenames() {
     return new Set(
@@ -118,9 +237,73 @@ export function createAssetsPanelBody(opts = {}) {
     );
   }
 
-  function closeLibraryDialog() {
+  /** @param {any} entry */
+  function isEntryDeletable(entry) {
+    return !!entry && entry.deletable !== false && !entry.procedural;
+  }
+
+  /** @param {any} entry */
+  function entryDragAttr(entry) {
+    return isEntryDeletable(entry) ? 'true' : 'false';
+  }
+
+  /** @param {any} entry @param {{ confirm?: boolean }} [opt] */
+  async function deleteEntry(entry, opt = {}) {
+    const confirmDelete = opt.confirm !== false;
+    if (!isEntryDeletable(entry)) {
+      window.alert('기본 항목은 삭제할 수 없습니다.');
+      return false;
+    }
+    const label = entry.filename || entry.displayName || entry.name || '항목';
+    if (confirmDelete && !window.confirm(`삭제할까요?\n${label}`)) return false;
+
+    try {
+      const projectId = opts.getProjectId?.() || null;
+      if (projectId) {
+        await deleteProjectAsset(projectId, tab, entry.filename);
+        if (tab === 'video' && entry.filename && isActiveVideo(entry)) {
+          await opts.onRemoveVideo?.();
+          activeVideoKey = null;
+        }
+        if ((entry.filename || entry.url) === selectedKey) selectedKey = null;
+        await refresh({ quiet: true, notifyCatalog: true });
+        statusEl.textContent = '삭제됨';
+        return true;
+      }
+      let path = API.deleteFbx;
+      if (tab === 'stage') path = propApiAvailable === false ? API.deleteFbx : API.deleteProp;
+      else if (tab === 'video') path = API.deleteVideo;
+      else if (tab === 'audio') path = API.deleteAudio;
+      const res = await fetch(apiUrl(`${path}/${encodeURIComponent(entry.filename)}`), {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (tab === 'video' && entry.filename && isActiveVideo(entry)) {
+        await opts.onRemoveVideo?.();
+        activeVideoKey = null;
+      }
+      if ((entry.filename || entry.url) === selectedKey) selectedKey = null;
+      await refresh({ quiet: true, notifyCatalog: true });
+      statusEl.textContent = '삭제됨';
+      return true;
+    } catch (err) {
+      console.error(err);
+      window.alert(`삭제 실패: ${err.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * @param {{ ok: boolean, filename?: string }} [result]
+   */
+  function closeLibraryDialog(result = { ok: false }) {
     libraryOverlay?.remove();
     libraryOverlay = null;
+    if (libraryPickWaiter) {
+      libraryPickWaiter.resolve(result);
+      libraryPickWaiter = null;
+    }
   }
 
   /** @param {{ url: string, path?: string, name: string, displayName?: string, filename?: string, procedural?: string, color?: number }} entry */
@@ -157,9 +340,26 @@ export function createAssetsPanelBody(opts = {}) {
     }
   }
 
-  async function openLibraryDialog() {
-    closeLibraryDialog();
+  /**
+   * @param {{ elevated?: boolean, hintFilename?: string, awaitResult?: boolean }} [dialogOpts]
+   * @returns {Promise<{ ok: boolean, filename?: string }> | void}
+   */
+  async function openLibraryDialog(dialogOpts = {}) {
+    const elevated = !!dialogOpts.elevated;
+    const hintFilename = String(dialogOpts.hintFilename || '').toLowerCase();
+    const awaitResult = !!dialogOpts.awaitResult;
     const projectId = opts.getProjectId?.() || null;
+
+    if (libraryOverlay) closeLibraryDialog({ ok: false });
+
+    /** @type {Promise<{ ok: boolean, filename?: string }> | null} */
+    let pickPromise = null;
+    if (awaitResult) {
+      pickPromise = new Promise((resolve) => {
+        libraryPickWaiter = { resolve };
+      });
+    }
+
     statusEl.textContent = '라이브러리…';
     let libItems = [];
     try {
@@ -167,7 +367,8 @@ export function createAssetsPanelBody(opts = {}) {
     } catch (err) {
       statusEl.textContent = '실패';
       window.alert(`라이브러리를 불러오지 못했습니다.\n\n${err.message || err}`);
-      return;
+      closeLibraryDialog({ ok: false });
+      return pickPromise || { ok: false };
     } finally {
       if (statusEl.textContent === '라이브러리…') {
         statusEl.textContent = items.length ? `${items.length}개` : '없음';
@@ -176,7 +377,7 @@ export function createAssetsPanelBody(opts = {}) {
 
     const inProject = new Set(projectFilenames());
     const overlay = document.createElement('div');
-    overlay.className = 'sb-assets-lib-overlay';
+    overlay.className = `sb-assets-lib-overlay${elevated ? ' sb-assets-lib-overlay--elevated' : ''}`;
     overlay.innerHTML = `
       <div class="sb-assets-lib-dlg" role="dialog" aria-modal="true" aria-label="공용 라이브러리">
         <div class="sb-assets-lib-head">
@@ -204,6 +405,16 @@ export function createAssetsPanelBody(opts = {}) {
     /** @type {number | null} */
     let selectedIdx = null;
 
+    if (hintFilename) {
+      const hintBase = hintFilename.replace(/\.[^.]+$/, '');
+      const idx = libItems.findIndex((it) => {
+        const fn = String(it.filename || '').toLowerCase();
+        const dn = String(it.displayName || '').toLowerCase();
+        return fn === hintFilename || fn === hintBase || dn === hintBase;
+      });
+      if (idx >= 0) selectedIdx = idx;
+    }
+
     function renderLibList() {
       if (!libItems.length) {
         listHost.innerHTML = '<div class="sb-assets-empty">라이브러리에 파일이 없습니다.</div>';
@@ -224,6 +435,7 @@ export function createAssetsPanelBody(opts = {}) {
     }
 
     renderLibList();
+    importBtn.disabled = selectedIdx == null;
 
     listHost?.addEventListener('click', (e) => {
       const row = e.target.closest?.('.sb-assets-lib-item');
@@ -239,10 +451,10 @@ export function createAssetsPanelBody(opts = {}) {
     });
 
     overlay.querySelectorAll('[data-act="close-lib"]').forEach((btn) => {
-      btn.addEventListener('click', closeLibraryDialog);
+      btn.addEventListener('click', () => closeLibraryDialog({ ok: false }));
     });
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeLibraryDialog();
+      if (e.target === overlay) closeLibraryDialog({ ok: false });
     });
 
     importBtn.addEventListener('click', async () => {
@@ -259,11 +471,11 @@ export function createAssetsPanelBody(opts = {}) {
           await importProjectAssetFromLibrary(projectId, tab, entry.filename);
           await refresh({ quiet: true, notifyCatalog: true });
           statusEl.textContent = '가져오기 OK';
-          closeLibraryDialog();
+          closeLibraryDialog({ ok: true, filename: entry.filename });
           return;
         }
         await addEntryToScene(entry);
-        closeLibraryDialog();
+        closeLibraryDialog({ ok: true, filename: entry.filename });
       } catch (err) {
         console.error(err);
         window.alert(`가져오기 실패\n\n${err?.message || err}`);
@@ -274,6 +486,10 @@ export function createAssetsPanelBody(opts = {}) {
 
     document.body.appendChild(overlay);
     libraryOverlay = overlay;
+    if (selectedIdx != null) {
+      listHost?.querySelector(`[data-i="${selectedIdx}"]`)?.scrollIntoView?.({ block: 'nearest' });
+    }
+    return pickPromise || undefined;
   }
 
   function acceptForTab() {
@@ -306,6 +522,7 @@ export function createAssetsPanelBody(opts = {}) {
   }
 
   function setTab(next) {
+    stopMediaPreview();
     tab = next;
     root.querySelectorAll('.sb-assets-tab').forEach((b) => {
       b.classList.toggle('is-on', b.dataset.tab === tab);
@@ -313,22 +530,29 @@ export function createAssetsPanelBody(opts = {}) {
     fileInput.accept = acceptForTab();
     selectedKey = null;
     if (tab === 'character') {
-      hintEl.textContent = 'WalkLite 기본 · Lib · 업로드 · + 로 추가 · 색은 속성';
+      hintEl.textContent = 'WalkLite 기본 · Lib · 업로드 · + 또는 드래그로 추가 · 색은 속성';
     } else if (tab === 'stage') {
       if (propApiAvailable === false) {
-        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX 업로드 · + 로 추가 (PIVOT: FBX만)';
+        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX 업로드 · + 또는 드래그로 추가 (PIVOT: FBX만)';
       } else {
-        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX/OBJ · + 로 추가 · 색은 속성';
+        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX/OBJ · + 또는 드래그로 추가 · 색은 속성';
       }
     } else if (tab === 'video') {
-      hintEl.textContent = 'Video · Lib · 업로드 · + 재생 · 재생 중 − · 🗑 파일 삭제';
+      hintEl.textContent = '마우스 오버 미리보기 · + 무대 배경 · 재생 중 − · 🗑 삭제';
     } else {
-      hintEl.textContent = 'Audio · Lib · 업로드 · + 클릭마다 새 트랙 · 🗑 파일 삭제';
+      hintEl.textContent = '▶ 듣기 · + 타임라인 · 🗑 삭제';
     }
     refresh({ quiet: false });
   }
 
   function renderList() {
+    stopMediaPreview();
+    const isMediaTab = tab === 'video' || tab === 'audio';
+    const isGridTab = tab === 'stage' || tab === 'character' || isMediaTab;
+    listEl.classList.toggle('is-assets-grid', isGridTab);
+    listEl.classList.toggle('is-media-grid', isMediaTab);
+    listEl.classList.toggle('is-video-grid', tab === 'video');
+
     if (!items.length) {
       listEl.innerHTML = `<div class="sb-assets-empty">${tabLabel()} 파일이 없습니다.</div>`;
       return;
@@ -337,24 +561,152 @@ export function createAssetsPanelBody(opts = {}) {
       const key = it.filename || it.url || String(i);
       const label = it.displayName || it.name || key;
       const badge = it.procedural ? '<span class="sb-assets-badge">기본</span>' : '';
+
+      if (isMediaTab) {
+        const activeOnStage = tab === 'video' && isActiveVideo(it);
+        const stageBadge = activeOnStage
+          ? '<span class="sb-assets-badge sb-assets-badge-on-thumb">재생 중</span>'
+          : '';
+        const addOverlay = tab === 'video' && activeOnStage
+          ? `<button type="button" class="sb-assets-add-overlay is-remove" data-act="remove-video" data-i="${i}" draggable="false" title="무대에서 비디오 제거">−</button>`
+          : `<button type="button" class="sb-assets-add-overlay" data-act="add" data-i="${i}" draggable="false" title="${tab === 'video' ? '무대 배경 재생' : '오디오 타임라인에 추가'}">+</button>`;
+
+        if (tab === 'video') {
+          return `
+        <div class="sb-assets-item sb-assets-card sb-assets-media-card is-video-card ${selectedKey === key ? 'is-selected' : ''}${activeOnStage ? ' is-active-video' : ''}"
+          data-key="${escapeAttr(key)}" data-i="${i}" draggable="${entryDragAttr(it)}">
+          <div class="sb-assets-thumb-wrap">
+            <div class="sb-assets-thumb sb-assets-media-thumb is-video">
+              <img class="sb-assets-thumb-img sb-assets-video-poster" data-thumb-i="${i}" alt="" />
+              <video class="sb-assets-video-preview" src="${escapeAttr(it.url)}" muted loop playsinline preload="metadata"></video>
+              ${stageBadge}
+            </div>
+            ${addOverlay}
+          </div>
+          <div class="sb-assets-card-foot">
+            <span class="sb-assets-item-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>
+          </div>
+        </div>`;
+        }
+
+        return `
+        <div class="sb-assets-item sb-assets-card sb-assets-media-card ${selectedKey === key ? 'is-selected' : ''}"
+          data-key="${escapeAttr(key)}" data-i="${i}" draggable="${entryDragAttr(it)}">
+          <div class="sb-assets-thumb-wrap">
+            <div class="sb-assets-thumb sb-assets-media-thumb is-audio">
+              <canvas class="sb-assets-audio-wave" data-wave-i="${i}" data-wave-pixel-w="160" aria-hidden="true"></canvas>
+            </div>
+            <button type="button" class="sb-assets-preview-btn" data-act="preview" data-i="${i}" title="듣기" aria-label="듣기">
+              <span class="sb-assets-preview-icon" aria-hidden="true"></span>
+            </button>
+            ${addOverlay}
+          </div>
+          <div class="sb-assets-card-foot">
+            <span class="sb-assets-item-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>
+          </div>
+        </div>`;
+      }
+
       let addBtn = '';
       if (tab === 'character' || tab === 'stage') {
         addBtn = `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="씬·타임라인에 추가">+</button>`;
-      } else if (tab === 'video') {
-        const on = isActiveVideo(it);
-        addBtn = on
-          ? `<button type="button" class="sb-assets-add is-remove" data-act="remove-video" data-i="${i}" title="무대에서 비디오 제거">−</button>`
-          : `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="무대 배경 재생">+</button>`;
-      } else if (tab === 'audio') {
-        addBtn = `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="오디오 타임라인에 추가">+</button>`;
       }
+
+      if (isGridTab) {
+        const thumbKey = escapeAttr(`${key}::${i}`);
+        const thumbBadge = it.procedural
+          ? '<span class="sb-assets-badge sb-assets-badge-on-thumb">기본</span>'
+          : '';
+        return `
+        <div class="sb-assets-item sb-assets-card ${selectedKey === key ? 'is-selected' : ''}"
+          data-key="${escapeAttr(key)}" data-i="${i}" draggable="${entryDragAttr(it)}">
+          <div class="sb-assets-thumb-wrap">
+            <div class="sb-assets-thumb" aria-hidden="true">
+              <img class="sb-assets-thumb-img" data-thumb-i="${i}" data-thumb-key="${thumbKey}" alt="" />
+              ${thumbBadge}
+            </div>
+            <button type="button" class="sb-assets-add-overlay" data-act="add" data-i="${i}" draggable="false" title="씬·타임라인에 추가">+</button>
+          </div>
+          <div class="sb-assets-card-foot">
+            <span class="sb-assets-item-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>
+          </div>
+        </div>`;
+      }
+
       return `
-        <div class="sb-assets-item ${selectedKey === key ? 'is-selected' : ''}${tab === 'video' && isActiveVideo(it) ? ' is-active-video' : ''}"
+        <div class="sb-assets-item ${selectedKey === key ? 'is-selected' : ''}"
           data-key="${escapeAttr(key)}" data-i="${i}">
           <span class="sb-assets-item-name">${escapeHtml(label)}${badge}</span>
           ${addBtn}
         </div>`;
     }).join('');
+    if (tab === 'stage' || tab === 'character') hydrateGridThumbnails();
+    else if (isMediaTab) hydrateMediaPreviews();
+  }
+
+  function hydrateMediaPreviews() {
+    const gen = ++thumbGen;
+    const activeTab = tab;
+
+    if (activeTab === 'video') {
+      const imgs = listEl.querySelectorAll('.sb-assets-thumb-img');
+      imgs.forEach((img) => {
+        const i = Number(img.dataset.thumbI);
+        const entry = items[i];
+        if (!entry?.url) return;
+        img.removeAttribute('src');
+        img.classList.remove('is-loaded', 'is-failed');
+        void getVideoThumbnailDataUrl(entry.url).then((dataUrl) => {
+          if (gen !== thumbGen || tab !== activeTab) return;
+          if (!img.isConnected) return;
+          if (dataUrl) {
+            img.src = dataUrl;
+            img.classList.add('is-loaded');
+          } else {
+            img.classList.add('is-failed');
+          }
+        });
+      });
+      return;
+    }
+
+    const canvases = listEl.querySelectorAll('.sb-assets-audio-wave');
+    canvases.forEach((canvas) => {
+      const i = Number(canvas.dataset.waveI);
+      const entry = items[i];
+      if (!entry) return;
+      const wavePath = entry.path || entry.url;
+      if (!wavePath) return;
+      requestAnimationFrame(() => {
+        if (gen !== thumbGen || tab !== activeTab) return;
+        if (!canvas.isConnected) return;
+        drawAudioWaveform(/** @type {HTMLCanvasElement} */ (canvas), wavePath);
+      });
+    });
+  }
+
+  function hydrateGridThumbnails() {
+    const gen = ++thumbGen;
+    const activeTab = tab;
+    const getThumb = activeTab === 'stage' ? getPropThumbnailDataUrl : getCharacterThumbnailDataUrl;
+    const imgs = listEl.querySelectorAll('.sb-assets-thumb-img');
+    imgs.forEach((img) => {
+      const i = Number(img.dataset.thumbI);
+      const entry = items[i];
+      if (!entry) return;
+      img.removeAttribute('src');
+      img.classList.remove('is-loaded', 'is-failed');
+      void getThumb(entry).then((dataUrl) => {
+        if (gen !== thumbGen || tab !== activeTab) return;
+        if (!img.isConnected) return;
+        if (dataUrl) {
+          img.src = dataUrl;
+          img.classList.add('is-loaded');
+        } else {
+          img.classList.add('is-failed');
+        }
+      });
+    });
   }
 
   /**
@@ -405,6 +757,93 @@ export function createAssetsPanelBody(opts = {}) {
     }
   }
 
+  listEl.addEventListener('dragstart', (e) => {
+    if (e.target.closest?.('button, label, input')) {
+      e.preventDefault();
+      return;
+    }
+    const card = e.target.closest?.('.sb-assets-item[data-key]');
+    if (!card) return;
+    const i = Number(card.dataset.i);
+    const entry = items[i];
+    if (!isEntryDeletable(entry)) {
+      e.preventDefault();
+      return;
+    }
+
+    e.dataTransfer.setData(ASSET_DELETE_DRAG_MIME, serializeAssetDeleteDrag(entry));
+    e.dataTransfer.effectAllowed = 'copy';
+    card.classList.add('is-dragging');
+    document.body.classList.add('sb-asset-dragging-delete');
+
+    if (tab === 'stage' || tab === 'character') {
+      e.dataTransfer.setData(ASSET_DRAG_MIME, serializeAssetDrag(tab, entry));
+      document.body.classList.add(
+        tab === 'stage' ? 'sb-asset-dragging-stage' : 'sb-asset-dragging-character',
+      );
+    }
+  });
+
+  listEl.addEventListener('dragend', () => {
+    document.body.classList.remove(
+      'sb-asset-dragging-stage',
+      'sb-asset-dragging-character',
+      'sb-asset-dragging-delete',
+    );
+    delBtn?.classList.remove('is-drop-target');
+    listEl.querySelectorAll('.sb-assets-item.is-dragging').forEach((el) => {
+      el.classList.remove('is-dragging');
+    });
+  });
+
+  delBtn?.addEventListener('dragover', (e) => {
+    if (!hasAssetDeleteDrag(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    delBtn.classList.add('is-drop-target');
+  });
+
+  delBtn?.addEventListener('dragleave', (e) => {
+    const rel = e.relatedTarget;
+    if (rel instanceof Node && delBtn.contains(rel)) return;
+    delBtn.classList.remove('is-drop-target');
+  });
+
+  delBtn?.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    delBtn.classList.remove('is-drop-target');
+    if (!hasAssetDeleteDrag(e.dataTransfer)) return;
+    const payload = parseAssetDeleteDrag(e.dataTransfer.getData(ASSET_DELETE_DRAG_MIME));
+    if (!payload) return;
+    const entry = items.find((it) => {
+      const key = it.filename || it.url || '';
+      return key === payload.key
+        || (payload.filename && it.filename === payload.filename)
+        || (payload.url && it.url === payload.url);
+    });
+    if (!entry) return;
+    selectedKey = entry.filename || entry.url || null;
+    await deleteEntry(entry);
+  });
+
+  listEl.addEventListener('mouseover', (e) => {
+    if (tab !== 'video') return;
+    const wrap = e.target.closest?.('.sb-assets-media-card .sb-assets-thumb-wrap');
+    if (!wrap) return;
+    const related = e.relatedTarget;
+    if (related instanceof Node && wrap.contains(related)) return;
+    startVideoHoverPreview(wrap);
+  });
+
+  listEl.addEventListener('mouseout', (e) => {
+    if (tab !== 'video') return;
+    const wrap = e.target.closest?.('.sb-assets-media-card .sb-assets-thumb-wrap');
+    if (!wrap) return;
+    const related = e.relatedTarget;
+    if (related instanceof Node && wrap.contains(related)) return;
+    stopVideoHoverPreview(wrap);
+  });
+
   listEl.addEventListener('click', async (e) => {
     e.preventDefault();
     const item = e.target.closest?.('.sb-assets-item');
@@ -419,6 +858,14 @@ export function createAssetsPanelBody(opts = {}) {
 
     const addBtn = e.target.closest?.('[data-act="add"]');
     const removeBtn = e.target.closest?.('[data-act="remove-video"]');
+    const previewBtn = e.target.closest?.('[data-act="preview"]');
+
+    if (previewBtn && tab === 'audio') {
+      e.stopPropagation();
+      void togglePreviewAudio(i, entry);
+      return;
+    }
+
     if (removeBtn && tab === 'video') {
       e.stopPropagation();
       removeBtn.disabled = true;
@@ -490,18 +937,16 @@ export function createAssetsPanelBody(opts = {}) {
 
   fileInput.addEventListener('click', (e) => e.stopPropagation());
 
-  fileInput.addEventListener('change', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const file = fileInput.files?.[0];
-    fileInput.value = '';
-    if (!file) return;
-
+  /**
+   * @param {File} file
+   * @returns {Promise<{ ok: boolean, filename?: string }>}
+   */
+  async function uploadSelectedFile(file) {
     const clientErr = validateUploadFile(file, tab, { propApiAvailable });
     if (clientErr) {
       statusEl.textContent = '업로드 취소';
       window.alert(clientErr);
-      return;
+      return { ok: false };
     }
 
     statusEl.textContent = '업로드 중…';
@@ -511,7 +956,7 @@ export function createAssetsPanelBody(opts = {}) {
         await uploadProjectAsset(projectId, tab, file);
         await refresh({ quiet: true, notifyCatalog: true });
         statusEl.textContent = '업로드 OK';
-        return;
+        return { ok: true, filename: file.name };
       }
       if (tab === 'stage' && propApiAvailable === null) {
         propApiAvailable = await probePropApiAvailable();
@@ -556,11 +1001,68 @@ export function createAssetsPanelBody(opts = {}) {
       }
       await refresh({ quiet: true, notifyCatalog: true });
       statusEl.textContent = '업로드 OK';
+      return { ok: true, filename: file.name };
     } catch (err) {
       statusEl.textContent = '업로드 실패';
       console.error(err);
       window.alert(`업로드 실패\n\n${err?.message || err}`);
+      return { ok: false };
     }
+  }
+
+  /**
+   * @param {'character' | 'stage' | 'video' | 'audio'} nextTab
+   * @returns {Promise<{ ok: boolean, filename?: string }>}
+   */
+  function pickUpload(nextTab) {
+    setTab(nextTab);
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('focus', onWinFocus);
+        uploadPickWaiter = null;
+        resolve(result);
+      };
+      uploadPickWaiter = { resolve: finish };
+      const onWinFocus = () => {
+        window.setTimeout(() => {
+          if (!settled && !fileInput.files?.length) finish({ ok: false });
+        }, 400);
+      };
+      window.addEventListener('focus', onWinFocus, { once: true });
+      fileInput.click();
+    });
+  }
+
+  /**
+   * @param {'character' | 'stage' | 'video' | 'audio'} nextTab
+   * @param {{ elevated?: boolean, hintFilename?: string }} [dialogOpts]
+   * @returns {Promise<{ ok: boolean, filename?: string }>}
+   */
+  async function pickLibrary(nextTab, dialogOpts = {}) {
+    setTab(nextTab);
+    const result = await openLibraryDialog({
+      ...dialogOpts,
+      awaitResult: true,
+    });
+    return result || { ok: false };
+  }
+
+  fileInput.addEventListener('change', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    const waiter = uploadPickWaiter;
+    uploadPickWaiter = null;
+    if (!file) {
+      waiter?.resolve({ ok: false });
+      return;
+    }
+    const result = await uploadSelectedFile(file);
+    waiter?.resolve(result);
   });
 
   root.querySelector('[data-act="delete"]')?.addEventListener('click', async (e) => {
@@ -570,44 +1072,8 @@ export function createAssetsPanelBody(opts = {}) {
       return;
     }
     const entry = items.find((it) => (it.filename || it.url) === selectedKey);
-    if (!entry?.deletable || entry.procedural) {
-      window.alert('기본 항목은 삭제할 수 없습니다.');
-      return;
-    }
-    if (!window.confirm(`삭제할까요?\n${entry.filename}`)) return;
-    try {
-      const projectId = opts.getProjectId?.() || null;
-      if (projectId) {
-        await deleteProjectAsset(projectId, tab, entry.filename);
-        if (tab === 'video' && entry.filename && isActiveVideo(entry)) {
-          await opts.onRemoveVideo?.();
-          activeVideoKey = null;
-        }
-        selectedKey = null;
-        await refresh({ quiet: true, notifyCatalog: true });
-        statusEl.textContent = '삭제됨';
-        return;
-      }
-      let path = API.deleteFbx;
-      if (tab === 'stage') path = propApiAvailable === false ? API.deleteFbx : API.deleteProp;
-      else if (tab === 'video') path = API.deleteVideo;
-      else if (tab === 'audio') path = API.deleteAudio;
-      const res = await fetch(apiUrl(`${path}/${encodeURIComponent(entry.filename)}`), {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (tab === 'video' && entry.filename && isActiveVideo(entry)) {
-        await opts.onRemoveVideo?.();
-        activeVideoKey = null;
-      }
-      selectedKey = null;
-      await refresh({ quiet: true, notifyCatalog: true });
-      statusEl.textContent = '삭제됨';
-    } catch (err) {
-      console.error(err);
-      window.alert(`삭제 실패: ${err.message}`);
-    }
+    if (!entry) return;
+    await deleteEntry(entry);
   });
 
   fileInput.accept = acceptForTab();
@@ -622,11 +1088,13 @@ export function createAssetsPanelBody(opts = {}) {
       items = [];
       selectedKey = null;
       activeVideoKey = null;
+      stopMediaPreview();
       statusEl.textContent = '불러오는 중…';
       renderList();
     },
     destroy() {
       closeLibraryDialog();
+      stopMediaPreview();
     },
     /** @param {string | null} key filename or url */
     setActiveVideo(key) {
@@ -634,6 +1102,10 @@ export function createAssetsPanelBody(opts = {}) {
       if (tab === 'video') renderList();
     },
     getActiveVideo: () => activeVideoKey,
+    /** @param {'character' | 'stage' | 'video' | 'audio'} nextTab */
+    focusTab: (nextTab) => setTab(nextTab),
+    pickUpload,
+    pickLibrary,
     getSelected: () => {
       if (!selectedKey) return null;
       const entry = items.find((it) => (it.filename || it.url) === selectedKey);

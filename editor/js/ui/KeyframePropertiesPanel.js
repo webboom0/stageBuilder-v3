@@ -6,6 +6,8 @@ import { applyMotionTint } from '../domain/motion/walkLitePerformer.js';
 import { clampMotionAboveDeck } from '../domain/motion/MotionDirector.js';
 import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
+import { mountPositionPresetBar } from './segmentStepUi.js';
+import { ensureMotionAnim } from '../domain/motion/motionAnim.js';
 
 /**
  * Properties — tabs: 속성 (object/key) · 구간 (move/hold/exit, no formation).
@@ -25,6 +27,7 @@ import { createMotionAnimSection } from './MotionAnimSection.js';
  *   onWriteLight?: (trackId: string, patch: Record<string, number | string>) => void,
  *   onChange?: () => void,
  *   onStagePick?: (motionId: string) => void,
+ *   onPickPoint?: (onPicked: (pt: { x: number, z: number }) => void) => void,
  *   onObjectEdited?: (motionId: string) => void,
  *   onPickAnimPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
@@ -33,6 +36,17 @@ import { createMotionAnimSection } from './MotionAnimSection.js';
  *     onPicked: (pt: { x: number, z: number }) => void,
  *   }) => void,
  *   onApplyMotionAnim?: (motionId: string) => void | Promise<void>,
+ *   getPresetStore?: () => import('../domain/motion/PositionPresetStore.js').PositionPresetStore | null,
+ *   getSegmentStagePreview?: () => {
+ *     begin: () => void,
+ *     end: () => void,
+ *     previewMotionStart: (motionId: string, draft: Record<string, any>) => void,
+ *     previewMotionSegment: (motionId: string, segmentId: string, draft: Record<string, any>) => void,
+ *     previewPresetLocation?: (pose: { x: number, z: number, rotY?: number, opacity?: number }) => void,
+ *   } | null,
+ *   onPresetUpdated?: (preset: import('../domain/motion/positionPresets.js').PositionPreset) => void,
+ *   onPositionPresetsChanged?: () => void,
+ *   onPresetRemoved?: (presetId: string) => void,
  * }} opts
  */
 export function createKeyframePropertiesPanel(opts) {
@@ -100,13 +114,12 @@ export function createKeyframePropertiesPanel(opts) {
           <div class="ec-row-group" data-role="pos-group">
             <div class="ec-row-group-label">위치 <span class="sb-props-hint">Y 고정</span></div>
           </div>
-          <button type="button" class="sb-stage-pick-btn" data-role="stage-pick">
-            <span class="sb-stage-pick-ico" aria-hidden="true">◎</span>
-            <span>
-              <strong>무대에서 위치 지정</strong>
-              <small>버튼을 누른 뒤 무대 클릭</small>
-            </span>
-          </button>
+          <div class="sb-seg-pick-row" data-role="pos-pick-row">
+            <div class="sb-seg-pick-presets">
+              <button type="button" class="sb-chip sb-seg-pick-chip" data-role="stage-pick" title="무대에서 위치 지정">◎ 무대</button>
+              <div data-role="pos-presets"></div>
+            </div>
+          </div>
 
           <div class="ec-row-group-label">회전</div>
           <div data-role="roty-host"></div>
@@ -119,7 +132,7 @@ export function createKeyframePropertiesPanel(opts) {
           <div class="ec-row">
             <label>Opacity</label>
             <input type="range" data-role="opacity-range" min="0" max="1" step="0.01" class="acc" />
-            <input type="number" class="Number ec-val" data-role="opacity" min="0" max="1" step="0.01" />
+            <span class="ec-val-text sb-opacity-pct" data-role="opacity-pct">100%</span>
           </div>
         </div>
 
@@ -151,7 +164,7 @@ export function createKeyframePropertiesPanel(opts) {
           <div class="ec-row">
             <label>Opacity</label>
             <input type="range" data-role="stage-opacity-range" min="0" max="1" step="0.01" class="acc" />
-            <input type="number" class="Number ec-val" data-role="stage-opacity" min="0" max="1" step="0.01" />
+            <span class="ec-val-text sb-opacity-pct" data-role="stage-opacity-pct">100%</span>
           </div>
         </div>
 
@@ -175,7 +188,7 @@ export function createKeyframePropertiesPanel(opts) {
 
       <div class="sb-props-pane" data-pane="segments" hidden>
         <p class="sb-ens-subtitle sb-props-pane-hint">
-          그룹과 같은 <strong>이동·대기·퇴장</strong> 설계 · 포메이션 없음 · 적용 시 키 생성
+          <strong>시작 위치</strong> → <strong>+</strong> 구간(이동·대기·퇴장) · 저장 위치 프리셋 · <strong>키프레임 적용</strong>
         </p>
         <div data-role="anim-host"></div>
       </div>
@@ -205,6 +218,7 @@ export function createKeyframePropertiesPanel(opts) {
   const fxFocusRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-focus-range"]'));
   const fxFocus = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-focus"]'));
   const posGroup = root.querySelector('[data-role="pos-group"]');
+  const posPresetsHost = root.querySelector('[data-role="pos-presets"]');
   const rotyHost = /** @type {HTMLElement} */ (root.querySelector('[data-role="roty-host"]'));
   const stagePosGroup = root.querySelector('[data-role="stage-pos-group"]');
   const stageRotGroup = root.querySelector('[data-role="stage-rot-group"]');
@@ -218,18 +232,82 @@ export function createKeyframePropertiesPanel(opts) {
   const timeEl = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time"]'));
   const timeRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time-range"]'));
   const interpEl = /** @type {HTMLSelectElement} */ (root.querySelector('[data-role="interp"]'));
-  const opNum = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="opacity"]'));
   const opRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="opacity-range"]'));
-  const stageOpNum = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="stage-opacity"]'));
+  const opPct = /** @type {HTMLElement} */ (root.querySelector('[data-role="opacity-pct"]'));
   const stageOpRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="stage-opacity-range"]'));
+  const stageOpPct = /** @type {HTMLElement} */ (root.querySelector('[data-role="stage-opacity-pct"]'));
   const stageTintEl = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="stage-tint"]'));
 
   const animSection = createMotionAnimSection({
+    getPresetStore: () => opts.getPresetStore?.() ?? null,
     onPickPoint: (pick) => opts.onPickAnimPoint?.(pick),
     onApply: (motionId) => opts.onApplyMotionAnim?.(motionId),
+    getSegmentStagePreview: () => opts.getSegmentStagePreview?.() ?? null,
+    onPresetUpdated: (preset) => opts.onPresetUpdated?.(preset),
+    onPositionPresetsChanged: () => opts.onPositionPresetsChanged?.(),
+    onPresetRemoved: (id) => opts.onPresetRemoved?.(id),
     onChange: () => opts.onChange?.(),
   });
   animHost.appendChild(animSection.root);
+
+  function refreshPosPresets() {
+    if (!posPresetsHost) return;
+    const preview = opts.getSegmentStagePreview?.();
+    mountPositionPresetBar(posPresetsHost, {
+      presetStore: opts.getPresetStore?.() ?? null,
+      variant: 'inline',
+      chipActions: false,
+      onApplyPreset: (preset) => {
+        const m = currentMotion();
+        if (!m?.object) return;
+        const anim = ensureMotionAnim(m);
+        anim.fromX = preset.x;
+        anim.fromZ = preset.z;
+        anim.fromRotY = preset.rotY ?? 0;
+        anim.opacity = preset.opacity ?? anim.opacity ?? 1;
+        anim.fromPresetId = preset.id;
+        anim.startConfigured = true;
+        charXyz.pos.write([preset.x, m.object.position.y, preset.z]);
+        m.object.rotation.y = THREE.MathUtils.degToRad(preset.rotY ?? 0);
+        if (preset.opacity != null && opRange && opPct) {
+          opRange.value = String(preset.opacity);
+          opPct.textContent = `${Math.round(clamp01(preset.opacity) * 100)}%`;
+        }
+        commitCharTransform();
+        sync();
+      },
+      onPickStage: (onPicked) => {
+        opts.onPickPoint?.(onPicked);
+      },
+      onCaptureHint: () => {
+        const m = currentMotion();
+        if (!m?.object) return null;
+        return {
+          x: m.object.position.x,
+          z: m.object.position.z,
+          rotY: THREE.MathUtils.radToDeg(m.object.rotation.y),
+          opacity: Number(opRange?.value ?? 1),
+        };
+      },
+      onPreviewBegin: () => preview?.begin(),
+      onPreviewEnd: () => preview?.end(),
+      onPreviewReset: () => preview?.resetPreview(),
+      onPreviewPreset: (form) => preview?.previewPresetLocation?.({
+        x: Number(form.x) || 0,
+        z: Number(form.z) || 0,
+        rotY: Number(form.rotY) || 0,
+        opacity: form.opacity ?? 1,
+      }),
+      onPresetUpdated: (preset) => opts.onPresetUpdated?.(preset),
+      onPositionPresetsChanged: () => opts.onPositionPresetsChanged?.(),
+      onPresetRemoved: (id) => opts.onPresetRemoved?.(id),
+      activePresetId: currentMotion()?.anim?.fromPresetId ?? null,
+      onChange: () => {
+        opts.onChange?.();
+        refreshPosPresets();
+      },
+    });
+  }
 
   /** @type {'props' | 'segments'} */
   let activeTab = 'props';
@@ -410,25 +488,25 @@ export function createKeyframePropertiesPanel(opts) {
 
   function opacityInputs(m, track) {
     return isStageItem(m, track)
-      ? { num: stageOpNum, range: stageOpRange }
-      : { num: opNum, range: opRange };
+      ? { pct: stageOpPct, range: stageOpRange }
+      : { pct: opPct, range: opRange };
   }
 
   function readOpacityValue(m, track) {
-    const { num } = opacityInputs(m, track);
-    return Number.isFinite(Number(num.value)) ? clamp01(Number(num.value)) : 1;
+    const { range } = opacityInputs(m, track);
+    return Number.isFinite(Number(range.value)) ? clamp01(Number(range.value)) : 1;
   }
 
   function writeOpacityValue(m, track, value) {
-    const { num, range } = opacityInputs(m, track);
+    const { pct, range } = opacityInputs(m, track);
     const n = clamp01(Number(value));
-    num.value = String(n);
     range.value = String(n);
+    if (pct) pct.textContent = `${Math.round(n * 100)}%`;
   }
 
   function pushObjectToSelectedKey(m) {
     const track = engine.getTrack(m.trackId);
-    if (!track) return;
+    if (!track || track.locked) return;
     let keyId = engine.selectedTrackId === m.trackId ? engine.selectedKeyframeId : null;
     if (!keyId) {
       const at = track.keys.list().find((k) => Math.abs(k.timeSec - engine.playheadSec) < 1e-3);
@@ -576,6 +654,7 @@ export function createKeyframePropertiesPanel(opts) {
       animSection.clear();
     } else {
       charXyz.pos.write([m.object.position.x, m.object.position.y, m.object.position.z]);
+      refreshPosPresets();
 
       mountRotYChips(rotyHost, THREE.MathUtils.radToDeg(m.object.rotation.y), (deg) => {
         if (engine.getTrack(m.trackId)?.locked) return;
@@ -788,9 +867,7 @@ export function createKeyframePropertiesPanel(opts) {
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
   };
-  opNum.addEventListener('change', () => commitOpacity(opNum.value, 'char'));
   opRange.addEventListener('input', () => commitOpacity(opRange.value, 'char'));
-  stageOpNum.addEventListener('change', () => commitOpacity(stageOpNum.value, 'stage'));
   stageOpRange.addEventListener('input', () => commitOpacity(stageOpRange.value, 'stage'));
 
   const unsub = engine.subscribe((ev) => {

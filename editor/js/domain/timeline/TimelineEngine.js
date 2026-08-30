@@ -421,6 +421,7 @@ export class TimelineEngine {
     if (this.playing) return;
     this.playing = true;
     this._lastTick = performance.now();
+    this.emit('playhead');
     const loop = (now) => {
       if (!this.playing) return;
       const dt = (now - this._lastTick) / 1000;

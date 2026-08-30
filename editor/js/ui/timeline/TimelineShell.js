@@ -9,6 +9,11 @@ import {
   syncAudioClipDom,
   syncAudioClipSelection,
 } from './audioClipView.js';
+import {
+  hasAssetDrag,
+  parseAssetDrag,
+  ASSET_DRAG_MIME,
+} from '../../domain/assets/stageAssetDrag.js';
 
 /**
  * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
@@ -21,6 +26,21 @@ import {
  *   audio?: import('../../domain/audio/AudioDirector.js').AudioDirector,
  *   onTrackSelect?: (trackId: string, opt?: { selectKey?: boolean }) => void,
  *   onTrackRemove?: (trackId: string) => boolean | void,
+ *   onStageAssetDrop?: (entry: {
+ *     url?: string,
+ *     name?: string,
+ *     procedural?: string,
+ *     color?: number,
+ *     filename?: string,
+ *   }) => void | Promise<void>,
+ *   onCharacterAssetDrop?: (entry: {
+ *     url?: string,
+ *     name?: string,
+ *     procedural?: string,
+ *     color?: number,
+ *     filename?: string,
+ *   }) => void | Promise<void>,
+ *   onHistoryChange?: () => void,
  * }} ctx
  */
 export function mountTimelineShell(host, ctx) {
@@ -31,6 +51,9 @@ export function mountTimelineShell(host, ctx) {
     audio,
     onTrackSelect,
     onTrackRemove,
+    onStageAssetDrop,
+    onCharacterAssetDrop,
+    onHistoryChange,
   } = ctx;
 
   host.classList.add('sb-tl');
@@ -197,10 +220,7 @@ export function mountTimelineShell(host, ctx) {
       const { folders, loose } = partitionByFolder(rows, engine);
       for (const folder of folders) {
         const collapsed = !!folder.meta.collapsed;
-        labelsHtml += `<div class="sb-tl-folder-label ${collapsed ? 'is-collapsed' : ''}" data-folder="${folder.id}">
-          <button type="button" class="sb-tl-folder-toggle" data-folder="${folder.id}" title="접기/펼치기">${collapsed ? '▸' : '▾'}</button>
-          ${escapeHtml(folder.meta.name)}
-        </div>`;
+        labelsHtml += folderLabelHtml(folder, engine);
         tracksHtml += `<div class="sb-tl-folder-lane" data-folder="${folder.id}"></div>`;
         if (collapsed) continue;
         for (const tr of folder.tracks) {
@@ -278,8 +298,16 @@ export function mountTimelineShell(host, ctx) {
   host.querySelector('[data-act="zoom-out"]').addEventListener('click', () => {
     engine.setZoom(engine.pxPerSec / 1.25);
   });
-  host.querySelector('[data-act="undo"]').addEventListener('click', () => engine.undo());
-  host.querySelector('[data-act="redo"]').addEventListener('click', () => engine.redo());
+  function applyHistoryChange() {
+    onHistoryChange?.();
+  }
+
+  host.querySelector('[data-act="undo"]').addEventListener('click', () => {
+    if (engine.undo()) applyHistoryChange();
+  });
+  host.querySelector('[data-act="redo"]').addEventListener('click', () => {
+    if (engine.redo()) applyHistoryChange();
+  });
   host.querySelector('[data-act="shortcuts"]').addEventListener('click', (e) => {
     e.stopPropagation();
     toggleShortcutsPopup();
@@ -804,6 +832,31 @@ export function mountTimelineShell(host, ctx) {
     engine.emit('change');
   }
 
+  /** @param {string} folderId */
+  function tracksInFolder(folderId) {
+    return engine.listTracks().filter((tr) => tr.folderId === folderId);
+  }
+
+  /** @param {string} folderId */
+  function toggleFolderHidden(folderId) {
+    const rows = tracksInFolder(folderId);
+    if (!rows.length) return;
+    const hideAll = !rows.every((tr) => tr.hidden);
+    for (const tr of rows) tr.hidden = hideAll;
+    engine.emit('tracks');
+    engine.emit('change');
+  }
+
+  /** @param {string} folderId */
+  function toggleFolderLocked(folderId) {
+    const rows = tracksInFolder(folderId);
+    if (!rows.length) return;
+    const lockAll = !rows.every((tr) => tr.locked);
+    for (const tr of rows) tr.locked = lockAll;
+    engine.emit('tracks');
+    engine.emit('change');
+  }
+
   /** Dispose scene/audio/light object, then remove the timeline row if still present. */
   function deleteTimelineTrack(trackId) {
     onTrackRemove?.(trackId);
@@ -844,6 +897,16 @@ export function mountTimelineShell(host, ctx) {
       const sid = secToggle.dataset.section;
       sectionCollapsed[sid] = !sectionCollapsed[sid];
       render();
+      return;
+    }
+    const folderCtrl = e.target.closest?.('.sb-tl-folder-label [data-tl-act]');
+    if (folderCtrl) {
+      e.stopPropagation();
+      const folderId = folderCtrl.closest?.('.sb-tl-folder-label')?.dataset?.folder;
+      if (!folderId) return;
+      const act = folderCtrl.dataset.tlAct;
+      if (act === 'folder-vis') toggleFolderHidden(folderId);
+      else if (act === 'folder-lock') toggleFolderLocked(folderId);
       return;
     }
     const toggle = e.target.closest?.('.sb-tl-folder-toggle');
@@ -1131,13 +1194,13 @@ export function mountTimelineShell(host, ctx) {
     }
     if ((e.ctrlKey || e.metaKey) && keyLower === 'z') {
       e.preventDefault();
-      if (e.shiftKey) engine.redo();
-      else engine.undo();
+      const ok = e.shiftKey ? engine.redo() : engine.undo();
+      if (ok) applyHistoryChange();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && keyLower === 'y') {
       e.preventDefault();
-      engine.redo();
+      if (engine.redo()) applyHistoryChange();
       return;
     }
 
@@ -1247,9 +1310,82 @@ export function mountTimelineShell(host, ctx) {
 
   render();
 
+  /** @type {HTMLElement | null} */
+  let assetDropHighlight = null;
+
+  const clearAssetDropHighlight = () => {
+    if (assetDropHighlight) {
+      assetDropHighlight.classList.remove('is-asset-drop-target');
+      assetDropHighlight = null;
+    }
+  };
+
+  const getAssetDragKind = () => {
+    if (document.body.classList.contains('sb-asset-dragging-stage')) return 'stage';
+    if (document.body.classList.contains('sb-asset-dragging-character')) return 'character';
+    return null;
+  };
+
+  const pickAssetDropZone = (target) => {
+    const kind = getAssetDragKind();
+    if (!kind || !(target instanceof Element)) return null;
+    const section = kind === 'stage' ? 'stage' : 'motion';
+    const zone = target.closest(`[data-section="${section}"]`);
+    return zone instanceof HTMLElement ? zone : null;
+  };
+
+  const onAssetDragOver = (e) => {
+    if (!hasAssetDrag(e.dataTransfer)) return;
+    const zone = pickAssetDropZone(e.target);
+    if (!zone) {
+      clearAssetDropHighlight();
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (assetDropHighlight !== zone) {
+      clearAssetDropHighlight();
+      zone.classList.add('is-asset-drop-target');
+      assetDropHighlight = zone;
+    }
+  };
+
+  host.addEventListener('dragover', onAssetDragOver);
+  host.addEventListener('dragenter', onAssetDragOver);
+  host.addEventListener('dragleave', (e) => {
+    if (!assetDropHighlight) return;
+    const rel = e.relatedTarget;
+    if (rel instanceof Node && host.contains(rel)) return;
+    clearAssetDropHighlight();
+  });
+  host.addEventListener('drop', async (e) => {
+    clearAssetDropHighlight();
+    if (!hasAssetDrag(e.dataTransfer)) return;
+    const zone = pickAssetDropZone(e.target);
+    if (!zone) return;
+    e.preventDefault();
+    const parsed = parseAssetDrag(e.dataTransfer.getData(ASSET_DRAG_MIME));
+    if (!parsed) return;
+    const { kind, ...entry } = parsed;
+    try {
+      if (kind === 'stage') {
+        if (!onStageAssetDrop) return;
+        await onStageAssetDrop(entry);
+      } else {
+        if (!onCharacterAssetDrop) return;
+        await onCharacterAssetDrop(entry);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  });
+
   return {
     destroy() {
       unsub();
+      host.removeEventListener('dragover', onAssetDragOver);
+      host.removeEventListener('dragenter', onAssetDragOver);
+      clearAssetDropHighlight();
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('pointerdown', onDocPointerDown, true);
       closeCtx();
@@ -1400,6 +1536,30 @@ function partitionByFolder(rows, engine) {
     bucket.tracks.push(tr);
   }
   return { folders: [...map.values()], loose };
+}
+
+/**
+ * @param {{ id: string, meta: { id: string, name: string, collapsed: boolean }, tracks: import('../../domain/timeline/Track.js').Track[] }} folder
+ * @param {import('../../domain/timeline/TimelineEngine.js').TimelineEngine} engine
+ */
+function folderLabelHtml(folder, engine) {
+  const collapsed = !!folder.meta.collapsed;
+  const rows = folder.tracks;
+  const allHidden = rows.length > 0 && rows.every((tr) => tr.hidden);
+  const allLocked = rows.length > 0 && rows.every((tr) => tr.locked);
+  const eyeIcon = allHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+  const lockIcon = allLocked ? 'fas fa-lock' : 'fas fa-lock-open';
+  return `<div class="sb-tl-folder-label${collapsed ? ' is-collapsed' : ''}${allHidden ? ' is-hidden' : ''}${allLocked ? ' is-locked' : ''}"
+    data-folder="${folder.id}">
+    <button type="button" class="sb-tl-folder-toggle" data-folder="${folder.id}" title="접기/펼치기">${collapsed ? '▸' : '▾'}</button>
+    <span class="sb-tl-folder-name">${escapeHtml(folder.meta.name)}</span>
+    <span class="sb-tl-label-ctrls" role="group" aria-label="그룹 제어">
+      <button type="button" class="sb-tl-hbtn${allHidden ? ' is-on' : ''}" data-tl-act="folder-vis"
+        title="그룹 전체 보이기/숨기기"><i class="${eyeIcon}"></i></button>
+      <button type="button" class="sb-tl-hbtn${allLocked ? ' is-on' : ''}" data-tl-act="folder-lock"
+        title="그룹 전체 잠금"><i class="${lockIcon}"></i></button>
+    </span>
+  </div>`;
 }
 
 /** @param {import('../../domain/timeline/Track.js').Track} tr */

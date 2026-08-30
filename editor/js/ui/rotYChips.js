@@ -16,9 +16,14 @@ export function normalizeRotYDeg(deg) {
  * @param {HTMLElement} host
  * @param {number} currentDeg
  * @param {(deg: number) => void} onPick
+ * @param {{ compact?: boolean }} [opts]
  */
-export function mountRotYChips(host, currentDeg, onPick) {
+export function mountRotYChips(host, currentDeg, onPick, opts = {}) {
   if (!host) return;
+  if (opts.compact) {
+    mountRotYChipsCompact(host, currentDeg, onPick);
+    return;
+  }
   const curNorm = normalizeRotYDeg(currentDeg);
   let mode = host.dataset.rotMode || (curNorm < 0 ? 'cw' : 'ccw');
   if (mode !== 'cw' && mode !== 'ccw') mode = 'ccw';
@@ -44,8 +49,8 @@ export function mountRotYChips(host, currentDeg, onPick) {
 
   const chips = document.createElement('div');
   chips.className = 'sb-roty-chips';
-  const opts = mode === 'cw' ? ROT_Y_CW : ROT_Y_CCW;
-  opts.forEach((deg) => {
+  const degOpts = mode === 'cw' ? ROT_Y_CW : ROT_Y_CCW;
+  degOpts.forEach((deg) => {
     const b = document.createElement('button');
     b.type = 'button';
     const norm = normalizeRotYDeg(deg);
@@ -58,4 +63,48 @@ export function mountRotYChips(host, currentDeg, onPick) {
     chips.appendChild(b);
   });
   host.appendChild(chips);
+}
+
+/** Compact single-row Y rotation chips for modals */
+function mountRotYChipsCompact(host, currentDeg, onPick) {
+  const curNorm = normalizeRotYDeg(currentDeg);
+  let mode = host.dataset.rotMode || (curNorm < 0 ? 'cw' : 'ccw');
+  if (mode !== 'cw' && mode !== 'ccw') mode = 'ccw';
+  host.dataset.rotMode = mode;
+  host.className = 'sb-roty-wrap sb-roty-wrap--compact';
+  host.innerHTML = '';
+
+  const row = document.createElement('div');
+  row.className = 'sb-roty-compact-row';
+
+  ['cw', 'ccw'].forEach((id) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `sb-chip sb-roty-dir-chip${mode === id ? ' on' : ''}`;
+    b.textContent = id === 'cw' ? '↻' : '↺';
+    b.title = id === 'cw' ? '시계방향' : '반시계방향';
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      host.dataset.rotMode = id;
+      mountRotYChipsCompact(host, currentDeg, onPick);
+    });
+    row.appendChild(b);
+  });
+
+  const optsDeg = mode === 'cw' ? ROT_Y_CW : ROT_Y_CCW;
+  optsDeg.forEach((deg) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    const norm = normalizeRotYDeg(deg);
+    b.className = `sb-chip sb-roty-deg-chip${curNorm === norm ? ' on' : ''}`;
+    b.textContent = deg === 0 ? '0°' : `${deg}°`;
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onPick(normalizeRotYDeg(deg));
+      mountRotYChipsCompact(host, normalizeRotYDeg(deg), onPick);
+    });
+    row.appendChild(b);
+  });
+
+  host.appendChild(row);
 }

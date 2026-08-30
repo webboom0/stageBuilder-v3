@@ -1,6 +1,7 @@
 import { fetchProject, fetchScene, saveProjectMeta, addScene as apiAddScene, deleteScene as apiDeleteScene, saveScene, reorderScenes as apiReorderScenes } from './projectApi.js';
 import { applyScene, persistScene, serializeScene } from './SceneDocument.js';
 import { createSceneLoadReport, verifySceneAssets } from './sceneLoadReport.js';
+import { normalizePositionPreset } from '../motion/positionPresets.js';
 
 /**
  * Active project + scene session (Phase 6).
@@ -43,6 +44,108 @@ export class ProjectStore {
   markSaved() {
     this.dirty = false;
     this.project.updatedAt = new Date().toISOString();
+  }
+
+  /** @returns {boolean} project.json already owns positionPresets (incl. empty list) */
+  hasProjectPositionPresetsField() {
+    return Object.prototype.hasOwnProperty.call(this.project, 'positionPresets')
+      && Array.isArray(this.project.positionPresets);
+  }
+
+  /** @param {import('../motion/PositionPresetStore.js').PositionPresetStore} store */
+  syncPositionPresetsToProject(store) {
+    if (!store) return;
+    this.project.positionPresets = store.list();
+  }
+
+  /** Keep in-memory presets on project object after server returns a slim project.json */
+  preservePositionPresetsInProject(store) {
+    const list = store?.list?.() || [];
+    if (list.length) {
+      this.project.positionPresets = list;
+    }
+  }
+
+  /**
+   * Write positionPresets to project.json immediately (project-wide, not per scene).
+   * @param {import('../motion/PositionPresetStore.js').PositionPresetStore} store
+   */
+  async persistPositionPresets(store) {
+    if (!store) return;
+    this.syncPositionPresetsToProject(store);
+    this.project.updatedAt = new Date().toISOString();
+    const saved = await saveProjectMeta(this.projectId, this.project);
+    if (saved) this.project = saved;
+  }
+
+  /**
+   * @param {import('./positionPresets.js').PositionPreset[]} lists
+   * @returns {import('./positionPresets.js').PositionPreset[]}
+   */
+  mergePositionPresetLists(...lists) {
+    /** @type {Map<string, import('../motion/positionPresets.js').PositionPreset>} */
+    const byId = new Map();
+    for (const list of lists) {
+      for (const raw of list || []) {
+        const p = normalizePositionPreset(raw);
+        if (!byId.has(p.id)) byId.set(p.id, p);
+      }
+    }
+    return [...byId.values()];
+  }
+
+  /**
+   * One-time: collect presets stored in legacy per-scene JSON files.
+   * @param {object | null | undefined} activeSceneDoc
+   */
+  async collectLegacyPositionPresets(activeSceneDoc) {
+    /** @type {import('../motion/positionPresets.js').PositionPreset[][]} */
+    const chunks = [activeSceneDoc?.positionPresets || []];
+    for (const scene of this.project.scenes || []) {
+      if (scene.id === activeSceneDoc?.id) continue;
+      try {
+        const doc = await fetchScene(this.projectId, scene.id);
+        if (doc?.positionPresets?.length) chunks.push(doc.positionPresets);
+      } catch {
+        /* skip unreadable scene */
+      }
+    }
+    return this.mergePositionPresetLists(...chunks);
+  }
+
+  /**
+   * Load project-wide saved positions before applying scene content.
+   * @param {import('../motion/PositionPresetStore.js').PositionPresetStore} store
+   * @param {object | null | undefined} sceneDoc
+   */
+  async applyPositionPresetsForLoad(store, sceneDoc = null) {
+    if (!store) return;
+
+    const projectPresets = this.hasProjectPositionPresetsField()
+      ? this.project.positionPresets
+      : null;
+
+    if (Array.isArray(projectPresets) && projectPresets.length > 0) {
+      store.replaceAll(projectPresets);
+      return;
+    }
+
+    const legacy = await this.collectLegacyPositionPresets(sceneDoc);
+    if (legacy.length) {
+      store.replaceAll(legacy);
+      this.project.positionPresets = legacy;
+      this.dirty = true;
+      try {
+        await this.persistPositionPresets(store);
+      } catch (err) {
+        console.warn('[ProjectStore] positionPresets migration save failed:', err);
+      }
+      return;
+    }
+
+    if (Array.isArray(projectPresets)) {
+      store.replaceAll(projectPresets);
+    }
   }
 
   /**
@@ -91,6 +194,7 @@ export class ProjectStore {
   async loadActiveScene(ctx) {
     const doc = await fetchScene(this.projectId, this.activeSceneId);
     this.activeSceneDoc = doc;
+    await this.applyPositionPresetsForLoad(ctx.positionPresetStore, doc);
     const loadReport = createSceneLoadReport();
     await applyScene(doc, { ...ctx, projectId: this.projectId, loadReport });
     await verifySceneAssets(this.projectId, doc, loadReport);
@@ -102,6 +206,7 @@ export class ProjectStore {
    * @param {Parameters<typeof serializeScene>[0]} ctx
    */
   async saveActiveScene(ctx) {
+    this.syncPositionPresetsToProject(ctx.positionPresetStore);
     const doc = this.captureScene(ctx);
     await persistScene(this, doc);
     this.project.activeSceneId = this.activeSceneId;
@@ -134,6 +239,7 @@ export class ProjectStore {
     await this.saveActiveScene(ctx);
     const data = await apiAddScene(this.projectId, name);
     this.project = data.project;
+    this.preservePositionPresetsInProject(ctx.positionPresetStore);
     const result = await this.loadActiveScene(ctx);
     return { sceneId: data.sceneId, loadReport: result.loadReport };
   }
@@ -192,6 +298,7 @@ export class ProjectStore {
     };
     await saveScene(this.projectId, newId, copy);
     this.project = data.project;
+    this.preservePositionPresetsInProject(ctx.positionPresetStore);
     const result = await this.loadActiveScene(ctx);
     this.markSaved();
     return { newId, loadReport: result.loadReport };
@@ -215,6 +322,7 @@ export class ProjectStore {
     }
     const data = await apiDeleteScene(this.projectId, sceneId);
     this.project = data.project;
+    this.preservePositionPresetsInProject(ctx.positionPresetStore);
     if (deletingActive) {
       return this.loadActiveScene(ctx);
     }

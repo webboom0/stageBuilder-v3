@@ -5,11 +5,34 @@ import {
   normalizeSegmentKind,
   syncLegacyFieldsFromSegments,
   getGroupTotalDuration,
+  normalizeGroupAnimation,
 } from './groupSegments.js';
 import { computeFormationOffsets } from './groupFormation.js';
 
 let _groupSeq = 1;
 let _memberSeq = 1;
+
+/** @param {string | undefined} id @param {RegExp} pattern */
+function seqFromId(id, pattern) {
+  const m = String(id || '').match(pattern);
+  if (!m) return 0;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** @param {import('./MotionGroupStore.js').MotionGroup[]} groups */
+function bumpIdSequencesFromGroups(groups) {
+  let maxGroup = 0;
+  let maxMember = 0;
+  for (const g of groups || []) {
+    maxGroup = Math.max(maxGroup, seqFromId(g.id, /^grp_(\d+)$/));
+    for (const m of g.members || []) {
+      maxMember = Math.max(maxMember, seqFromId(m.id, /^mem_(\d+)$/));
+    }
+  }
+  if (maxGroup > 0) _groupSeq = maxGroup + 1;
+  if (maxMember > 0) _memberSeq = maxMember + 1;
+}
 
 /**
  * Motion ensemble groups (v3 Show Control groups).
@@ -51,7 +74,10 @@ export class MotionGroupStore {
    * @returns {MotionGroup}
    */
   create(name, spawn = {}) {
-    const id = `grp_${_groupSeq++}`;
+    let id;
+    do {
+      id = `grp_${_groupSeq++}`;
+    } while (this.groups.has(id));
     const fromX = Number.isFinite(spawn.fromX) ? spawn.fromX : 0;
     const fromZ = Number.isFinite(spawn.fromZ) ? spawn.fromZ : 50;
     /** Default ~0.9m centers when caller passes world spacing; else 36≈0.9m at ~40 u/m */
@@ -76,24 +102,16 @@ export class MotionGroupStore {
       fromFormationSpacing: spacing,
       startTime: 0,
       toX: fromX,
-      toZ: fromZ + 5,
+      toZ: fromZ,
       toRotY: 0,
-      duration: 5,
+      duration: 0,
       /** Visible opacity for GO keys (exit end still forces 0) */
       opacity: 1,
+      startConfigured: false,
     };
-    ensureGroupSegments(g);
-    // first segment ends slightly forward
-    if (g.segments[0]) {
-      g.segments[0].anchorX = fromX;
-      g.segments[0].anchorZ = fromZ + 5;
-      g.segments[0].duration = 5;
-      g.segments[0].easing = 'smooth';
-    }
-    syncLegacyFieldsFromSegments(g);
     this.groups.set(id, g);
     this.activeGroupId = id;
-    this.selectedSegmentId = g.segments[0]?.id || null;
+    this.selectedSegmentId = null;
     return g;
   }
 
@@ -117,8 +135,12 @@ export class MotionGroupStore {
   addMember(groupId, entry) {
     const g = this.groups.get(groupId);
     if (!g) return null;
+    let memId;
+    do {
+      memId = `mem_${_memberSeq++}`;
+    } while (g.members.some((m) => m.id === memId));
     const member = {
-      id: `mem_${_memberSeq++}`,
+      id: memId,
       url: entry.url,
       name: entry.name,
       procedural: entry.procedural,
@@ -192,7 +214,6 @@ export class MotionGroupStore {
     const g = this.groups.get(groupId);
     if (!g) return false;
     const segments = ensureGroupSegments(g);
-    if (segments.length <= 1) return false;
     g.segments = segments.filter((s) => s.id !== segId);
     if (this.selectedSegmentId === segId) {
       this.selectedSegmentId = g.segments[0]?.id || null;
@@ -253,10 +274,13 @@ export class MotionGroupStore {
    */
   replaceAll(groups, activeId = null) {
     this.groups.clear();
-    for (const g of groups || []) {
+    const list = groups || [];
+    for (const g of list) {
+      normalizeGroupAnimation(g);
       this.groups.set(g.id, g);
     }
-    this.activeGroupId = activeId || groups?.[0]?.id || null;
+    bumpIdSequencesFromGroups(list);
+    this.activeGroupId = activeId || list[0]?.id || null;
     this.selectedSegmentId = null;
   }
 
@@ -296,6 +320,7 @@ function resolveInheritEasing(segments) {
  *   fromX?: number,
  *   fromZ?: number,
  *   fromRotY?: number,
+ *   fromPresetId?: string | null,
  *   fromFormation?: string,
  *   fromFormationSpacing?: number,
  *   startTime?: number,

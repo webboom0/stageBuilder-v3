@@ -360,6 +360,20 @@ export class FixtureEngine {
     });
   }
 
+  /** Drop programmer + live attr so another scene's keys don't inherit panel edits. */
+  resetLiveState() {
+    this.fixtures.forEach((f) => {
+      f.attr = Object.assign(mkFixtureAttr(), f.home);
+      f.prog = {};
+      f.enabled = true;
+      f.sel = false;
+      f.tl = null;
+    });
+    this.fixtureBus = 1;
+    this.blackout = false;
+    this.update();
+  }
+
   /** @param {number} fid */
   captureAttr(fid) {
     const f = this.fmap[fid];

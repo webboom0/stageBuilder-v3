@@ -78,11 +78,12 @@ export class FixtureDirector {
     }
   }
 
-  /** Clear fixture timeline state before loading another scene. */
+  /** Clear fixture timeline + live programmer state before loading another scene. */
   resetForSceneLoad() {
     this.channels.clear();
-    this.fxEngine.clearAllTimelineBags();
-    this.fxEngine.update();
+    if (this.fxEngine.built) {
+      this.fxEngine.resetLiveState();
+    }
   }
 
   /**

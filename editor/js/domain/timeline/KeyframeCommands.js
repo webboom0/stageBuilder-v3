@@ -14,6 +14,7 @@ function recordHistory(engine, cmd) {
 export function cmdAddKeyframe(engine, args) {
   const track = engine.getTrack(args.trackId);
   if (!track) throw new Error(`Track not found: ${args.trackId}`);
+  if (track.locked) return null;
 
   const timeSec = snapKeyframeTimeSec(args.timeSec, engine.fps);
   const eps = keyframeTimeEps(engine.fps);
@@ -68,6 +69,7 @@ export function cmdAddKeyframe(engine, args) {
 export function cmdRemoveKeyframe(engine, args) {
   const track = engine.getTrack(args.trackId);
   if (!track) throw new Error(`Track not found: ${args.trackId}`);
+  if (track.locked) return null;
   const removed = track.keys.remove(args.keyframeId);
   if (!removed) return null;
 
@@ -98,6 +100,7 @@ export function cmdRemoveKeyframe(engine, args) {
 export function cmdMoveKeyframe(engine, args) {
   const track = engine.getTrack(args.trackId);
   if (!track) throw new Error(`Track not found: ${args.trackId}`);
+  if (track.locked) return null;
   const prev = track.keys.get(args.keyframeId);
   if (!prev) return null;
 
@@ -128,6 +131,7 @@ export function cmdMoveKeyframe(engine, args) {
 export function cmdEditKeyframe(engine, args) {
   const track = engine.getTrack(args.trackId);
   if (!track) throw new Error(`Track not found: ${args.trackId}`);
+  if (track.locked) return null;
   const prev = track.keys.get(args.keyframeId);
   if (!prev) return null;
 

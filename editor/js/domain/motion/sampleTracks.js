@@ -1,4 +1,5 @@
 import { INTERPOLATION } from '../timeline/types.js';
+import { keyframeTimeEps } from '../timeline/KeyframeStore.js';
 import { asMotionKeyValue, emptyMotionKeyValue } from './motionKeyValue.js';
 
 /**
@@ -83,7 +84,8 @@ export function sampleMotionBag(store, timeSec, fallback = emptyMotionKeyValue()
   const fb = asMotionKeyValue(fallback);
   if (!keys.length) return fb;
 
-  if (timeSec < keys[0].timeSec - 1e-6) {
+  // Before first key — hidden (allow half-frame slack so playhead ≈ snapped key time still shows)
+  if (timeSec < keys[0].timeSec - keyframeTimeEps(30)) {
     return { ...fb, visible: false, opacity: 0 };
   }
 
