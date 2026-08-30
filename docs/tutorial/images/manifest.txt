@@ -2,35 +2,51 @@ StageBuilder 튜토리얼 캡처 목록
 ================================
 저장 위치: editor/tutorial/images/
 형식: PNG (권장 너비 1280px, 전체 화면은 1920px도 OK)
-파일명은 아래와 정확히 일치해야 HTML에 자동 표시됩니다.
+파일명은 아래와 HTML data-file 경로가 정확히 일치해야 자동 표시됩니다.
+
+사이드 메뉴 구조 (2026-08-30)
+  Assets → 타임라인(트랙) → 오른쪽 패널
+  오른쪽 패널 순서: 프로젝트(위치 프리셋·패턴 라이브러리) → 씬(Properties·그룹·조명)
 
 번호  파일명                      캡처 내용
 ----  --------------------------  ------------------------------------------
-01    01-layout-full.png          에디터 전체 (메뉴·패널·3D·타임라인)
+01    01-layout-full.png          에디터 전체 — 패널 뱃지「프로젝트/씬」보이도록
 02    02-menubar.png              상단 메뉴 + 그리드 줄 (파일·보기 펼침 가능)
-03    03-project-panel.png        프로젝트 패널 (씬 목록·저장 안 됨·하단 요약)
-04    04-stage-panel.png          무대 패널 (타입 썸네일·규격·변경)
+03    03-project-panel.png        프로젝트 패널 (뱃지「프로젝트」·씬 목록)
+04    04-stage-panel.png          무대 패널 (뱃지「씬」·타입·규격)
 05    05-viewport-toolbar.png     3D 뷰 + 하단 툴바 (카메라·그리드·빌딩고정)
-06    06-timeline-common.png        타임라인 (섹션 필터·플레이헤드·재생)
-07    07-assets-common.png        Assets 공통 (SVG 툴바·카드 그리드)
+06    06-timeline-common.png      타임라인 공통 (섹션 필터·플레이헤드·Undo/Redo)
+07    07-assets-common.png        Assets 공통 — 뱃지「프로젝트」·왼쪽 개수 · 오른쪽 아이콘
 08    08-assets-characters.png    Assets Characters + 버튼
 09    09-assets-stage.png         Assets Stage + 버튼
 10    10-assets-video.png         Assets Video (+ / −)
 11    11-assets-audio.png         Assets Audio +
-12    12-char-track.png           타임라인 Characters 트랙·키
-13    13-char-props.png           Properties Characters 속성
-14    14-char-segments.png        Properties Characters 구간
-15    15-char-group.png           그룹 패널·GO
-16    16-stage-track.png          타임라인 Stage 트랙
-17    17-stage-props.png          Properties Stage
-18    18-light-track.png          타임라인 Light (HOUSE/Fixture)
-19    19-light-props.png          조명 패널 HOUSE/Fixture
-20    20-audio-track.png          타임라인 Audio 클립·파형
+12    12-char-track.png           Characters 트랙 · 키 · F2 이름 변경 · Del 트랙 삭제(확인)
+13    13-char-props.png           Properties — Characters · 속성 (뱃지「씬」)
+14    14-char-segments.png        Properties — Characters · 패턴 탭 (파일명 legacy)
+15    15-char-group.png           그룹 패널 — 뱃지「씬」·키프레임 적용
+16    16-stage-track.png          Stage 트랙 · 키
+17    17-stage-props.png          Properties — Stage · 속성
+18    18-light-track.png          Light 트랙 · HOUSE / Fixture
+19    19-light-props.png          조명 패널 — 뱃지「씬」·HOUSE/Fixture · + 키
+20    20-audio-track.png          Audio 트랙 · 클립 · 파형
 21    21-multiview.png            멀티뷰 2×2 팝업
 22    22-render-studio.png        렌더 스튜디오 (미리보기·카메라 선택)
 23    23-scene-load-report.png    씬 로드 경고 (업로드·라이브러리·닫기 확인)
+24    24-position-presets.png     위치 프리셋 — 뱃지「프로젝트」·칩 · ⓘ
+25    25-pattern-library.png      패턴 라이브러리 — 뱃지「프로젝트」·키프레임 적용
+26    26-stage-pattern.png        Properties — Stage · 패턴 탭
+
+캡처 시 참고 (최신 UX)
+- 패널 타이틀 뱃지: 「프로젝트」(공통·씬 전환 시 유지) / 「씬」(씬 전환 시 갱신)
+- ⓘ 도움말: 접힌 패널에서도 화면 위에 표시 (fixed)
+- 트랙 이름: F2 · 우클릭 → 이름 변경… · Properties 이름 · Undo
+- 같은 Assets 이름 여러 번 + → WalkLite 2, 3…
+- 트랙 삭제: Del(확인) · 우클릭 → 트랙 삭제
+- Properties 패턴 ≠ 패턴 라이브러리 (씬 1트랙 vs 프로젝트 보관함)
 
 팁
 - Win+Shift+S → 영역 캡처 후 PNG로 저장
 - 패널만 필요하면 해당 영역만 잘라도 됨 (HTML은 가로 100%로 맞춤)
 - 캡처 후 튜토리얼 새로고침 → 「그림 없음」 점선이 사라지면 성공
+- 24~26은 신규 — 없으면 HTML에 점선 placeholder 표시 (정상)

@@ -288,6 +288,33 @@ body.premiere-workspace {
   flex: 0 1 auto;
 }
 
+.sb-dock-scope-badge {
+  flex: 0 0 auto;
+  margin: 0 0 0 2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  text-transform: none;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.sb-dock-scope-badge.is-project {
+  color: #9ab4d4;
+  background: rgba(120, 160, 210, 0.12);
+  border-color: rgba(120, 160, 210, 0.28);
+}
+
+.sb-dock-scope-badge.is-scene {
+  color: #c4b48a;
+  background: rgba(180, 150, 80, 0.12);
+  border-color: rgba(180, 150, 80, 0.28);
+}
+
 .sb-dock-panel-help {
   display: inline-flex;
   align-items: center;
@@ -312,11 +339,9 @@ body.premiere-workspace {
 }
 
 .sb-dock-panel-help-pop {
-  position: absolute;
-  top: calc(100% + 1px);
-  left: 8px;
-  right: 8px;
-  z-index: 30;
+  position: fixed;
+  z-index: 10050;
+  box-sizing: border-box;
   padding: 8px 10px;
   font-family: var(--sans, system-ui, sans-serif);
   font-size: 10px;
@@ -328,7 +353,8 @@ body.premiere-workspace {
   background: var(--panel-2, #1e2228);
   border: 1px solid var(--line-soft);
   border-radius: 4px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
 }
 
 .sb-dock-panel-help-pop[hidden] {

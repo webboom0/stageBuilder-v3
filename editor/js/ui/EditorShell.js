@@ -108,6 +108,8 @@ export function mountEditorShell(root, ctx) {
       storageKey: 'dock-project',
       defaultHeight: 260,
       minHeight: 180,
+      dataScope: 'project',
+      titleHelp: '<strong>프로젝트 공통</strong> — 공연 정보·씬 목록. 씬을 바꿔도 프로젝트 자체는 같습니다.',
     });
     leftRail.registerPanel({
       id: 'project',
@@ -129,6 +131,8 @@ export function mountEditorShell(root, ctx) {
   const stagePanel = createDockPanel('무대', stageUi.root, {
     storageKey: 'dock-stage-무대',
     defaultHeight: 300,
+    dataScope: 'scene',
+    titleHelp: '<strong>씬 전용</strong> — 무대 타입·규격은 지금 씬에 저장됩니다.',
   });
 
   leftRail.registerPanel({
@@ -158,6 +162,10 @@ export function mountEditorShell(root, ctx) {
   const assetsPanel = createDockPanel('Assets', assetsUi.root, {
     storageKey: 'dock-assets',
     defaultHeight: 320,
+    dataScope: 'project',
+    titleHelp:
+      '<strong>프로젝트 공통</strong> — 파일 목록은 프로젝트 폴더에 있습니다.<br>'
+      + '<strong>+</strong>로 무대에 올린 객체·트랙은 <strong>현재 씬</strong>에만 남습니다.',
   });
   leftRail.registerPanel({
     id: 'assets',
@@ -170,6 +178,18 @@ export function mountEditorShell(root, ctx) {
 
   let propsUi = null;
   let propsBody;
+  let lightingUi = null;
+
+  /** @type {ReturnType<typeof createDockPanel> | null} */
+  let posPresetsPanel = null;
+  /** @type {ReturnType<typeof createDockPanel> | null} */
+  let tplPanel = null;
+  /** @type {ReturnType<typeof createDockPanel> | null} */
+  let propsPanel = null;
+  /** @type {ReturnType<typeof createDockPanel> | null} */
+  let groupsPanel = null;
+  /** @type {ReturnType<typeof createDockPanel> | null} */
+  let lightingPanel = null;
 
   if (ctx.positionPresetStore) {
     positionPresetsUi = createPositionPresetsPanelBody({
@@ -182,21 +202,40 @@ export function mountEditorShell(root, ctx) {
       onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
       onPresetRemoved: (id) => ctx.onPresetRemoved?.(id),
     });
-    const posPresetsPanel = createDockPanel('위치 프리셋', positionPresetsUi.root, {
+    posPresetsPanel = createDockPanel('위치 프리셋', positionPresetsUi.root, {
       storageKey: 'dock-position-presets',
       defaultHeight: 240,
       minHeight: 120,
+      dataScope: 'project',
       titleHelp:
-        '무대 공통 좌표 · 칩 클릭 시 미리보기 및 <strong>선택 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용',
+        '<strong>프로젝트 공통</strong> — 씬을 바꿔도 등장·퇴장 지점 목록은 같습니다.<br>'
+        + '칩 클릭 시 미리보기 및 <strong>선택 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용',
     });
-    rightRail.registerPanel({
-      id: 'position-presets',
-      icon: 'fas fa-map-marker-alt',
-      label: '위치 프리셋',
-      panelEl: posPresetsPanel.el,
-      panelApi: posPresetsPanel,
-      defaultOpen: true,
-      startCollapsed: true,
+  }
+
+  if (ctx.engine && ctx.motionTemplateStore) {
+    motionTemplatesUi = createMotionTemplatesPanelBody({
+      engine: ctx.engine,
+      motion: ctx.motion,
+      getTemplateStore: () => ctx.motionTemplateStore ?? null,
+      getPresetStore: () => ctx.positionPresetStore ?? null,
+      onPickPoint: (pick) => ctx.onPickMacroPoint?.(pick),
+      onPresetUpdated: (p) => ctx.onPresetUpdated?.(p),
+      onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
+      onPresetRemoved: (id) => ctx.onPresetRemoved?.(id),
+      onSaveTemplate: () => ctx.onSaveMotionTemplate?.(),
+      onApplyTemplate: (result) => ctx.onApplyMotionTemplate?.(result),
+      applyToMotion: (motionId, templateId, pose) =>
+        ctx.applyMotionTemplate?.(motionId, templateId, pose) ?? false,
+    });
+    tplPanel = createDockPanel('패턴 라이브러리', motionTemplatesUi.root, {
+      storageKey: 'dock-keyframe-macros',
+      defaultHeight: 420,
+      minHeight: 200,
+      dataScope: 'project',
+      titleHelp:
+        '<strong>프로젝트 공통</strong> — 저장한 패턴은 모든 씬에서 적용할 수 있습니다.<br>'
+        + 'Properties <strong>패턴</strong>은 선택 트랙 1개 편집, 여기는 <strong>여러 패턴 보관함</strong>',
     });
   }
 
@@ -227,19 +266,14 @@ export function mountEditorShell(root, ctx) {
     propsBody.textContent = 'Properties — 객체 선택 시 편집';
   }
 
-  const propsPanel = createDockPanel('Properties', propsBody, {
+  propsPanel = createDockPanel('Properties', propsBody, {
     storageKey: 'dock-properties',
     defaultHeight: 780,
     minHeight: 200,
-  });
-
-  rightRail.registerPanel({
-    id: 'properties',
-    icon: 'fas fa-sliders-h',
-    label: '속성',
-    panelEl: propsPanel.el,
-    panelApi: propsPanel,
-    defaultOpen: true,
+    dataScope: 'scene',
+    titleHelp:
+      '<strong>씬 전용</strong> — 선택한 트랙·키는 지금 씬 타임라인에 속합니다.<br>'
+      + 'Character·Stage는 <strong>속성 · 패턴</strong> 탭으로 나뉩니다',
   });
 
   if (ctx.groupStore) {
@@ -263,54 +297,17 @@ export function mountEditorShell(root, ctx) {
       onGroupColor: (group) => ctx.onGroupColor?.(group),
       onChange: () => ctx.onChange?.(),
     });
-    const groupsPanel = createDockPanel('그룹 / Ensemble', groupsUi.root, {
+    groupsPanel = createDockPanel('그룹 / Ensemble', groupsUi.root, {
       storageKey: 'dock-groups',
       defaultHeight: 720,
       minHeight: 200,
-    });
-    rightRail.registerPanel({
-      id: 'sc-groups',
-      icon: 'fas fa-users',
-      label: '그룹',
-      panelEl: groupsPanel.el,
-      panelApi: groupsPanel,
-      defaultOpen: true,
-      startCollapsed: true,
+      dataScope: 'scene',
+      titleHelp:
+        '<strong>씬 전용</strong> — 씬마다 그룹·멤버·애니메이션을 따로 둡니다.<br>'
+        + '여러 Characters를 묶어 포메이션·키프레임을 한 번에 적용',
     });
   }
 
-  if (ctx.engine && ctx.motionTemplateStore) {
-    motionTemplatesUi = createMotionTemplatesPanelBody({
-      engine: ctx.engine,
-      motion: ctx.motion,
-      getTemplateStore: () => ctx.motionTemplateStore ?? null,
-      getPresetStore: () => ctx.positionPresetStore ?? null,
-      onPickPoint: (pick) => ctx.onPickMacroPoint?.(pick),
-      onPresetUpdated: (p) => ctx.onPresetUpdated?.(p),
-      onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
-      onPresetRemoved: (id) => ctx.onPresetRemoved?.(id),
-      onSaveTemplate: () => ctx.onSaveMotionTemplate?.(),
-      onApplyTemplate: (result) => ctx.onApplyMotionTemplate?.(result),
-      applyToMotion: (motionId, templateId, pose) =>
-        ctx.applyMotionTemplate?.(motionId, templateId, pose) ?? false,
-    });
-    const tplPanel = createDockPanel('패턴 라이브러리', motionTemplatesUi.root, {
-      storageKey: 'dock-keyframe-macros',
-      defaultHeight: 420,
-      minHeight: 200,
-    });
-    rightRail.registerPanel({
-      id: 'keyframe-macros',
-      icon: 'fas fa-layer-group',
-      label: '패턴 라이브러리',
-      panelEl: tplPanel.el,
-      panelApi: tplPanel,
-      defaultOpen: true,
-      startCollapsed: true,
-    });
-  }
-
-  let lightingUi = null;
   if (ctx.engine && ctx.light && ctx.fixtures) {
     lightingUi = createLightingPanelBody({
       engine: ctx.engine,
@@ -322,11 +319,62 @@ export function mountEditorShell(root, ctx) {
         propsUi?.sync();
       },
     });
-    const lightingPanel = createDockPanel('조명', lightingUi.root, {
+    lightingPanel = createDockPanel('조명', lightingUi.root, {
       storageKey: 'dock-lighting',
       defaultHeight: 520,
       minHeight: 200,
+      dataScope: 'scene',
+      titleHelp:
+        '<strong>씬 전용</strong> — HOUSE/Fixture 트랙·키는 씬마다 다릅니다.<br>'
+        + '슬라이더는 <strong>라이브</strong> · 기록은 <strong>+ 키</strong>',
     });
+  }
+
+  // Right dock order: 프로젝트 공통 → 씬
+  if (posPresetsPanel) {
+    rightRail.registerPanel({
+      id: 'position-presets',
+      icon: 'fas fa-map-marker-alt',
+      label: '위치 프리셋',
+      panelEl: posPresetsPanel.el,
+      panelApi: posPresetsPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+  if (tplPanel) {
+    rightRail.registerPanel({
+      id: 'keyframe-macros',
+      icon: 'fas fa-layer-group',
+      label: '패턴 라이브러리',
+      panelEl: tplPanel.el,
+      panelApi: tplPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+  if (propsPanel) {
+    rightRail.registerPanel({
+      id: 'properties',
+      icon: 'fas fa-sliders-h',
+      label: '속성',
+      panelEl: propsPanel.el,
+      panelApi: propsPanel,
+      defaultOpen: true,
+    });
+  }
+  if (groupsPanel) {
+    rightRail.registerPanel({
+      id: 'sc-groups',
+      icon: 'fas fa-users',
+      label: '그룹',
+      panelEl: groupsPanel.el,
+      panelApi: groupsPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+  if (lightingPanel) {
     rightRail.registerPanel({
       id: 'sc-lighting',
       icon: 'fas fa-lightbulb',

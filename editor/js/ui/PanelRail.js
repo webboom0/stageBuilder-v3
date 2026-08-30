@@ -13,7 +13,13 @@ export function createPanelRail(root, opts = {}) {
 
   if (!dock || !rail) {
     console.warn(`PanelRail: dock/rail not found (${side})`);
-    return { registerPanel() {}, togglePanel() {}, openPanel() {}, rebalanceHeights() {} };
+    return {
+      registerPanel() {},
+      registerRailGroup() {},
+      togglePanel() {},
+      openPanel() {},
+      rebalanceHeights() {},
+    };
   }
 
   /** @type {Map<string, {
@@ -78,6 +84,23 @@ export function createPanelRail(root, opts = {}) {
     entry.panelApi?.setCollapsed(false);
     entry.open = true;
     syncAllRailBtns();
+  }
+
+  /**
+   * Icon-rail section label (e.g. 프로젝트 / 이 씬). Call before the panels in that group.
+   * @param {{ id: string, label: string }} opts
+   */
+  function registerRailGroup({ id, label }) {
+    const group = document.createElement('div');
+    group.className = 'sb-rail-group';
+    group.dataset.railGroup = id;
+    group.setAttribute('role', 'separator');
+    group.setAttribute('aria-label', label);
+    const text = document.createElement('span');
+    text.className = 'sb-rail-group-label';
+    text.textContent = label;
+    group.appendChild(text);
+    rail.appendChild(group);
   }
 
   function registerPanel({
@@ -196,5 +219,5 @@ export function createPanelRail(root, opts = {}) {
   const ro = distribution === 'equal' ? new ResizeObserver(() => rebalanceHeights()) : null;
   ro?.observe(dock);
 
-  return { registerPanel, togglePanel, openPanel, rebalanceHeights };
+  return { registerPanel, registerRailGroup, togglePanel, openPanel, rebalanceHeights };
 }
