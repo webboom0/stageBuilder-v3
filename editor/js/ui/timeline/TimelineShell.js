@@ -41,6 +41,8 @@ import {
  *     filename?: string,
  *   }) => void | Promise<void>,
  *   onHistoryChange?: () => void,
+ *   onSaveTrackToPatternLibrary?: (trackId: string) => void,
+ *   onRenameMotionTrack?: (trackId: string, name: string) => boolean | void,
  * }} ctx
  */
 export function mountTimelineShell(host, ctx) {
@@ -54,6 +56,8 @@ export function mountTimelineShell(host, ctx) {
     onStageAssetDrop,
     onCharacterAssetDrop,
     onHistoryChange,
+    onSaveTrackToPatternLibrary,
+    onRenameMotionTrack,
   } = ctx;
 
   host.classList.add('sb-tl');
@@ -446,7 +450,9 @@ export function mountTimelineShell(host, ctx) {
       </div>
       <table class="sb-tl-help-table">
         <tr><td>K</td><td>선택 트랙 · 플레이헤드에 키 추가</td></tr>
-        <tr><td>D / Del</td><td>선택 키 삭제</td></tr>
+        <tr><td>F2</td><td>선택 Character/Stage 트랙 이름 변경</td></tr>
+        <tr><td>D</td><td>선택 키 삭제</td></tr>
+        <tr><td>Del</td><td>선택 키 삭제 · 없으면 선택 트랙 삭제(확인)</td></tr>
         <tr><td>← / →</td><td>선택 키 1프레임 이동</td></tr>
         <tr><td>[ / ]</td><td>선택 키 1프레임 이동 (대체)</td></tr>
         <tr><td>Shift+← / →</td><td>선택 키 1초 이동</td></tr>
@@ -865,6 +871,58 @@ export function mountTimelineShell(host, ctx) {
     }
   }
 
+  /** @param {string} trackId */
+  function promptTrackRename(trackId) {
+    const track = engine.getTrack(trackId);
+    if (!track || track.kind !== 'motion' || track.locked || !onRenameMotionTrack) return;
+    const name = window.prompt('트랙 이름', track.name || '');
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === track.name) return;
+    onRenameMotionTrack(trackId, trimmed);
+  }
+
+  /** @returns {boolean} */
+  function tryRenameSelectedMotionTrack() {
+    const trackId = engine.selectedTrackId;
+    if (!trackId) return false;
+    const track = engine.getTrack(trackId);
+    if (track?.kind !== 'motion' || track.locked || !onRenameMotionTrack) return false;
+    promptTrackRename(trackId);
+    return true;
+  }
+
+  /** @returns {boolean} */
+  function tryDeleteSelectedTrackWithConfirm() {
+    const keyRefs = engine.listSelectedKeys?.() || [];
+    if (keyRefs.length > 0 || (engine.selectedTrackId && engine.selectedKeyframeId)) {
+      return false;
+    }
+    if (audio?.selectedClipId) return false;
+
+    const trackId = engine.selectedTrackId;
+    if (!trackId) return false;
+    const track = engine.getTrack(trackId);
+    if (!track || track.locked) return false;
+
+    const name = track.name || '트랙';
+    let detail = '키와 트랙이 함께 제거됩니다.';
+    if (track.kind === 'motion') {
+      detail = track.section === 'stage'
+        ? '무대 소품과 키가 함께 제거됩니다.'
+        : '무대 객체와 키가 함께 제거됩니다.';
+    } else if (track.kind === 'light') {
+      detail = '조명 트랙과 키가 함께 제거됩니다.';
+    } else if (track.kind === 'audio') {
+      detail = '오디오 트랙과 클립이 함께 제거됩니다.';
+    }
+
+    const ok = window.confirm(`「${name}」 트랙을 삭제할까요?\n\n${detail}`);
+    if (!ok) return false;
+    deleteTimelineTrack(trackId);
+    return true;
+  }
+
   function frameStep() {
     return 1 / Math.max(1, engine.fps || 30);
   }
@@ -957,6 +1015,19 @@ export function mountTimelineShell(host, ctx) {
     }
     openCtx(e.clientX, e.clientY, [
       { label: '키 추가 (플레이헤드)', shortcut: 'K', action: () => addKeyAtPlayhead(trackId) },
+      ...(track?.kind === 'motion' && onRenameMotionTrack
+        ? [{
+          label: '이름 변경…',
+          shortcut: 'F2',
+          action: () => promptTrackRename(trackId),
+        }]
+        : []),
+      ...(track?.kind === 'motion' && onSaveTrackToPatternLibrary
+        ? [{
+          label: '패턴 라이브러리에 저장',
+          action: () => onSaveTrackToPatternLibrary(trackId),
+        }]
+        : []),
       { sep: true },
       {
         label: '트랙 삭제',
@@ -1007,6 +1078,7 @@ export function mountTimelineShell(host, ctx) {
     if (trackId) {
       engine.selectTracks([trackId]);
     }
+    const track = trackId ? engine.getTrack(trackId) : null;
     openCtx(e.clientX, e.clientY, [
       {
         label: '키 추가 (플레이헤드)',
@@ -1019,6 +1091,12 @@ export function mountTimelineShell(host, ctx) {
         disabled: !trackId,
         action: () => addKeyAtTime(trackId, clickSec),
       },
+      ...(track?.kind === 'motion' && trackId && onSaveTrackToPatternLibrary
+        ? [{
+          label: '패턴 라이브러리에 저장',
+          action: () => onSaveTrackToPatternLibrary(trackId),
+        }]
+        : []),
       { sep: true },
       {
         label: '플레이헤드를 여기로',
@@ -1217,11 +1295,25 @@ export function mountTimelineShell(host, ctx) {
       return;
     }
 
-    if (
-      e.key === 'Delete'
-      || e.key === 'Backspace'
-      || (!e.ctrlKey && !e.metaKey && !e.altKey && keyLower === 'd')
-    ) {
+    if (e.key === 'F2') {
+      if (tryRenameSelectedMotionTrack()) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (deleteSelectedKey()) {
+        e.preventDefault();
+        return;
+      }
+      if (tryDeleteSelectedTrackWithConfirm()) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && keyLower === 'd') {
       if (deleteSelectedKey()) {
         e.preventDefault();
       }

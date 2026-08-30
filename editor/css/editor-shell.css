@@ -208,6 +208,49 @@ body.premiere-workspace {
   font-size: 13px;
 }
 
+/* Rail tooltips — native title overlaps the button; show label beside the rail */
+.sb-rail-btn[data-tip] {
+  position: relative;
+}
+
+.sb-rail-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #1a1d24;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, visibility 0.12s ease;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.sb-right-rail .sb-rail-btn[data-tip]::after {
+  right: calc(100% + 10px);
+  left: auto;
+}
+
+.sb-left-rail .sb-rail-btn[data-tip]::after {
+  left: calc(100% + 10px);
+  right: auto;
+}
+
+.sb-rail-btn[data-tip]:hover::after,
+.sb-rail-btn[data-tip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
 .sb-rail-panel-slot[hidden] { display: none !important; }
 
 .floating-panel {
@@ -230,6 +273,66 @@ body.premiere-workspace {
   font-family: var(--mono);
   font-size: 10.5px;
   flex-shrink: 0;
+  position: relative;
+}
+
+.sb-dock-panel-head-title-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sb-dock-panel-head-title-wrap .sb-dock-panel-head-title {
+  flex: 0 1 auto;
+}
+
+.sb-dock-panel-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.sb-dock-panel-help:hover,
+.sb-dock-panel-help.is-on {
+  color: var(--accent);
+}
+
+.sb-dock-panel-help-pop {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 8px;
+  right: 8px;
+  z-index: 30;
+  padding: 8px 10px;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+  background: var(--panel-2, #1e2228);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.sb-dock-panel-help-pop[hidden] {
+  display: none !important;
 }
 
 .sb-dock-panel-head-title {
@@ -306,7 +409,16 @@ body.premiere-workspace {
 .sb-assets-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sb-assets-toolbar-actions {
+  display: flex;
+  align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .sb-assets-tool {
@@ -638,6 +750,8 @@ body.sb-asset-dragging-delete .sb-assets-del {
 .sb-assets-status {
   font-size: 10px;
   color: var(--ink-dim);
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .sb-assets-list {
@@ -4453,6 +4567,18 @@ body.sb-picking canvas {
 .sb-stage-pick-row .sb-stage-pick-btn {
   flex: 0 0 auto;
 }
+.sb-pos-presets-panel {
+  padding: 8px 10px 10px;
+}
+.sb-pos-preset-bar--bare {
+  margin: 0;
+}
+.sb-pos-preset-bar--bare .sb-pos-preset-chips {
+  flex-wrap: wrap;
+}
+.sb-props-stage-pick {
+  margin: 4px 0 8px;
+}
 .sb-pos-preset-chips--inline {
   display: contents;
 }
@@ -4641,3 +4767,39 @@ body.sb-picking canvas {
   font-weight: 700;
 }
 .sb-ens-seg-rm { border: none; background: transparent; color: var(--ink-dim); cursor: pointer; }
+
+.sb-ens-macro-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.sb-ens-macro-name-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+.sb-ens-macro-name input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.sb-seg-macro-hint {
+  margin: 0 0 8px;
+  font-size: 10px;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+
+.sb-seg-opacity-row { margin-top: 6px; }
+.sb-seg-opacity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  width: 100%;
+}
+.sb-seg-opacity input[type="range"] { flex: 1; }

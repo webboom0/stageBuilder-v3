@@ -14,8 +14,10 @@ import {
 import { mountRotYChips } from './rotYChips.js';
 import { FORMATION_LABELS, FORMATION_TYPES } from '../domain/motion/groupFormation.js';
 
-/** Unified apply button label */
+/** Unified apply button label (track already exists) */
 export const KEYFRAME_APPLY_LABEL = '키프레임 적용';
+/** First deploy: create timeline tracks then bake keyframes */
+export const GROUP_TRACK_DEPLOY_APPLY_LABEL = '트랙 추가 및 키프레임 적용';
 
 /**
  * @typedef {{
@@ -27,9 +29,10 @@ export const KEYFRAME_APPLY_LABEL = '키프레임 적용';
  *   subtitle?: string,
  *   onEditStart: (save: (patch: Record<string, any>) => void) => void,
  *   onEditSegment: (segId: string, save: (patch: Record<string, any>) => void) => void,
- *   onAddSegment: (kind: 'move'|'hold'|'exit') => void,
+ *   onAddSegment: (kind: 'move'|'hold'|'exit') => string | null | void,
  *   onRemoveSegment: (segId: string) => void,
  *   onApply?: () => void | Promise<void>,
+ *   applyLabel?: string,
  *   onSyncFromObject?: () => void,
  *   onPickPoint?: (opts: {
  *     mode: 'from' | 'segmentAnchor',
@@ -98,7 +101,8 @@ export function renderSegmentStepList(container, ctx) {
     html += `<button type="button" class="sb-chip" data-act="sync-start">현재 위치 → 시작</button>`;
   }
   if (ctx.onApply) {
-    html += `<button type="button" class="sb-chip acc go" data-act="apply">${KEYFRAME_APPLY_LABEL}</button>`;
+    const applyLabel = ctx.applyLabel ?? KEYFRAME_APPLY_LABEL;
+    html += `<button type="button" class="sb-chip acc go" data-act="apply">${escapeHtml(applyLabel)}</button>`;
   }
   html += `</div>`;
 
@@ -138,27 +142,7 @@ export function renderSegmentStepList(container, ctx) {
       if (!id) return;
       const seg = segments.find((s) => s.id === id);
       if (!seg) return;
-      openSegmentEditDialog({
-        segment: seg,
-        showFormation: !!ctx.showFormation,
-        presetStore: ctx.getPresetStore?.() ?? null,
-        onPickPoint: ctx.onPickPoint,
-        onPreviewBegin: ctx.onPreviewBegin,
-        onPreviewEnd: ctx.onPreviewEnd,
-      onPreviewReset: ctx.onPreviewReset,
-        onPreview: (draft) => ctx.onPreviewSegment?.(id, draft),
-        getPreviewMemberCount: ctx.getPreviewMemberCount,
-        getStagePreviewDeployed: ctx.getStagePreviewDeployed,
-        onChange: ctx.onChange,
-        onPreviewPreset: ctx.onPreviewPreset,
-        onPresetUpdated: ctx.onPresetUpdated,
-        onPositionPresetsChanged: ctx.onPositionPresetsChanged,
-        onPresetRemoved: ctx.onPresetRemoved,
-        onSave: (patch) => {
-          ctx.onEditSegment(id, (apply) => apply(patch));
-          ctx.onChange?.();
-        },
-      });
+      openSegmentEditFromCtx(ctx, seg);
     });
   });
 
@@ -173,8 +157,13 @@ export function renderSegmentStepList(container, ctx) {
 
   container.querySelector('[data-act="add-seg"]')?.addEventListener('click', () => {
     openKindPicker((kind) => {
-      ctx.onAddSegment(kind);
+      const segId = ctx.onAddSegment(kind);
       ctx.onChange?.();
+      if (!segId) return;
+      requestAnimationFrame(() => {
+        const seg = ctx.getSegments().find((s) => s.id === segId);
+        if (seg) openSegmentEditFromCtx(ctx, seg);
+      });
     });
   });
 
@@ -192,6 +181,32 @@ export function renderSegmentStepList(container, ctx) {
     } finally {
       applyBtn.disabled = false;
     }
+  });
+}
+
+/** @param {SegmentStepListContext} ctx @param {Record<string, any>} seg */
+function openSegmentEditFromCtx(ctx, seg) {
+  const id = seg.id;
+  openSegmentEditDialog({
+    segment: seg,
+    showFormation: !!ctx.showFormation,
+    presetStore: ctx.getPresetStore?.() ?? null,
+    onPickPoint: ctx.onPickPoint,
+    onPreviewBegin: ctx.onPreviewBegin,
+    onPreviewEnd: ctx.onPreviewEnd,
+    onPreviewReset: ctx.onPreviewReset,
+    onPreview: (draft) => ctx.onPreviewSegment?.(id, draft),
+    getPreviewMemberCount: ctx.getPreviewMemberCount,
+    getStagePreviewDeployed: ctx.getStagePreviewDeployed,
+    onChange: ctx.onChange,
+    onPreviewPreset: ctx.onPreviewPreset,
+    onPresetUpdated: ctx.onPresetUpdated,
+    onPositionPresetsChanged: ctx.onPositionPresetsChanged,
+    onPresetRemoved: ctx.onPresetRemoved,
+    onSave: (patch) => {
+      ctx.onEditSegment(id, (apply) => apply(patch));
+      ctx.onChange?.();
+    },
   });
 }
 
@@ -214,6 +229,7 @@ export function renderSegmentStepList(container, ctx) {
  *   onPresetRemoved?: (presetId: string) => void,
  *   onChange?: () => void,
  *   variant?: 'bar' | 'compact' | 'inline',
+ *   hideLabel?: boolean,
  *   chipActions?: boolean,
  *   activePresetId?: string | null,
  * }} opts
@@ -224,6 +240,7 @@ export function mountPositionPresetBar(host, opts) {
   const presets = store?.list() ?? [];
   const compact = opts.variant === 'compact';
   const inline = opts.variant === 'inline';
+  const hideLabel = !!opts.hideLabel;
   const chipActions = opts.chipActions !== false;
   const activeId = opts.activePresetId ?? null;
   const chipsHtml = renderPresetChipsHtml(presets, { actions: chipActions, activePresetId: activeId });
@@ -237,17 +254,25 @@ export function mountPositionPresetBar(host, opts) {
     : compact
     ? `
     <div class="sb-pos-preset-bar sb-pos-preset-bar--compact">
-      <span class="sb-pos-preset-label">저장 위치</span>
+      <span class="sb-pos-preset-label">위치 프리셋</span>
       <div class="sb-pos-preset-chips" data-role="chips">
         ${presets.length ? chipsHtml : '<span class="sb-pos-empty">없음</span>'}
         <button type="button" class="sb-chip sb-pos-save" data-act="save-pos" title="공통 위치 추가">+ 추가</button>
       </div>
     </div>`
+    : hideLabel
+    ? `
+    <div class="sb-pos-preset-bar sb-pos-preset-bar--bare">
+      <div class="sb-pos-preset-chips" data-role="chips">
+        ${presets.length ? chipsHtml : '<span class="sb-ens-empty sb-pos-empty">프리셋 없음</span>'}
+        <button type="button" class="sb-chip sb-pos-save" data-act="save-pos">+ 위치 추가</button>
+      </div>
+    </div>`
     : `
     <div class="sb-pos-preset-bar">
-      <div class="sb-pos-preset-label">저장 위치</div>
+      <div class="sb-pos-preset-label">위치 프리셋</div>
       <div class="sb-pos-preset-chips" data-role="chips">
-        ${presets.length ? chipsHtml : '<span class="sb-ens-empty sb-pos-empty">저장된 위치 없음</span>'}
+        ${presets.length ? chipsHtml : '<span class="sb-ens-empty sb-pos-empty">프리셋 없음</span>'}
         <button type="button" class="sb-chip sb-pos-save" data-act="save-pos">+ 위치 추가</button>
       </div>
     </div>`;
@@ -371,7 +396,7 @@ function wirePresetChipEvents(host, store, opts) {
       const id = btn.getAttribute('data-del-preset');
       const p = id ? store?.get(id) : null;
       if (!p || !store) return;
-      if (!window.confirm(`저장 위치 «${p.label}» 삭제?`)) return;
+      if (!window.confirm(`위치 프리셋 «${p.label}» 삭제?`)) return;
       opts.onPresetRemoved?.(id);
       store.remove(id);
       opts.onChange?.();
@@ -422,7 +447,7 @@ function openPositionPresetEditor(opts) {
     opacity: clamp01(opts.initial?.opacity ?? opts.preset?.opacity ?? hint?.opacity ?? 1),
   };
 
-  const dlg = createPresetDialogShell(isEdit ? '저장 위치 수정' : '공통 위치 추가', {
+  const dlg = createPresetDialogShell(isEdit ? '위치 프리셋 수정' : '위치 프리셋 추가', {
     showPreview: stagePreviewEnabled(opts),
   });
   const body = dlg.querySelector('.sb-modal-body');
@@ -518,7 +543,7 @@ function openPositionPresetEditor(opts) {
     delBtn.textContent = '삭제';
     dlg.querySelector('.sb-modal-foot')?.prepend(delBtn);
     delBtn.addEventListener('click', () => {
-      if (!window.confirm(`저장 위치 «${opts.preset.label}» 삭제?`)) return;
+      if (!window.confirm(`위치 프리셋 «${opts.preset.label}» 삭제?`)) return;
       opts.onPresetRemoved?.(opts.preset.id);
       store.remove(opts.preset.id);
       closeDialog(dlg);
@@ -598,7 +623,7 @@ function createPresetDialogShell(title, shellOpts = {}) {
  *   onPresetRemoved?: (presetId: string) => void,
  * }} opts
  */
-function openStartEditDialog(opts) {
+export function openStartEditDialog(opts) {
   const draft = {
     startTime: Number(opts.start.startTime ?? 0),
     fromX: Number(opts.start.fromX ?? 0),
@@ -612,7 +637,7 @@ function openStartEditDialog(opts) {
   const dlg = createDialogShell('시작 위치', { showPreview: !!opts.onPreview });
   const body = dlg.querySelector('.sb-modal-body');
 
-  body.innerHTML = buildStartFormHtml(draft, !!opts.showFormation);
+  body.innerHTML = buildStartFormHtml(draft, !!opts.showFormation, !!opts.macroMode, !!opts.absolutePattern);
 
   const flushPreviewCore = () => {
     readFormIntoDraft(body, draft);
@@ -707,11 +732,10 @@ function openStartEditDialog(opts) {
     }, { compact: true });
   }
 
-  wireNumericFields(body, draft, {
-    startTime: 'startTime',
-    fromX: 'fromX',
-    fromZ: 'fromZ',
-  }, flushPreview, 'fromPresetId');
+  wireNumericFields(body, draft, opts.macroMode
+    ? { fromX: 'fromX', fromZ: 'fromZ' }
+    : { startTime: 'startTime', fromX: 'fromX', fromZ: 'fromZ' },
+  flushPreview, 'fromPresetId');
   wireOpacitySlider(body, flushPreview);
 
   body.querySelector('[data-act="sync-obj"]')?.addEventListener('click', () => {
@@ -750,7 +774,7 @@ function openStartEditDialog(opts) {
  *   onPresetRemoved?: (presetId: string) => void,
  * }} opts
  */
-function openSegmentEditDialog(opts) {
+export function openSegmentEditDialog(opts) {
   const seg = opts.segment;
   const kind = seg.kind || 'move';
   const isHold = kind === 'hold';
@@ -769,7 +793,7 @@ function openSegmentEditDialog(opts) {
   const dlg = createDialogShell(title, { showPreview: !isHold && !!opts.onPreview });
   const body = dlg.querySelector('.sb-modal-body');
 
-  body.innerHTML = buildSegmentFormHtml(draft, kind, !!opts.showFormation);
+  body.innerHTML = buildSegmentFormHtml(draft, kind, !!opts.showFormation, !!opts.macroMode, !!opts.absolutePattern);
   const flushPreviewCore = () => {
     if (isHold) return;
     readFormIntoDraft(body, draft);
@@ -877,12 +901,19 @@ function openSegmentEditDialog(opts) {
     });
   }
 
-  wireNumericFields(body, draft, {
-    duration: 'duration',
-    anchorX: 'anchorX',
-    anchorZ: 'anchorZ',
-    formationSpacing: 'formationSpacing',
-  }, isHold ? undefined : flushPreview, isHold ? null : 'anchorPresetId');
+  if (isHold) {
+    wireNumericFields(body, draft, { duration: 'duration' });
+  } else {
+    wireNumericFields(body, draft, opts.macroMode
+      ? { duration: 'duration', anchorX: 'anchorX', anchorZ: 'anchorZ' }
+      : {
+        duration: 'duration',
+        anchorX: 'anchorX',
+        anchorZ: 'anchorZ',
+        formationSpacing: 'formationSpacing',
+      },
+    flushPreview, 'anchorPresetId');
+  }
 
   bindDialogSave(dlg, () => {
     readFormIntoDraft(body, draft);
@@ -899,9 +930,9 @@ function openSegmentEditDialog(opts) {
   }
 }
 
-/** @param {(kind: 'move'|'hold'|'exit') => void} onPick */
-function openKindPicker(onPick) {
-  const dlg = createDialogShell('구간 추가');
+/** @param {(kind: 'move'|'hold'|'exit') => void} onPick @param {string} [title] */
+export function openKindPicker(onPick, title = '구간 추가') {
+  const dlg = createDialogShell(title);
   const body = dlg.querySelector('.sb-modal-body');
   body.innerHTML = `
     <p class="sb-seg-kind-hint">추가할 구간 종류를 선택하세요.</p>
@@ -921,10 +952,12 @@ function openKindPicker(onPick) {
   showDialog(dlg);
 }
 
-function buildStartFormHtml(draft, showFormation) {
+function buildStartFormHtml(draft, showFormation, macroMode = false, absolutePattern = false) {
   return `
     <div class="sb-seg-form">
-      ${startTimingRowHtml(draft)}
+      ${macroMode && !absolutePattern
+    ? '<p class="sb-seg-macro-hint">적용 시 Character의 <strong>현재 무대 위치</strong>가 시작점입니다. X·Z는 그 기준 상대 좌표로 저장됩니다.</p>'
+    : (!macroMode ? startTimingRowHtml(draft) : '')}
       <div class="sb-seg-pick-row" data-role="pick-row">
         <div class="sb-preset-pos-line">
           <div class="sb-seg-pick-pos-fields sb-ens-seg-fields">
@@ -938,15 +971,29 @@ function buildStartFormHtml(draft, showFormation) {
       ${showFormation
     ? '<div class="sb-seg-rot-fmt-row" data-role="rot-fmt"></div>'
     : '<div class="sb-seg-rot-fmt-row" data-role="rot-only"></div>'}
+      ${opacityRowHtml(draft)}
     </div>`;
 }
 
-function buildSegmentFormHtml(draft, kind, showFormation) {
+function opacityRowHtml(draft) {
+  const op = clamp01(draft.opacity ?? 1);
+  return `
+    <div class="sb-ens-seg-row sb-ens-seg-row--inline sb-seg-opacity-row">
+      <label class="sb-seg-opacity">Opacity
+        <input type="range" data-f="opacity" min="0" max="1" step="0.05" value="${op}" />
+        <span data-role="opacity-val">${Math.round(op * 100)}%</span>
+      </label>
+    </div>`;
+}
+
+function buildSegmentFormHtml(draft, kind, showFormation, macroMode = false, absolutePattern = false) {
   const isHold = kind === 'hold';
   const axLbl = kind === 'exit' ? '퇴장 X' : '끝 X';
   const azLbl = kind === 'exit' ? '퇴장 Z' : '끝 Z';
   return `
     <div class="sb-seg-form">
+      ${macroMode && !absolutePattern
+    ? '<p class="sb-seg-macro-hint">X·Z는 패턴 <strong>시작 위치</strong> 기준 상대 좌표입니다.</p>' : ''}
       <div class="sb-ens-seg-fields sb-ens-seg-fields--duration${isHold ? '' : ' sb-ens-seg-fields--duration-only'}">
         <label>Duration<input type="number" data-f="duration" step="0.1" min="0.1" value="${fmt(draft.duration)}" /></label>
       </div>
@@ -964,11 +1011,12 @@ function buildSegmentFormHtml(draft, kind, showFormation) {
         ${showFormation
     ? '<div class="sb-seg-rot-fmt-row" data-role="rot-fmt"></div>'
     : '<div class="sb-seg-rot-fmt-row" data-role="rot-only"></div>'}
-        <div class="sb-ens-seg-row sb-ens-seg-row--inline">
+        ${macroMode ? '' : `<div class="sb-ens-seg-row sb-ens-seg-row--inline">
           <div class="sb-ens-subtitle">Easing</div>
           <div data-role="ease"></div>
-        </div>
+        </div>`}
       `}
+      ${kind === 'exit' ? opacityRowHtml({ opacity: 0 }) : ''}
     </div>`;
 }
 
@@ -1000,7 +1048,7 @@ function mountPresetPickRow(host, store, opts) {
       ${renderPresetChipsHtml(presets, { actions: false, activePresetId: activeId })}
       <button type="button" class="sb-chip sb-pos-save" data-act="save-preset" title="공통 위치 추가">+</button>
     </div>
-    ${activeId ? '<p class="sb-preset-link-hint">● 저장 위치에 연결됨 — 수정 시 함께 이동</p>' : ''}`;
+    ${activeId ? '<p class="sb-preset-link-hint">● 위치 프리셋에 연결됨 — 수정 시 함께 이동</p>' : ''}`;
 
   const pickBtn = host.querySelector('[data-act="pick"]');
   if (pickBtn instanceof HTMLButtonElement) {

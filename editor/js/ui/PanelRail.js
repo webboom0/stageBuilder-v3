@@ -105,7 +105,7 @@ export function createPanelRail(root, opts = {}) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'sb-rail-btn';
-    btn.title = label;
+    btn.dataset.tip = label;
     btn.setAttribute('aria-label', label);
     btn.dataset.panelId = id;
     btn.innerHTML = `<i class="${icon}" aria-hidden="true"></i>`;

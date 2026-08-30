@@ -88,20 +88,22 @@ export function createAssetsPanelBody(opts = {}) {
       <button type="button" class="sb-assets-tab" data-tab="audio" role="tab">Audio</button>
     </div>
     <div class="sb-assets-toolbar">
-      <button type="button" class="sb-assets-tool" data-act="refresh" title="목록 새로고침" aria-label="목록 새로고침">
-        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.refresh}</span>
-      </button>
-      <button type="button" class="sb-assets-tool" data-act="library" title="공용 라이브러리에서 가져오기" aria-label="공용 라이브러리">
-        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.library}</span>
-      </button>
-      <label class="sb-assets-tool sb-assets-upload" title="업로드" aria-label="업로드">
-        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.upload}</span>
-        <input type="file" data-role="file" hidden />
-      </label>
-      <button type="button" class="sb-assets-tool sb-assets-del" data-act="delete" title="선택 삭제 · 항목을 여기로 드래그" aria-label="선택 삭제">
-        <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.delete}</span>
-      </button>
       <span class="sb-assets-status" data-role="status">…</span>
+      <div class="sb-assets-toolbar-actions">
+        <button type="button" class="sb-assets-tool" data-act="refresh" title="목록 새로고침" aria-label="목록 새로고침">
+          <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.refresh}</span>
+        </button>
+        <button type="button" class="sb-assets-tool" data-act="library" title="공용 라이브러리에서 가져오기" aria-label="공용 라이브러리">
+          <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.library}</span>
+        </button>
+        <label class="sb-assets-tool sb-assets-upload" title="업로드" aria-label="업로드">
+          <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.upload}</span>
+          <input type="file" data-role="file" hidden />
+        </label>
+        <button type="button" class="sb-assets-tool sb-assets-del" data-act="delete" title="선택 삭제 · 항목을 여기로 드래그" aria-label="선택 삭제">
+          <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.delete}</span>
+        </button>
+      </div>
     </div>
     <div class="sb-assets-list" data-role="list"></div>
     <p class="sb-assets-hint" data-role="hint">WalkLite 기본 · Lib · 업로드 · + 또는 드래그로 추가 · 색은 속성</p>

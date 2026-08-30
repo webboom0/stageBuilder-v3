@@ -6,7 +6,12 @@ import {
   inferGroupStartConfigured,
   normalizeGroupAnimation,
 } from '../domain/motion/groupSegments.js';
-import { renderSegmentStepList, KEYFRAME_APPLY_LABEL, mountPositionPresetBar } from './segmentStepUi.js';
+import {
+  renderSegmentStepList,
+  KEYFRAME_APPLY_LABEL,
+  GROUP_TRACK_DEPLOY_APPLY_LABEL,
+} from './segmentStepUi.js';
+import { isGroupDeployed } from '../domain/motion/applyGroupKeyframes.js';
 import { normalizeColorHex } from '../domain/motion/walkLitePerformer.js';
 import { repairGroupFromTimeline } from '../domain/project/sceneGroupRepair.js';
 
@@ -33,6 +38,7 @@ import { repairGroupFromTimeline } from '../domain/project/sceneGroupRepair.js';
  *   getTimelineSnapshot?: () => object[],
  *   getFoldersSnapshot?: () => object[],
  *   getMotionsSnapshot?: () => object[],
+ *   getMotionItem?: (id: string) => { object?: unknown } | null | undefined,
  *   getDefaultSpawn?: () => { fromX: number, fromZ: number, formationSpacing?: number },
  *   getSegmentStagePreview?: () => {
  *     begin: () => void,
@@ -93,7 +99,6 @@ export function createGroupsPanelBody(opts) {
 
     <div class="sb-ens-step">
       <div class="sb-ens-step-num">2 · 그룹 애니메이션</div>
-      <div data-role="group-presets"></div>
       <div class="sb-ens-segments" data-role="segments"></div>
     </div>
   `;
@@ -102,7 +107,6 @@ export function createGroupsPanelBody(opts) {
   const catalogEl = root.querySelector('[data-role="catalog"]');
   const membersEl = root.querySelector('[data-role="members"]');
   const segmentsEl = root.querySelector('[data-role="segments"]');
-  const groupPresetsEl = root.querySelector('[data-role="group-presets"]');
 
   /** @type {any[]} */
   let catalog = [];
@@ -141,8 +145,6 @@ export function createGroupsPanelBody(opts) {
         </div>`;
       }).join('');
     }
-
-    renderGroupPresets();
 
     renderCatalog();
     renderMembers();
@@ -189,72 +191,6 @@ export function createGroupsPanelBody(opts) {
       z: Number(form.z ?? form.fromZ ?? form.anchorZ) || 0,
       rotY: Number(form.rotY ?? form.fromRotY ?? form.toRotY) || 0,
       opacity: form.opacity ?? 1,
-    });
-  }
-
-  function renderGroupPresets() {
-    if (!groupPresetsEl) return;
-    const active = store.getActive();
-    if (!active) {
-      groupPresetsEl.innerHTML = '';
-      return;
-    }
-    mountPositionPresetBar(groupPresetsEl, {
-      presetStore: opts.getPresetStore?.() ?? null,
-      variant: 'compact',
-      onApplyPreset: (preset) => {
-        store.updateGroup(active.id, {
-          fromX: preset.x,
-          fromZ: preset.z,
-          fromRotY: preset.rotY,
-          opacity: preset.opacity ?? 1,
-          fromPresetId: preset.id,
-          startConfigured: true,
-        });
-        renderSegments();
-        opts.onGroupPresetApplied?.(active, preset);
-        opts.onChange?.();
-      },
-      onPickStage: (onPicked, onCancelled) => {
-        opts.onPickGroupPoint?.({
-          mode: 'from',
-          groupId: active.id,
-          onPicked: (pt) => onPicked(pt),
-          onCancelled: () => onCancelled?.(),
-        });
-      },
-      onPickPoint: (pick) => {
-        opts.onPickGroupPoint?.({
-          mode: pick.mode || 'from',
-          groupId: active.id,
-          segmentId: pick.segmentId,
-          onPicked: pick.onPicked,
-          onCancelled: pick.onCancelled,
-        });
-      },
-      onCaptureHint: () => ({
-        x: Number(active.fromX) || 0,
-        z: Number(active.fromZ) || 0,
-        rotY: Number(active.fromRotY) || 0,
-        opacity: Number(active.opacity ?? 1),
-      }),
-      onPreviewBegin: () => opts.getSegmentStagePreview?.()?.begin(),
-      onPreviewEnd: () => opts.getSegmentStagePreview?.()?.end(),
-      onPreviewReset: () => opts.getSegmentStagePreview?.()?.resetPreview(),
-      onPreview: (form) => opts.getSegmentStagePreview?.()?.previewPosition({
-        x: Number(form.x ?? form.fromX) || 0,
-        z: Number(form.z ?? form.fromZ) || 0,
-        rotY: Number(form.rotY ?? form.fromRotY ?? active.fromRotY) || 0,
-        opacity: form.opacity ?? active.opacity ?? 1,
-      }),
-      onPreviewPreset: presetStagePreview,
-      onPresetUpdated: (preset) => opts.onPresetUpdated?.(preset),
-      onPositionPresetsChanged: () => opts.onPositionPresetsChanged?.(),
-      onPresetRemoved: (id) => opts.onPresetRemoved?.(id),
-      onChange: () => {
-        renderGroupPresets();
-        opts.onChange?.();
-      },
     });
   }
 
@@ -317,11 +253,15 @@ export function createGroupsPanelBody(opts) {
       : '시작 위치를 설정한 뒤 + 로 구간을 추가하세요';
 
     const stagePreview = opts.getSegmentStagePreview?.();
+    const groupHasTrack = opts.getMotionItem
+      ? isGroupDeployed(active, (id) => opts.getMotionItem?.(id))
+      : !!(active.deployedFolderId && active.members.some((m) => m.deployedMotionId));
 
     renderSegmentStepList(segmentsEl, {
       startConfigured: configured,
       subtitle,
       showFormation: true,
+      applyLabel: groupHasTrack ? KEYFRAME_APPLY_LABEL : GROUP_TRACK_DEPLOY_APPLY_LABEL,
       getStart: () => active,
       getSegments: () => segs,
       getPresetStore: () => opts.getPresetStore?.() ?? null,
@@ -354,8 +294,9 @@ export function createGroupsPanelBody(opts) {
         renderSegments();
       },
       onAddSegment: (kind) => {
-        store.addSegment(active.id, kind);
+        const seg = store.addSegment(active.id, kind);
         renderSegments();
+        return seg?.id ?? null;
       },
       onRemoveSegment: (segId) => {
         store.removeSegment(active.id, segId);

@@ -6,12 +6,10 @@ import { applyMotionTint } from '../domain/motion/walkLitePerformer.js';
 import { clampMotionAboveDeck } from '../domain/motion/MotionDirector.js';
 import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
-import { mountPositionPresetBar } from './segmentStepUi.js';
-import { ensureMotionAnim } from '../domain/motion/motionAnim.js';
 
 /**
- * Properties — tabs: 속성 (object/key) · 구간 (move/hold/exit, no formation).
- * Exit is only in the 구간 tab (not 속성). HOUSE light tracks edit dim/color/size.
+ * Properties — tabs: 속성 (object/key) · 패턴 (move/hold/exit keyframe pattern).
+ * Exit is only in the 패턴 tab (not 속성). HOUSE light tracks edit dim/color/size.
  *
  * @param {{
  *   engine: import('../domain/timeline/TimelineEngine.js').TimelineEngine,
@@ -47,6 +45,7 @@ import { ensureMotionAnim } from '../domain/motion/motionAnim.js';
  *   onPresetUpdated?: (preset: import('../domain/motion/positionPresets.js').PositionPreset) => void,
  *   onPositionPresetsChanged?: () => void,
  *   onPresetRemoved?: (presetId: string) => void,
+ *   onRenameMotion?: (motionId: string, name: string) => boolean | void,
  * }} opts
  */
 export function createKeyframePropertiesPanel(opts) {
@@ -58,7 +57,7 @@ export function createKeyframePropertiesPanel(opts) {
       <button type="button" class="sb-props-tab is-on" data-tab="props" role="tab" aria-selected="true">속성</button>
       <button type="button" class="sb-props-tab" data-tab="segments" role="tab" aria-selected="false"
         data-role="segments-tab"
-        title="이동·대기·퇴장 구간 → 키프레임 적용">구간</button>
+        title="이동·대기·퇴장 키프레임 패턴 → 키프레임 적용">패턴</button>
     </div>
     <div class="sb-kf-props-empty" data-role="empty">
       씬에서 <strong>모션</strong>을 선택하거나, 타임라인에서 <strong>HOUSE / Fixture</strong> 트랙을 선택하세요.
@@ -114,11 +113,8 @@ export function createKeyframePropertiesPanel(opts) {
           <div class="ec-row-group" data-role="pos-group">
             <div class="ec-row-group-label">위치 <span class="sb-props-hint">Y 고정</span></div>
           </div>
-          <div class="sb-seg-pick-row" data-role="pos-pick-row">
-            <div class="sb-seg-pick-presets">
-              <button type="button" class="sb-chip sb-seg-pick-chip" data-role="stage-pick" title="무대에서 위치 지정">◎ 무대</button>
-              <div data-role="pos-presets"></div>
-            </div>
+          <div class="sb-seg-pick-row sb-props-stage-pick">
+            <button type="button" class="sb-chip sb-seg-pick-chip" data-role="stage-pick" title="무대에서 위치 지정">◎ 무대</button>
           </div>
 
           <div class="ec-row-group-label">회전</div>
@@ -188,7 +184,7 @@ export function createKeyframePropertiesPanel(opts) {
 
       <div class="sb-props-pane" data-pane="segments" hidden>
         <p class="sb-ens-subtitle sb-props-pane-hint">
-          <strong>시작 위치</strong> → <strong>+</strong> 구간(이동·대기·퇴장) · 저장 위치 프리셋 · <strong>키프레임 적용</strong>
+          <strong>시작 위치</strong> → <strong>+</strong> 이동·대기·퇴장 · 위치 프리셋 · <strong>키프레임 적용</strong>
         </p>
         <div data-role="anim-host"></div>
       </div>
@@ -218,7 +214,6 @@ export function createKeyframePropertiesPanel(opts) {
   const fxFocusRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-focus-range"]'));
   const fxFocus = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="fx-focus"]'));
   const posGroup = root.querySelector('[data-role="pos-group"]');
-  const posPresetsHost = root.querySelector('[data-role="pos-presets"]');
   const rotyHost = /** @type {HTMLElement} */ (root.querySelector('[data-role="roty-host"]'));
   const stagePosGroup = root.querySelector('[data-role="stage-pos-group"]');
   const stageRotGroup = root.querySelector('[data-role="stage-rot-group"]');
@@ -249,65 +244,6 @@ export function createKeyframePropertiesPanel(opts) {
     onChange: () => opts.onChange?.(),
   });
   animHost.appendChild(animSection.root);
-
-  function refreshPosPresets() {
-    if (!posPresetsHost) return;
-    const preview = opts.getSegmentStagePreview?.();
-    mountPositionPresetBar(posPresetsHost, {
-      presetStore: opts.getPresetStore?.() ?? null,
-      variant: 'inline',
-      chipActions: false,
-      onApplyPreset: (preset) => {
-        const m = currentMotion();
-        if (!m?.object) return;
-        const anim = ensureMotionAnim(m);
-        anim.fromX = preset.x;
-        anim.fromZ = preset.z;
-        anim.fromRotY = preset.rotY ?? 0;
-        anim.opacity = preset.opacity ?? anim.opacity ?? 1;
-        anim.fromPresetId = preset.id;
-        anim.startConfigured = true;
-        charXyz.pos.write([preset.x, m.object.position.y, preset.z]);
-        m.object.rotation.y = THREE.MathUtils.degToRad(preset.rotY ?? 0);
-        if (preset.opacity != null && opRange && opPct) {
-          opRange.value = String(preset.opacity);
-          opPct.textContent = `${Math.round(clamp01(preset.opacity) * 100)}%`;
-        }
-        commitCharTransform();
-        sync();
-      },
-      onPickStage: (onPicked) => {
-        opts.onPickPoint?.(onPicked);
-      },
-      onCaptureHint: () => {
-        const m = currentMotion();
-        if (!m?.object) return null;
-        return {
-          x: m.object.position.x,
-          z: m.object.position.z,
-          rotY: THREE.MathUtils.radToDeg(m.object.rotation.y),
-          opacity: Number(opRange?.value ?? 1),
-        };
-      },
-      onPreviewBegin: () => preview?.begin(),
-      onPreviewEnd: () => preview?.end(),
-      onPreviewReset: () => preview?.resetPreview(),
-      onPreviewPreset: (form) => preview?.previewPresetLocation?.({
-        x: Number(form.x) || 0,
-        z: Number(form.z) || 0,
-        rotY: Number(form.rotY) || 0,
-        opacity: form.opacity ?? 1,
-      }),
-      onPresetUpdated: (preset) => opts.onPresetUpdated?.(preset),
-      onPositionPresetsChanged: () => opts.onPositionPresetsChanged?.(),
-      onPresetRemoved: (id) => opts.onPresetRemoved?.(id),
-      activePresetId: currentMotion()?.anim?.fromPresetId ?? null,
-      onChange: () => {
-        opts.onChange?.();
-        refreshPosPresets();
-      },
-    });
-  }
 
   /** @type {'props' | 'segments'} */
   let activeTab = 'props';
@@ -639,8 +575,7 @@ export function createKeyframePropertiesPanel(opts) {
     const isStage = isStageItem(m, track);
     if (charProps) /** @type {HTMLElement} */ (charProps).hidden = isStage;
     if (stageProps) /** @type {HTMLElement} */ (stageProps).hidden = !isStage;
-    if (segmentsTab) /** @type {HTMLElement} */ (segmentsTab).hidden = isStage;
-    if (isStage && activeTab === 'segments') setTab('props');
+    if (segmentsTab) /** @type {HTMLElement} */ (segmentsTab).hidden = false;
 
     if (isStage) {
       stageXyz.pos.write([m.object.position.x, m.object.position.y, m.object.position.z]);
@@ -650,11 +585,8 @@ export function createKeyframePropertiesPanel(opts) {
         THREE.MathUtils.radToDeg(m.object.rotation.z),
       ]);
       stageXyz.scale.write([m.object.scale.x, m.object.scale.y, m.object.scale.z]);
-      boundAnimMotionId = null;
-      animSection.clear();
     } else {
       charXyz.pos.write([m.object.position.x, m.object.position.y, m.object.position.z]);
-      refreshPosPresets();
 
       mountRotYChips(rotyHost, THREE.MathUtils.radToDeg(m.object.rotation.y), (deg) => {
         if (engine.getTrack(m.trackId)?.locked) return;
@@ -664,11 +596,15 @@ export function createKeyframePropertiesPanel(opts) {
         opts.onChange?.();
         sync();
       });
+    }
 
-      if (boundAnimMotionId !== m.id) {
-        boundAnimMotionId = m.id;
-        animSection.bind(m);
-      }
+    if (boundAnimMotionId !== m.id) {
+      boundAnimMotionId = m.id;
+      animSection.bind(m, {
+        track,
+        importFromTrack: true,
+        fallbackStartSec: engine.playheadSec,
+      });
     }
 
     const locked = !!engine.getTrack(m.trackId)?.locked;
@@ -789,14 +725,26 @@ export function createKeyframePropertiesPanel(opts) {
       sync();
       return;
     }
-    m.name = nameEl.value.trim() || m.name;
-    m.object.name = m.name;
-    const track = engine.getTrack(m.trackId);
-    if (track) {
-      track.name = m.name;
-      engine.emit('tracks');
+    const trimmed = nameEl.value.trim();
+    if (!trimmed || trimmed === m.name) {
+      sync();
+      return;
+    }
+    if (opts.onRenameMotion?.(m.id, trimmed) === false) {
+      sync();
+      return;
+    }
+    if (!opts.onRenameMotion) {
+      m.name = trimmed;
+      m.object.name = trimmed;
+      const track = engine.getTrack(m.trackId);
+      if (track) {
+        track.name = trimmed;
+        engine.emit('tracks');
+      }
     }
     opts.onChange?.();
+    sync();
   });
 
   tintEl.addEventListener('input', () => {
@@ -871,6 +819,13 @@ export function createKeyframePropertiesPanel(opts) {
   stageOpRange.addEventListener('input', () => commitOpacity(stageOpRange.value, 'stage'));
 
   const unsub = engine.subscribe((ev) => {
+    if (ev.type === 'keys') {
+      const m = currentMotion();
+      const tr = m ? engine.getTrack(m.trackId) : null;
+      if (m && tr?.kind === 'motion') {
+        animSection.refreshFromTrack(tr, engine.playheadSec);
+      }
+    }
     if (['selection', 'keys', 'change', 'playhead', 'duration', 'tracks'].includes(ev.type)) sync();
   });
   sync();

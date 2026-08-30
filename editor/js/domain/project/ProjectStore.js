@@ -2,6 +2,7 @@ import { fetchProject, fetchScene, saveProjectMeta, addScene as apiAddScene, del
 import { applyScene, persistScene, serializeScene } from './SceneDocument.js';
 import { createSceneLoadReport, verifySceneAssets } from './sceneLoadReport.js';
 import { normalizePositionPreset } from '../motion/positionPresets.js';
+import { normalizeMotionTemplate } from '../motion/motionTemplates.js';
 
 /**
  * Active project + scene session (Phase 6).
@@ -148,6 +149,43 @@ export class ProjectStore {
     }
   }
 
+  /** @returns {boolean} */
+  hasProjectMotionTemplatesField() {
+    return Object.prototype.hasOwnProperty.call(this.project, 'motionTemplates')
+      && Array.isArray(this.project.motionTemplates);
+  }
+
+  /** @param {import('../motion/MotionTemplateStore.js').MotionTemplateStore} store */
+  syncMotionTemplatesToProject(store) {
+    if (!store) return;
+    this.project.motionTemplates = store.list();
+  }
+
+  /**
+   * @param {import('../motion/MotionTemplateStore.js').MotionTemplateStore} store
+   */
+  async persistMotionTemplates(store) {
+    if (!store) return;
+    this.syncMotionTemplatesToProject(store);
+    this.project.updatedAt = new Date().toISOString();
+    const saved = await saveProjectMeta(this.projectId, this.project);
+    if (saved) this.project = saved;
+  }
+
+  /**
+   * @param {import('../motion/MotionTemplateStore.js').MotionTemplateStore} store
+   */
+  applyMotionTemplatesForLoad(store) {
+    if (!store) return;
+    const list = this.hasProjectMotionTemplatesField()
+      ? this.project.motionTemplates
+      : [];
+    store.replaceAll((list || []).map((t) => normalizeMotionTemplate(t)));
+    if (!store.activeId && store.list().length) {
+      store.setActive(store.list()[0].id);
+    }
+  }
+
   /**
    * @param {{
    *   showName: string,
@@ -195,6 +233,7 @@ export class ProjectStore {
     const doc = await fetchScene(this.projectId, this.activeSceneId);
     this.activeSceneDoc = doc;
     await this.applyPositionPresetsForLoad(ctx.positionPresetStore, doc);
+    this.applyMotionTemplatesForLoad(ctx.motionTemplateStore);
     const loadReport = createSceneLoadReport();
     await applyScene(doc, { ...ctx, projectId: this.projectId, loadReport });
     await verifySceneAssets(this.projectId, doc, loadReport);
@@ -207,6 +246,7 @@ export class ProjectStore {
    */
   async saveActiveScene(ctx) {
     this.syncPositionPresetsToProject(ctx.positionPresetStore);
+    this.syncMotionTemplatesToProject(ctx.motionTemplateStore);
     const doc = this.captureScene(ctx);
     await persistScene(this, doc);
     this.project.activeSceneId = this.activeSceneId;

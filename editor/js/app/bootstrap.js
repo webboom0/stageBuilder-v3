@@ -17,6 +17,10 @@ import { mountTimelineShell } from '../ui/timeline/TimelineShell.js';
 import { MotionDirector } from '../domain/motion/MotionDirector.js';
 import { MotionGroupStore } from '../domain/motion/MotionGroupStore.js';
 import { PositionPresetStore } from '../domain/motion/PositionPresetStore.js';
+import { MotionTemplateStore } from '../domain/motion/MotionTemplateStore.js';
+import { trackToMotionTemplate, canSaveTrackToPatternLibrary } from '../domain/motion/trackToMotionTemplate.js';
+import { applyKeyframeTemplateToMotion } from '../domain/motion/applyMotionTemplate.js';
+import { applyPatternDraftToMotionTrack } from '../domain/motion/trackKeyframePattern.js';
 import { applyGroupSegmentsToMotion } from '../domain/motion/applyGroupSegments.js';
 import { isGroupDeployed, reapplyGroupKeyframes, groupBakePlayheadSec } from '../domain/motion/applyGroupKeyframes.js';
 import { snapKeyframeTimeSec } from '../domain/timeline/KeyframeStore.js';
@@ -27,7 +31,7 @@ import {
 } from '../domain/motion/positionPresetLinks.js';
 import { applyImportedKeysToTrack, importV3MotionJson } from '../domain/motion/importV3MotionJson.js';
 import { applyMotionSegmentsToTrack } from '../domain/motion/applyMotionSegments.js';
-import { ensureGroupSegments } from '../domain/motion/groupSegments.js';
+import { ensureGroupSegments, syncHoldSegmentsFromChain } from '../domain/motion/groupSegments.js';
 import {
   clearPresetLocationMarker,
   clearSegmentPreviewGhosts,
@@ -271,6 +275,7 @@ async function main(initialProjectStore) {
   });
   const groupStore = new MotionGroupStore();
   const positionPresetStore = new PositionPresetStore();
+  const motionTemplateStore = new MotionTemplateStore();
   const light = new LightDirector({
     scene: stageManager.scene,
     engine: timeline,
@@ -435,6 +440,27 @@ async function main(initialProjectStore) {
       onHistoryChange: () => {
         void applyTimelineHistoryChange();
       },
+      onSaveTrackToPatternLibrary: (trackId) => {
+        void handleSaveTrackToPatternLibrary(trackId);
+      },
+      onRenameMotionTrack: (trackId, name) => {
+        const m = motion.findByTrackId(trackId);
+        if (!m) return false;
+        const track = timeline.getTrack(trackId);
+        if (track?.locked) {
+          refreshStatus('잠긴 트랙은 이름을 변경할 수 없습니다');
+          return false;
+        }
+        const trimmed = String(name || '').trim();
+        if (!trimmed || trimmed === m.name) return false;
+        if (motion.renameMotion(m.id, trimmed)) {
+          markSceneDirty();
+          shellRef.current?.syncKeyframeProps?.();
+          refreshStatus(`트랙 이름: ${trimmed}`);
+          return true;
+        }
+        return false;
+      },
     });
   }
 
@@ -553,6 +579,7 @@ async function main(initialProjectStore) {
       motion,
       groupStore,
       positionPresetStore,
+      motionTemplateStore,
       videoBg: videoBgRef.current,
       audio,
       stageManager,
@@ -569,6 +596,8 @@ async function main(initialProjectStore) {
       onSceneApplied: () => {
         shellRef.current?.syncKeyframeProps?.();
         shellRef.current?.refreshGroups?.();
+        shellRef.current?.refreshMotionTemplates?.();
+        shellRef.current?.refreshPositionPresets?.();
         shellRef.current?.syncLightingPanel?.();
         shellRef.current?.refreshProjectPanel?.();
         syncActiveVideoIndicator();
@@ -604,6 +633,8 @@ async function main(initialProjectStore) {
   function syncPanelsAfterProjectLoad() {
     shellRef.current?.refreshAssets?.();
     shellRef.current?.refreshGroups?.();
+    shellRef.current?.refreshPositionPresets?.();
+    shellRef.current?.refreshMotionTemplates?.();
     shellRef.current?.syncKeyframeProps?.();
     shellRef.current?.syncLightingPanel?.();
     shellRef.current?.syncHelperUi?.();
@@ -673,10 +704,7 @@ async function main(initialProjectStore) {
       const item = motion.get(mem.deployedMotionId);
       if (!item) return;
       const nextName = memberDeployTrackName(group, mem, i);
-      item.name = nextName;
-      if (item.object) item.object.name = nextName;
-      const track = timeline.getTrack(item.trackId);
-      if (track) track.name = nextName;
+      motion.renameMotion(item.id, nextName, { history: false });
     });
     timeline.emit('tracks');
   }
@@ -907,6 +935,87 @@ async function main(initialProjectStore) {
     return true;
   }
 
+  function handleApplyPositionPreset(preset) {
+    if (!preset) return;
+    segmentStagePreview.resetPreview();
+    segmentStagePreview.begin();
+    segmentStagePreview.previewPresetLocation?.({
+      x: preset.x,
+      z: preset.z,
+      rotY: preset.rotY ?? 0,
+      opacity: preset.opacity ?? 1,
+    });
+
+    const trackId = timeline.selectedTrackId;
+    const track = trackId ? timeline.getTrack(trackId) : null;
+    const item = trackId ? motion.findByTrackId(trackId) : null;
+    if (item?.object && track?.kind === 'motion' && !track.locked) {
+      item.object.position.set(preset.x, item.object.position.y, preset.z);
+      item.object.rotation.y = THREE.MathUtils.degToRad(preset.rotY ?? 0);
+      if (item.anim) {
+        item.anim.fromX = preset.x;
+        item.anim.fromZ = preset.z;
+        item.anim.fromRotY = preset.rotY ?? 0;
+        item.anim.opacity = preset.opacity ?? item.anim.opacity ?? 1;
+        item.anim.fromPresetId = preset.id;
+        item.anim.startConfigured = true;
+      }
+      motion.apply(timeline.playheadSec);
+      markSceneDirty();
+      shellRef.current?.syncKeyframeProps?.();
+      refreshStatus(`위치 프리셋 «${preset.label}» · ${item.name || '트랙'}`);
+      return;
+    }
+
+    const activeGroup = groupStore.getActive();
+    if (activeGroup) {
+      groupStore.updateGroup(activeGroup.id, {
+        fromX: preset.x,
+        fromZ: preset.z,
+        fromRotY: preset.rotY ?? 0,
+        opacity: preset.opacity ?? 1,
+        fromPresetId: preset.id,
+        startConfigured: true,
+      });
+      segmentStagePreview.resetPreview();
+      if (isGroupDeployed(activeGroup, (id) => motion.get(id))) {
+        reapplyGroupKeyframes({
+          engine: timeline,
+          group: activeGroup,
+          getMotionItem: (id) => motion.get(id),
+        });
+        motion.apply(timeline.playheadSec);
+        timeline.emit('keys');
+      }
+      shellRef.current?.refreshGroups?.();
+      markSceneDirty();
+      refreshStatus(`위치 프리셋 «${preset.label}» · 그룹 ${activeGroup.name}`);
+    }
+  }
+
+  function getPositionPresetCaptureHint() {
+    const trackId = timeline.selectedTrackId;
+    const item = trackId ? motion.findByTrackId(trackId) : null;
+    if (item?.object) {
+      return {
+        x: item.object.position.x,
+        z: item.object.position.z,
+        rotY: (item.object.rotation.y * 180) / Math.PI,
+        opacity: 1,
+      };
+    }
+    const g = groupStore.getActive();
+    if (g) {
+      return {
+        x: Number(g.fromX) || 0,
+        z: Number(g.fromZ) || 0,
+        rotY: Number(g.fromRotY) || 0,
+        opacity: Number(g.opacity ?? 1),
+      };
+    }
+    return null;
+  }
+
   function handlePositionPresetUpdated(preset) {
     if (!preset) return;
     const { groups, motions } = propagatePositionPresetUpdate(preset, {
@@ -918,7 +1027,7 @@ async function main(initialProjectStore) {
     if (groups || motions) {
       markSceneDirty();
       refreshStatus(
-        `저장 위치 «${preset.label}» 연결 갱신 · 그룹 ${groups} · 모션 ${motions}`,
+        `위치 프리셋 «${preset.label}» 연결 갱신 · 그룹 ${groups} · 모션 ${motions}`,
       );
     }
   }
@@ -930,7 +1039,7 @@ async function main(initialProjectStore) {
       markSceneDirty();
       shellRef.current?.refreshGroups?.();
       shellRef.current?.syncKeyframeProps?.();
-      refreshStatus(`저장 위치 삭제 · 연결 해제 · 그룹 ${groups} · 모션 ${motions}`);
+      refreshStatus(`위치 프리셋 삭제 · 연결 해제 · 그룹 ${groups} · 모션 ${motions}`);
     }
   }
 
@@ -940,10 +1049,90 @@ async function main(initialProjectStore) {
       await projectStore.persistPositionPresets(positionPresetStore);
       shellRef.current?.refreshGroups?.();
       shellRef.current?.syncKeyframeProps?.();
+      shellRef.current?.refreshPositionPresets?.();
     } catch (err) {
       console.error(err);
-      refreshStatus(`저장 위치 저장 실패: ${err.message}`);
+      refreshStatus(`위치 프리셋 저장 실패: ${err.message}`);
     }
+  }
+
+  async function persistMotionTemplatesNow() {
+    if (!projectStore) return;
+    try {
+      await projectStore.persistMotionTemplates(motionTemplateStore);
+      shellRef.current?.refreshMotionTemplates?.();
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`패턴 라이브러리 저장 실패: ${err.message}`);
+    }
+  }
+
+  async function handleApplyTrackPattern(motionId, draft) {
+    const item = motion.get(motionId);
+    if (!item) return false;
+    const track = timeline.getTrack(item.trackId);
+    if (track?.locked) return false;
+    timeline.pause();
+    segmentStagePreview.resetPreview();
+    const ok = applyPatternDraftToMotionTrack(item, draft, timeline);
+    if (ok) {
+      const t = snapKeyframeTimeSec(draft.startTimeSec ?? timeline.playheadSec, timeline.fps);
+      timeline.setPlayhead(t);
+      applyAllDirectorsAtPlayhead();
+    }
+    markSceneDirty();
+    shellRef.current?.syncKeyframeProps?.();
+    return ok;
+  }
+
+  async function handleSaveTrackToPatternLibrary(trackId) {
+    const track = timeline.getTrack(trackId);
+    const item = motion.findByTrackId(trackId);
+    if (!canSaveTrackToPatternLibrary(track, item)) {
+      window.alert(
+        '패턴 라이브러리에 저장하려면 Character / Stage 트랙에\n키프레임이 2개 이상 필요합니다.',
+      );
+      return;
+    }
+    const defaultName = track?.name ? `${track.name} 패턴` : '새 패턴';
+    const name = window.prompt('패턴 라이브러리 이름', defaultName);
+    if (name === null) return;
+    const label = name.trim() || defaultName;
+    const tpl = trackToMotionTemplate(track, item, label);
+    if (!tpl) {
+      window.alert('패턴으로 변환하지 못했습니다.');
+      return;
+    }
+    motionTemplateStore.add(tpl);
+    motionTemplateStore.setActive(tpl.id);
+    try {
+      await persistMotionTemplatesNow();
+      shellRef.current?.selectPatternLibraryEntry?.(tpl.id);
+      shellRef.current?.openPatternLibraryPanel?.();
+      refreshStatus(`패턴 라이브러리 저장: ${label}`);
+    } catch (err) {
+      console.error(err);
+      refreshStatus(`패턴 라이브러리 저장 실패: ${err.message}`);
+    }
+  }
+
+  async function handleApplyMotionTemplate(motionId, templateId, pose) {
+    const item = motion.get(motionId);
+    const tpl = motionTemplateStore.get(templateId);
+    if (!item || !tpl) return false;
+    const track = timeline.getTrack(item.trackId);
+    if (track?.locked) return false;
+    timeline.pause();
+    segmentStagePreview.resetPreview();
+    const ok = applyKeyframeTemplateToMotion(item, tpl, pose, timeline);
+    if (ok) {
+      const t = snapKeyframeTimeSec(pose.startTime ?? timeline.playheadSec, timeline.fps);
+      timeline.setPlayhead(t);
+      applyAllDirectorsAtPlayhead();
+    }
+    markSceneDirty();
+    shellRef.current?.syncKeyframeProps?.();
+    return ok;
   }
 
   const applyCam = (presetId) => {
@@ -1514,6 +1703,8 @@ async function main(initialProjectStore) {
     engine: timeline,
     groupStore,
     positionPresetStore,
+    motionTemplateStore,
+    motion,
     segmentStagePreview,
     light,
     fixtures,
@@ -1561,7 +1752,7 @@ async function main(initialProjectStore) {
     },
     onStagePick: (motionId) => interaction?.beginStagePick(motionId),
     onPickPoint: (onPicked) => {
-      interaction?.beginPointPick(onPicked, '저장 위치 — 바닥 클릭 (Esc 취소)');
+      interaction?.beginPointPick(onPicked, '위치 프리셋 — 바닥 클릭 (Esc 취소)');
     },
     onPickAnimPoint: (pick) => {
       const label = pick.mode === 'from'
@@ -1616,6 +1807,11 @@ async function main(initialProjectStore) {
     onKeyframeEdited: () => {
       motion.apply(timeline.playheadSec);
       markSceneDirty();
+    },
+    onRenameMotion: (motionId, name) => {
+      const ok = motion.renameMotion(motionId, name);
+      if (ok) markSceneDirty();
+      return ok;
     },
     onAddCharacter: async (entry) => {
       try {
@@ -1683,13 +1879,26 @@ async function main(initialProjectStore) {
     onPresetUpdated: (preset) => {
       handlePositionPresetUpdated(preset);
       shell.refreshGroups?.();
+      shell.refreshPositionPresets?.();
     },
+    onApplyPositionPreset: (preset) => handleApplyPositionPreset(preset),
+    getPositionPresetCaptureHint: () => getPositionPresetCaptureHint(),
     onPositionPresetsChanged: () => {
       void persistPositionPresetsNow();
     },
     onPresetRemoved: (presetId) => {
       handlePositionPresetRemoved(presetId);
       void persistPositionPresetsNow();
+      shell.refreshPositionPresets?.();
+    },
+    onSaveMotionTemplate: () => persistMotionTemplatesNow(),
+    onApplyMotionTemplate: ({ motions }) => {
+      refreshStatus(`패턴 라이브러리 적용 · ${motions}개 트랙`);
+    },
+    applyMotionTemplate: handleApplyMotionTemplate,
+    applyTrackPattern: handleApplyTrackPattern,
+    onApplyTrackPattern: ({ trackName }) => {
+      refreshStatus(`키프레임 적용: ${trackName || '트랙'}`);
     },
     onGroupRename: (group) => {
       syncGroupNameToTimeline(group);
@@ -1726,6 +1935,16 @@ async function main(initialProjectStore) {
       interaction?.beginPointPick((pt) => {
         pick.onPicked?.(pt);
         shell.refreshGroups?.();
+      }, label, () => {
+        pick.onCancelled?.();
+      });
+    },
+    onPickMacroPoint: (pick) => {
+      const label = pick.mode === 'from'
+        ? '패턴 시작 위치 — 바닥 클릭 (Esc 취소)'
+        : '패턴 키 위치 — 바닥 클릭 (Esc 취소)';
+      interaction?.beginPointPick((pt) => {
+        pick.onPicked?.(pt);
       }, label, () => {
         pick.onCancelled?.();
       });

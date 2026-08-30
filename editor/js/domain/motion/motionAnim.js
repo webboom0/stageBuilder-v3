@@ -8,6 +8,7 @@ import {
   normalizeRotYDeg,
   syncHoldSegmentsFromChain,
 } from './groupSegments.js';
+import { trackKeyframesToPatternDraft } from './trackKeyframePattern.js';
 
 /**
  * Solo motion animation plan (group segments without formation).
@@ -170,6 +171,58 @@ export function syncMotionAnimStartFromObject(item) {
   anim.fromZ = obj.position.z;
   anim.fromRotY = normalizeRotYDeg((obj.rotation.y * 180) / Math.PI);
   anim.startConfigured = true;
+  return anim;
+}
+
+/**
+ * 타임라인 키 → MotionAnim (Properties 구간 탭).
+ * @param {import('../timeline/Track.js').Track | null | undefined} track
+ * @param {import('./MotionDirector.js').MotionItem} item
+ * @param {number} [fallbackStartSec]
+ */
+export function importTrackKeyframesToMotionAnim(track, item, fallbackStartSec = 0) {
+  const anim = ensureMotionAnim(item);
+  if (!track?.keys) return anim;
+
+  const keyCount = track.keys.list().length;
+  if (keyCount === 0) {
+    anim.segments = [];
+    anim.selectedSegmentId = null;
+    anim.startConfigured = false;
+    anim.startTime = Number.isFinite(fallbackStartSec) ? fallbackStartSec : 0;
+    const obj = item.object;
+    if (obj) {
+      anim.fromX = obj.position.x;
+      anim.fromZ = obj.position.z;
+      anim.fromRotY = normalizeRotYDeg((obj.rotation.y * 180) / Math.PI);
+    }
+    return anim;
+  }
+
+  const draft = trackKeyframesToPatternDraft(track, item, fallbackStartSec);
+  if (!draft?.keyframes?.length) return anim;
+
+  const first = draft.keyframes[0];
+  anim.startTime = draft.startTimeSec;
+  anim.fromX = first.offsetX;
+  anim.fromZ = first.offsetZ;
+  anim.fromRotY = normalizeRotYDeg(first.deltaRotY ?? 0);
+  anim.opacity = Number.isFinite(Number(first.opacity)) ? Number(first.opacity) : 1;
+  anim.startConfigured = true;
+  anim.fromPresetId = null;
+
+  anim.segments = draft.keyframes.slice(1).map((kf) => soloNormalize({
+    id: newSegmentId(),
+    kind: kf.kind || SEGMENT_KIND.move,
+    duration: Math.max(0.1, Number(kf.timeOffset) || 0.1),
+    anchorX: Number(kf.offsetX) || 0,
+    anchorZ: Number(kf.offsetZ) || 0,
+    toRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
+    easing: 'smooth',
+  }, anim));
+
+  anim.selectedSegmentId = anim.segments[anim.segments.length - 1]?.id ?? null;
+  syncSoloHold(anim);
   return anim;
 }
 

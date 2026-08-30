@@ -58,6 +58,29 @@ let _colorSeq = 0;
 let _stageColorSeq = 0;
 
 /**
+ * Avoid duplicate motion track labels in a timeline section.
+ * @param {import('../timeline/TimelineEngine.js').TimelineEngine} engine
+ * @param {string} baseName
+ * @param {'motion' | 'stage'} [section]
+ * @param {string | null} [excludeTrackId]
+ */
+export function uniqueMotionTrackName(engine, baseName, section = 'motion', excludeTrackId = null) {
+  const raw = String(baseName || '').trim() || (section === 'stage' ? 'Prop' : 'Character');
+  /** @type {Set<string>} */
+  const used = new Set();
+  for (const t of engine.listTracks()) {
+    if (t.kind !== 'motion') continue;
+    if (section && t.section !== section) continue;
+    if (excludeTrackId && t.id === excludeTrackId) continue;
+    used.add(String(t.name || '').trim().toLowerCase());
+  }
+  if (!used.has(raw.toLowerCase())) return raw;
+  let n = 2;
+  while (used.has(`${raw} ${n}`.toLowerCase())) n += 1;
+  return `${raw} ${n}`;
+}
+
+/**
  * MotionDirector — v3-aligned:
  * - 1 object = 1 timeline track (kind: motion)
  * - compound keys edited in Properties
@@ -100,6 +123,56 @@ export class MotionDirector {
       if (m.trackId === trackId) return m;
     }
     return null;
+  }
+
+  /**
+   * Rename a motion object + timeline track (Character / Stage).
+   * @param {string} motionId
+   * @param {string} name
+   * @param {{ history?: boolean }} [opt]
+   * @returns {boolean}
+   */
+  renameMotion(motionId, name, opt = {}) {
+    const m = this.motions.get(motionId);
+    if (!m) return false;
+    const track = this.engine.getTrack(m.trackId);
+    if (!track || track.kind !== 'motion' || track.locked) return false;
+    const next = String(name || '').trim();
+    if (!next || m.name === next) return false;
+
+    const prev = {
+      motionName: m.name,
+      objectName: m.object.name,
+      trackName: track.name,
+      displayName: m.object.userData?.displayName,
+    };
+
+    /** @param {typeof prev} snap */
+    const apply = (snap) => {
+      m.name = snap.motionName;
+      m.object.name = snap.objectName;
+      if (m.object.userData && 'displayName' in m.object.userData) {
+        m.object.userData.displayName = snap.displayName ?? snap.motionName;
+      }
+      track.name = snap.trackName;
+      this.engine.emit('tracks');
+    };
+
+    apply({ motionName: next, objectName: next, trackName: next, displayName: next });
+
+    if (opt.history !== false) {
+      this.engine.commands.push({
+        label: 'Rename track',
+        undo: () => apply(prev),
+        redo: () => apply({
+          motionName: next,
+          objectName: next,
+          trackName: next,
+          displayName: next,
+        }),
+      });
+    }
+    return true;
   }
 
   /**
@@ -223,8 +296,10 @@ export class MotionDirector {
     const color = assetRole === 'stage'
       ? STAGE_TRACK_PALETTE[_stageColorSeq++ % STAGE_TRACK_PALETTE.length]
       : TRACK_PALETTE[_colorSeq++ % TRACK_PALETTE.length];
+    const trackName = uniqueMotionTrackName(this.engine, meta.name, section);
+    root.name = trackName;
     const track = this.engine.addTrack({
-      name: meta.name,
+      name: trackName,
       kind: 'motion',
       group: `${section}:${id}`,
       section,
@@ -244,7 +319,7 @@ export class MotionDirector {
     /** @type {MotionItem} */
     const item = {
       id,
-      name: meta.name,
+      name: trackName,
       object: root,
       mixer,
       action,

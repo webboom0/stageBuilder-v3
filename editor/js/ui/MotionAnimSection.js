@@ -5,6 +5,7 @@ import {
   updateMotionAnimSegment,
   removeMotionAnimSegment,
   syncMotionAnimStartFromObject,
+  importTrackKeyframesToMotionAnim,
 } from '../domain/motion/motionAnim.js';
 import { renderSegmentStepList } from './segmentStepUi.js';
 
@@ -43,8 +44,29 @@ export function createMotionAnimSection(opts = {}) {
   /** @type {import('../domain/motion/MotionDirector.js').MotionItem | null} */
   let motion = null;
 
-  function bind(item) {
+  /**
+   * @param {import('../domain/motion/MotionDirector.js').MotionItem} item
+   * @param {{
+   *   track?: import('../domain/timeline/Track.js').Track | null,
+   *   importFromTrack?: boolean,
+   *   fallbackStartSec?: number,
+   * }} [bindOpts]
+   */
+  function bind(item, bindOpts) {
     motion = item;
+    if (bindOpts?.track && bindOpts.importFromTrack !== false) {
+      importTrackKeyframesToMotionAnim(
+        bindOpts.track,
+        item,
+        bindOpts.fallbackStartSec ?? 0,
+      );
+    }
+    render();
+  }
+
+  function refreshFromTrack(track, fallbackStartSec = 0) {
+    if (!motion || !track) return;
+    importTrackKeyframesToMotionAnim(track, motion, fallbackStartSec);
     render();
   }
 
@@ -65,8 +87,8 @@ export function createMotionAnimSection(opts = {}) {
     anim.startConfigured = configured;
     const total = getMotionAnimDuration(anim);
     const subtitle = configured
-      ? `시작 ${Number(anim.startTime || 0).toFixed(1)}s · 총 ${total.toFixed(1)}s · 포메이션 없음`
-      : '시작 위치를 설정한 뒤 + 로 구간을 추가하세요';
+      ? `시작 ${Number(anim.startTime || 0).toFixed(1)}s · 총 ${total.toFixed(1)}s`
+      : '시작 위치를 설정한 뒤 + 로 키를 추가하세요';
 
     const stagePreview = opts.getSegmentStagePreview?.();
     const presetStagePreview = (form) => {
@@ -105,8 +127,9 @@ export function createMotionAnimSection(opts = {}) {
         render();
       },
       onAddSegment: (kind) => {
-        addMotionAnimSegment(anim, kind);
+        const seg = addMotionAnimSegment(anim, kind);
         render();
+        return seg.id;
       },
       onRemoveSegment: (segId) => {
         removeMotionAnimSegment(anim, segId);
@@ -140,5 +163,5 @@ export function createMotionAnimSection(opts = {}) {
     });
   }
 
-  return { root, bind, clear, render };
+  return { root, bind, clear, render, refreshFromTrack };
 }

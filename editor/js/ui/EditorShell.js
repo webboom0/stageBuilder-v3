@@ -4,6 +4,8 @@ import { createProjectPanelBody } from './project/ProjectPanel.js';
 import { createStagePanelBody } from './StagePanel.js';
 import { createAssetsPanelBody } from './AssetsPanel.js';
 import { createGroupsPanelBody } from './GroupsPanel.js';
+import { createMotionTemplatesPanelBody } from './MotionTemplatesPanel.js';
+import { createPositionPresetsPanelBody } from './PositionPresetsPanel.js';
 import { createLightingPanelBody } from './LightingPanel.js';
 import { createKeyframePropertiesPanel } from './KeyframePropertiesPanel.js';
 import { mountViewportToolbar } from './ViewportToolbar.js';
@@ -39,9 +41,19 @@ import {
  *   onPresetUpdated?: (preset: import('../domain/motion/positionPresets.js').PositionPreset) => void,
  *   onPositionPresetsChanged?: () => void,
  *   onPresetRemoved?: (presetId: string) => void,
+ *   motionTemplateStore?: import('../domain/motion/MotionTemplateStore.js').MotionTemplateStore | null,
+ *   motion?: import('../domain/motion/MotionDirector.js').MotionDirector,
+ *   onSaveMotionTemplate?: () => void | Promise<void>,
+ *   onApplyMotionTemplate?: (result: { motions: number }) => void,
+ *   applyMotionTemplate?: (
+ *     motionId: string,
+ *     templateId: string,
+ *     pose: { fromX: number, fromZ: number, fromRotY?: number, startTime?: number },
+ *   ) => boolean | Promise<boolean>,
  *   onGroupRename?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onGroupColor?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onKeyframeEdited?: () => void,
+ *   onRenameMotion?: (motionId: string, name: string) => boolean | void,
  *   getMotion?: (trackId: string) => import('../domain/motion/MotionDirector.js').MotionItem | null,
  *   getLight?: (trackId: string) => {
  *     kind?: 'house' | 'fixture',
@@ -129,6 +141,8 @@ export function mountEditorShell(root, ctx) {
   });
 
   let groupsUi = null;
+  let motionTemplatesUi = null;
+  let positionPresetsUi = null;
 
   const assetsUi = createAssetsPanelBody({
     getProjectId: () => ctx.getProjectId?.() ?? null,
@@ -156,6 +170,36 @@ export function mountEditorShell(root, ctx) {
 
   let propsUi = null;
   let propsBody;
+
+  if (ctx.positionPresetStore) {
+    positionPresetsUi = createPositionPresetsPanelBody({
+      getPresetStore: () => ctx.positionPresetStore ?? null,
+      onApplyPreset: (preset) => ctx.onApplyPositionPreset?.(preset),
+      onPickPoint: (onPicked, onCancelled) => ctx.onPickPoint?.(onPicked, onCancelled),
+      getCaptureHint: () => ctx.getPositionPresetCaptureHint?.() ?? null,
+      getSegmentStagePreview: () => ctx.segmentStagePreview ?? null,
+      onPresetUpdated: (preset) => ctx.onPresetUpdated?.(preset),
+      onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
+      onPresetRemoved: (id) => ctx.onPresetRemoved?.(id),
+    });
+    const posPresetsPanel = createDockPanel('위치 프리셋', positionPresetsUi.root, {
+      storageKey: 'dock-position-presets',
+      defaultHeight: 240,
+      minHeight: 120,
+      titleHelp:
+        '무대 공통 좌표 · 칩 클릭 시 미리보기 및 <strong>선택 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용',
+    });
+    rightRail.registerPanel({
+      id: 'position-presets',
+      icon: 'fas fa-map-marker-alt',
+      label: '위치 프리셋',
+      panelEl: posPresetsPanel.el,
+      panelApi: posPresetsPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+
   if (ctx.engine) {
     propsUi = createKeyframePropertiesPanel({
       engine: ctx.engine,
@@ -170,6 +214,7 @@ export function mountEditorShell(root, ctx) {
       onPresetUpdated: (preset) => ctx.onPresetUpdated?.(preset),
       onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
       onPresetRemoved: (id) => ctx.onPresetRemoved?.(id),
+      onRenameMotion: (motionId, name) => ctx.onRenameMotion?.(motionId, name),
       getPresetStore: () => ctx.positionPresetStore ?? null,
       getSegmentStagePreview: () => ctx.segmentStagePreview ?? null,
       onChange: () => ctx.onKeyframeEdited?.(),
@@ -205,6 +250,7 @@ export function mountEditorShell(root, ctx) {
       getTimelineSnapshot: () => ctx.engine?.listTracks?.().map((t) => t.snapshot()) ?? [],
       getFoldersSnapshot: () => ctx.engine?.listFolders?.().map((f) => ({ ...f })) ?? [],
       getMotionsSnapshot: () => ctx.getMotionSnapshot?.() ?? [],
+      getMotionItem: (id) => ctx.motion?.get?.(id) ?? null,
       onDeploy: (groupId) => ctx.onDeployGroup?.(groupId),
       onPresetUpdated: (preset) => ctx.onPresetUpdated?.(preset),
       onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
@@ -228,6 +274,37 @@ export function mountEditorShell(root, ctx) {
       label: '그룹',
       panelEl: groupsPanel.el,
       panelApi: groupsPanel,
+      defaultOpen: true,
+      startCollapsed: true,
+    });
+  }
+
+  if (ctx.engine && ctx.motionTemplateStore) {
+    motionTemplatesUi = createMotionTemplatesPanelBody({
+      engine: ctx.engine,
+      motion: ctx.motion,
+      getTemplateStore: () => ctx.motionTemplateStore ?? null,
+      getPresetStore: () => ctx.positionPresetStore ?? null,
+      onPickPoint: (pick) => ctx.onPickMacroPoint?.(pick),
+      onPresetUpdated: (p) => ctx.onPresetUpdated?.(p),
+      onPositionPresetsChanged: () => ctx.onPositionPresetsChanged?.(),
+      onPresetRemoved: (id) => ctx.onPresetRemoved?.(id),
+      onSaveTemplate: () => ctx.onSaveMotionTemplate?.(),
+      onApplyTemplate: (result) => ctx.onApplyMotionTemplate?.(result),
+      applyToMotion: (motionId, templateId, pose) =>
+        ctx.applyMotionTemplate?.(motionId, templateId, pose) ?? false,
+    });
+    const tplPanel = createDockPanel('패턴 라이브러리', motionTemplatesUi.root, {
+      storageKey: 'dock-keyframe-macros',
+      defaultHeight: 420,
+      minHeight: 200,
+    });
+    rightRail.registerPanel({
+      id: 'keyframe-macros',
+      icon: 'fas fa-layer-group',
+      label: '패턴 라이브러리',
+      panelEl: tplPanel.el,
+      panelApi: tplPanel,
       defaultOpen: true,
       startCollapsed: true,
     });
@@ -341,6 +418,12 @@ export function mountEditorShell(root, ctx) {
     syncKeyframeProps: () => propsUi?.sync(),
     syncLightingPanel: () => lightingUi?.sync(),
     refreshGroups: () => groupsUi?.render(),
+    refreshMotionTemplates: () => motionTemplatesUi?.render(),
+    /** @param {string} id */
+    selectPatternLibraryEntry: (id) => motionTemplatesUi?.selectPattern?.(id),
+    openPatternLibraryPanel: () => rightRail.openPanel('keyframe-macros'),
+    openPositionPresetsPanel: () => rightRail.openPanel('position-presets'),
+    refreshPositionPresets: () => positionPresetsUi?.render(),
     refreshGroupsCatalog: () => groupsUi?.refreshCatalog?.(),
     refreshProjectPanel: () => projectPanelUi?.render(),
     openProjectPanel: () => leftRail.openPanel('project'),
