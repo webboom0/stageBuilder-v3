@@ -5,6 +5,8 @@
   "scripts": {
     "pages:build": "node scripts/prepare-pages-deploy.mjs",
     "pages:preview": "npx wrangler pages dev pages-dist",
-    "deploy:assets": "node scripts/ensure-deploy-assets.mjs"
+    "deploy:assets": "node scripts/ensure-deploy-assets.mjs",
+    "pages:set-api": "node scripts/set-pages-api-url.mjs",
+    "api:wait-connect": "node scripts/wait-and-connect-api.mjs"
   }
 }

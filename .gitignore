@@ -25,6 +25,9 @@ server/files/projects/**
 # Stage assets linked from v3 (large; local junction)
 server/files/stage/
 
+# Local deploy staging (FBX copied here; served via GitHub Release on Render)
+deploy/stage/*.fbx
+
 # Three.js runtime junction → pivot html/stageBuilder (local dev)
 /runtime
 

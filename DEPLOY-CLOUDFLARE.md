@@ -36,13 +36,34 @@ node scripts/ensure-deploy-assets.mjs
 
 ## 2. API 서버 — Render (먼저)
 
+### 한 번만 (Render Blueprint 연결)
+
+1. [Render Blueprint 새로 만들기](https://dashboard.render.com/select-repo?type=blueprint) 클릭
+2. GitHub `webboom0/stageBuilder-v3` 선택 · Branch **`v4`**
+3. `render.yaml` 확인 후 **Apply** / **Deploy Blueprint**
+4. 배포 완료 후 URL 확인:  
+   `https://stagebuilder-v4-api.onrender.com/api/health` → `{"status":"ok",...}`
+
+> 무대 FBX는 GitHub Release `stage-deploy-assets-v1`에서 Render 빌드 시 자동 다운로드됩니다 (`scripts/ensure-deploy-assets.mjs`).
+
+### Pages API URL 자동 연결 (로컬 PC)
+
+Render 배포가 끝나면 (또는 배포 중 대기):
+
+```powershell
+npm run api:wait-connect
+# 또는 API URL 직접 지정:
+node scripts/set-pages-api-url.mjs https://stagebuilder-v4-api.onrender.com
+```
+
+`set-pages-api-url.mjs`는 Cloudflare `stagebuilder` 프로젝트의 `STAGEBUILDER_API_URL`을 바꾸고 재배포를 트리거합니다.
+
+### 수동 (Render 대시보드)
+
 1. Render → **New** → **Blueprint**
 2. Repo: `webboom0/stageBuilder-v3` · Branch: **`v4`**
 3. 루트의 `render.yaml` 적용
-4. (선택) Environment → `STAGE_ASSETS_SRC` = 빌드 시 FBX가 있는 경로  
-   - Render 빌드 환경에 파일이 없으면, 배포 후 **Shell**로 `server/files/stage/`에 직접 업로드
-5. 배포 완료 후 URL 확인:  
-   `https://stagebuilder-v4-api.onrender.com/api/health` → `{"status":"ok",...}`
+4. 배포 완료 후 Cloudflare Pages Variables → `STAGEBUILDER_API_URL` = Render URL → **Retry deployment**
 
 **환경 변수 (render.yaml에 포함됨)**
 
