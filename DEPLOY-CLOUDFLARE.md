@@ -68,6 +68,7 @@ node scripts/ensure-deploy-assets.mjs
 | Framework preset | None |
 | Build command | `node scripts/prepare-pages-deploy.mjs` |
 | Build output directory | `pages-dist` |
+| Deploy command | `node scripts/cf-pages-deploy.mjs` |
 | Root directory | `/` (repo 루트) |
 
 4. **Environment variables** (Production + Preview)
@@ -145,11 +146,42 @@ Pages 환경 변수 `STAGEBUILDER_API_URL`을 Render 커스텀 도메인으로 �
 
 ---
 
+## 9. 빌드 오류 해결
+
+### Building 실패 — `Cannot find module prepare-pages-deploy.mjs`
+
+- Production branch가 **`v4`** 인지 확인 (`main`에는 스크립트 없음)
+- `v4`에 push 되었는지 GitHub에서 확인
+
+### Deploying 실패 — `Authentication error [code: 10000]`
+
+빌드는 성공했는데 `npx wrangler pages deploy` 에서 실패하는 경우:
+
+1. **Variables**에서 `CLOUDFLARE_API_TOKEN`을 **직접 넣었다면 삭제**  
+   (Git 연동 빌드는 Cloudflare가 토큰을 자동 주입 — 직접 넣은 토큰이 권한 부족이면 10000 오류)
+
+2. **Deploy command** 변경:
+   ```text
+   node scripts/cf-pages-deploy.mjs
+   ```
+   (또는 `npx wrangler pages deploy pages-dist --project-name=stagebuilder-v3`)
+
+3. **Settings → Builds** — 프로젝트 이름이 `stagebuilder-v3` 인지 확인 (`wrangler.toml` `name`과 동일)
+
+4. 저장 후 **Retry build** (반드시 **`v4`** 브랜치 빌드)
+
+### Deploying 실패 — `Missing Pages project name`
+
+Deploy command에 `--project-name=stagebuilder-v3` 추가, 또는 `wrangler.toml` + `scripts/cf-pages-deploy.mjs` 사용.
+
+---
+
 ## 관련 파일
 
 | 파일 | 역할 |
 |------|------|
 | `scripts/prepare-pages-deploy.mjs` | Pages 빌드 (editor + Three.js + API URL 주입) |
+| `scripts/cf-pages-deploy.mjs` | Cloudflare Deploy 단계 (wrangler pages deploy) |
 | `scripts/ensure-deploy-assets.mjs` | Render 빌드 시 stage FBX 복사 |
 | `render.yaml` | Render Blueprint |
 | `editor/js/config/app-config.js` | `__STAGEBUILDER_API__` · `/files/stage/` URL |
