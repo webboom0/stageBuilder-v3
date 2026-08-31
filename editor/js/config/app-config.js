@@ -10,7 +10,11 @@
  *   - Assets API → window.location.origin (same host)
  *   - Upload editor/ only; do not change pivot server.js
  *
- * Optional local override (NOT production):
+ * Cloudflare Pages test (editor on *.pages.dev, API on Render 등):
+ *   - Build injects window.__STAGEBUILDER_API__ = 'https://api.example.com'
+ *   - Stage shell FBX → API /files/stage/
+ *
+ * Optional override:
  *   window.__STAGEBUILDER_API__ = 'http://127.0.0.1:3000'
  */
 
@@ -39,25 +43,26 @@ function resolveApiBaseUrl() {
   }
 
   const { hostname, origin, protocol } = window.location;
+  const override = window.__STAGEBUILDER_API__;
+
+  if (override) {
+    const url = String(override).replace(/\/$/, '');
+    if ((protocol === 'file:' || isLocalDevHost(hostname)) && isProductionPivotUrl(url)) {
+      console.warn(
+        '[StageBuilder] Local dev cannot use production PIVOT API. Using',
+        LOCAL_DEV_DEFAULT,
+      );
+      return LOCAL_DEV_DEFAULT;
+    }
+    return url;
+  }
 
   // file:// or unknown — treat as local dev
   if (protocol === 'file:' || isLocalDevHost(hostname)) {
-    const override = window.__STAGEBUILDER_API__;
-    if (override) {
-      const url = String(override).replace(/\/$/, '');
-      if (isProductionPivotUrl(url)) {
-        console.warn(
-          '[StageBuilder] Local dev cannot use production PIVOT API. Using',
-          LOCAL_DEV_DEFAULT,
-        );
-        return LOCAL_DEV_DEFAULT;
-      }
-      return url;
-    }
     return LOCAL_DEV_DEFAULT;
   }
 
-  // Deployed (e.g. pivot.mhsoft.co.kr) — same-origin API only
+  // Same-origin deploy (e.g. pivot.mhsoft.co.kr/stageBuilder/)
   return origin;
 }
 
@@ -93,12 +98,12 @@ export function filesUrl(path) {
 }
 
 /**
- * Stage building shell FBX — relative path (NOT Assets API).
- * From `/stageBuilder/index.html` → `/files/stage/*.fbx` on the same host.
+ * Stage building shell FBX — served from API /files/stage/.
+ * Same-origin (PIVOT) or remote API (Cloudflare Pages test).
  * @param {string} filename
  */
 export function stageShellUrl(filename) {
-  return `/files/stage/${filename}`;
+  return `${FILES_BASE}/stage/${filename}`;
 }
 
 export const API = {

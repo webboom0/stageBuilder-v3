@@ -1,0 +1,10 @@
+{
+  "name": "stagebuilder-v4",
+  "private": true,
+  "description": "StageBuilder v4 — editor + API",
+  "scripts": {
+    "pages:build": "node scripts/prepare-pages-deploy.mjs",
+    "pages:preview": "npx wrangler pages dev pages-dist",
+    "deploy:assets": "node scripts/ensure-deploy-assets.mjs"
+  }
+}

@@ -62,6 +62,8 @@ New-Item -ItemType Junction -Path "server\files" -Target $v3Root
 
 PIVOT에 `editor/`만 배포하면 API는 **그 사이트 origin**을 자동 사용합니다. 별도 설정 불필요.
 
+**Cloudflare Pages 테스트 사이트:** [DEPLOY-CLOUDFLARE.md](DEPLOY-CLOUDFLARE.md) — Pages(에디터) + Render(API), `v4` push 자동 배포.
+
 ### 5. Phase 0 완료 기준
 
 - [ ] `npm run dev` 후 `/api/health` OK

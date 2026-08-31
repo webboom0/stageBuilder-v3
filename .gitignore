@@ -28,6 +28,10 @@ server/files/stage/
 # Three.js runtime junction → pivot html/stageBuilder (local dev)
 /runtime
 
+# Cloudflare Pages build output
+pages-dist/
+.pages-three-cache/
+
 # GitHub 100MB limit / local-only large assets (if present under root files/)
 files/fbx/2.fbx
 files/fbx/1.fbx

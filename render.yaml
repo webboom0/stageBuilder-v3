@@ -1,0 +1,25 @@
+# Render Blueprint — StageBuilder v4 API (Cloudflare Pages test backend)
+# Dashboard: New → Blueprint → connect repo, branch v4
+#
+# After deploy, set STAGEBUILDER_API_URL on Cloudflare Pages to the Render URL.
+
+services:
+  - type: web
+    name: stagebuilder-v4-api
+    runtime: node
+    region: singapore
+    plan: free
+    branch: v4
+    buildCommand: node scripts/ensure-deploy-assets.mjs && cd server && npm install
+    startCommand: cd server && node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DEV_SKIP_AUTH
+        value: "1"
+      - key: PORT
+        value: "10000"
+      # Optional — path to background.fbx + arena_stage.fbx on Render build machine
+      # - key: STAGE_ASSETS_SRC
+      #   sync: false
