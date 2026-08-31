@@ -156,8 +156,12 @@ function formatStatus(api, stageManager, extra = '', projectStore = null) {
   return parts.join(' | ');
 }
 
-async function fetchJson(path) {
-  const res = await fetch(apiUrl(path), { credentials: 'include' });
+async function fetchJson(path, options = {}) {
+  const { timeoutMs = 25000 } = options;
+  const res = await fetch(apiUrl(path), {
+    credentials: 'include',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -2260,8 +2264,10 @@ async function main(initialProjectStore) {
 
 async function entry() {
   initTooltips(document.body);
+  setStatus('API 연결 중…');
   const api = await checkApi();
   if (api?.projectsOk) {
+    setStatus('프로젝트 목록 불러오는 중…');
     const projectStore = await runProjectHub();
     await main(projectStore);
     return;

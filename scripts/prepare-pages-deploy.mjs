@@ -19,13 +19,19 @@ const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'pages-dist');
 const EDITOR = path.join(ROOT, 'editor');
 
-const API_URL = (process.env.STAGEBUILDER_API_URL || '').replace(/\/$/, '');
-if (!API_URL) {
-  console.error(
-    '[pages:build] STAGEBUILDER_API_URL is required.\n'
-    + '  Example: STAGEBUILDER_API_URL=https://your-api.onrender.com node scripts/prepare-pages-deploy.mjs',
-  );
-  process.exit(1);
+const DEFAULT_RENDER_API = 'https://stagebuilder-v4-api.onrender.com';
+
+let API_URL = (process.env.STAGEBUILDER_API_URL || '').replace(/\/$/, '');
+let apiHost = '';
+try {
+  apiHost = API_URL ? new URL(API_URL).hostname : '';
+} catch {
+  apiHost = '';
+}
+if (!API_URL || /\.pages\.dev$/i.test(apiHost)) {
+  const bad = API_URL || '(empty)';
+  console.warn(`[pages:build] STAGEBUILDER_API_URL invalid (${bad}) — using ${DEFAULT_RENDER_API}`);
+  API_URL = DEFAULT_RENDER_API;
 }
 
 const RUNTIME_CANDIDATES = [
