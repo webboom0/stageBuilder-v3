@@ -7,6 +7,10 @@
     "pages:preview": "npx wrangler pages dev pages-dist",
     "deploy:assets": "node scripts/ensure-deploy-assets.mjs",
     "pages:set-api": "node scripts/set-pages-api-url.mjs",
-    "api:wait-connect": "node scripts/wait-and-connect-api.mjs"
+    "api:wait-connect": "node scripts/wait-and-connect-api.mjs",
+    "worker:install": "npm install --prefix workers",
+    "worker:dev": "npm run dev --prefix workers",
+    "worker:deploy": "node scripts/deploy-worker-api.mjs",
+    "r2:upload-library": "node scripts/upload-library-to-r2.mjs"
   }
 }

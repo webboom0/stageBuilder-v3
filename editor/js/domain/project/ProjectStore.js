@@ -1,3 +1,4 @@
+import { resolveProjectMetaFromStageProfile } from '../stage/StageProfile.js';
 import { fetchProject, fetchScene, saveProjectMeta, addScene as apiAddScene, deleteScene as apiDeleteScene, saveScene, reorderScenes as apiReorderScenes } from './projectApi.js';
 import { applyScene, persistScene, serializeScene } from './SceneDocument.js';
 import { createSceneLoadReport, verifySceneAssets } from './sceneLoadReport.js';
@@ -212,6 +213,14 @@ export class ProjectStore {
     if (patch.stageProfile) {
       p.stageProfile = { ...patch.stageProfile };
     }
+    this.dirty = true;
+  }
+
+  /** 무대 패널 규격 변경 → project.venue / project.stageProfile 동기화 */
+  syncStageProfileMeta(profile) {
+    const meta = resolveProjectMetaFromStageProfile(profile);
+    this.project.venue = meta.venue;
+    this.project.stageProfile = { ...meta.stageProfile };
     this.dirty = true;
   }
 

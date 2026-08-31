@@ -2127,6 +2127,10 @@ async function main(initialProjectStore) {
       try {
         await yieldForLoadingPaint();
         stageManager.applyProfile({ widthM, depthM, ...extras });
+        if (projectStore) {
+          projectStore.syncStageProfileMeta(stageManager.profile);
+          shellRef.current?.refreshProjectPanel?.();
+        }
         videoBgRef.current.syncToStage(stageManager);
         light.ensureHouseLights();
         fixtures.refit();

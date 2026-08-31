@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "stagebuilder-v4-api",
+  "account_id": "50020fa67496023f6b2349914dace964",
+  "main": "src/index.js",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "DEV_SKIP_AUTH": "1"
+  },
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "stagebuilder-v4-files"
+    }
+  ]
+}

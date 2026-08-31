@@ -7,10 +7,12 @@ PIVOT 점검 중 **외부 테스터**가 에디터 전체(저장·업로드·프
     ↓
 Cloudflare Pages (*.pages.dev)     ← editor 정적 파일 (v4 push 시 자동 빌드)
     ↓ API 호출
-Render Web Service                 ← Node API + 파일 저장 (v4 push 시 자동 배포)
+Cloudflare Workers + R2 (권장)     ← 슬립 없음 · 파일 영구 저장
+    또는 Render Web Service        ← 레거시 (무료는 15분 슬립)
 ```
 
-> **Pages만으로는 안 됩니다.** 업로드·프로젝트 저장은 Render API가 처리합니다.
+> **Pages만으로는 안 됩니다.** 업로드·프로젝트 저장은 Workers API 또는 Render API가 처리합니다.  
+> **PIVOT 서버(`server.js`) 수정 불필요** · **`editor/` 코드 변경 없음** (API URL만 Pages 빌드 시 주입).
 
 ---
 
@@ -19,9 +21,9 @@ Render Web Service                 ← Node API + 파일 저장 (v4 push 시 자
 | 항목 | 내용 |
 |------|------|
 | GitHub | `webboom0/stageBuilder-v3` · branch **`v4`** |
-| Cloudflare | 계정 + Pages 프로젝트 생성 권한 |
-| Render | [render.com](https://render.com) 무료 계정 |
-| 무대 FBX | `background.fbx`, `arena_stage.fbx` (v3/pivot `files/stage/`) |
+| Cloudflare | 계정 + Pages + Workers + R2 |
+| Render | (선택) 레거시 API — [render.com](https://render.com) |
+| 무대 FBX | `background.fbx`, `arena_stage.fbx` → **R2** `files/stage/` ([R2-UPLOAD.md](./R2-UPLOAD.md)) |
 
 로컬에서 FBX 확인:
 
@@ -34,7 +36,61 @@ node scripts/ensure-deploy-assets.mjs
 
 ---
 
-## 2. API 서버 — Render (먼저)
+## 2. API 서버 — Workers + R2 (권장)
+
+슬립 없이 상시 동작 · 프로젝트·업로드 데이터 R2 영구 저장.
+
+### 한 번만 — Worker 배포 + Pages 연결
+
+```powershell
+npx wrangler login
+npm run worker:deploy
+```
+
+`deploy-worker-api.mjs`가:
+1. R2 버킷 `stagebuilder-v4-files` 생성 (없으면)
+2. `workers/` Worker 배포
+3. Pages `STAGEBUILDER_API_URL` 자동 갱신 + 재배포 트리거
+
+배포 후 URL 확인 (`workers/deploy-url.txt`에 저장됨):
+
+```
+https://stagebuilder-v4-api.<account>.workers.dev/api/health
+→ {"status":"ok","backend":"workers-r2",...}
+```
+
+Worker만 다시 배포 (Pages 연결 생략):
+
+```powershell
+node scripts/deploy-worker-api.mjs --skip-pages
+node scripts/set-pages-api-url.mjs https://stagebuilder-v4-api.<account>.workers.dev
+```
+
+### R2 라이브러리 업로드 (직접)
+
+공통 음원·FBX·소품은 **R2에 직접** 올립니다. 자세한 경로: **[R2-UPLOAD.md](./R2-UPLOAD.md)**
+
+```powershell
+# 로컬 server/files/ → R2 일괄 업로드
+npm run r2:upload-library
+
+# 또는 Dashboard에서 files/stage/background.fbx 등 수동 업로드
+```
+
+**최소 필수:** `files/stage/background.fbx`, `files/stage/arena_stage.fbx`
+
+### 로컬 Worker 개발
+
+```powershell
+cd workers
+npm install
+npm run dev
+# → http://localhost:8787/api/health  (R2는 remote 바인딩 — wrangler dev 기본)
+```
+
+---
+
+## 2b. API 서버 — Render (레거시)
 
 ### 한 번만 (Render Blueprint 연결)
 
@@ -96,7 +152,7 @@ node scripts/set-pages-api-url.mjs https://stagebuilder-v4-api.onrender.com
 
 | 변수 | 예시 |
 |------|------|
-| `STAGEBUILDER_API_URL` | `https://stagebuilder-v4-api.onrender.com` |
+| `STAGEBUILDER_API_URL` | `https://stagebuilder-v4-api.<account>.workers.dev` |
 
 5. **Save and Deploy**
 
@@ -112,8 +168,12 @@ node scripts/set-pages-api-url.mjs https://stagebuilder-v4-api.onrender.com
 
 ```
 git push origin v4
-    ├─→ Render: API 재배포 (render.yaml)
     └─→ Cloudflare Pages: pages-dist 빌드·배포
+
+Worker API (별도):
+    npm run worker:deploy   ← workers/ 변경 시
+Render (레거시):
+    git push → render.yaml 재배포
 ```
 
 **주의:** API URL을 바꾸면 Cloudflare Pages의 `STAGEBUILDER_API_URL`도 같이 수정하세요.
@@ -201,8 +261,13 @@ Deploy command에 `--project-name=stagebuilder-v3` 추가, 또는 `wrangler.toml
 
 | 파일 | 역할 |
 |------|------|
+| `workers/` | Cloudflare Workers API (R2 저장) |
+| `workers/wrangler.jsonc` | Worker + R2 버킷 바인딩 |
+| `R2-UPLOAD.md` | R2 라이브러리 업로드 가이드 |
+| `scripts/deploy-worker-api.mjs` | Worker 배포 + Pages API URL 연결 |
+| `scripts/upload-library-to-r2.mjs` | 로컬 files/ → R2 업로드 |
 | `scripts/prepare-pages-deploy.mjs` | Pages 빌드 (editor + Three.js + API URL 주입) |
 | `scripts/cf-pages-deploy.mjs` | Cloudflare Deploy 단계 (wrangler pages deploy) |
-| `scripts/ensure-deploy-assets.mjs` | Render 빌드 시 stage FBX 복사 |
-| `render.yaml` | Render Blueprint |
+| `scripts/ensure-deploy-assets.mjs` | stage FBX 확보 (로컬/R2 업로드용) |
+| `render.yaml` | Render Blueprint (레거시) |
 | `editor/js/config/app-config.js` | `__STAGEBUILDER_API__` · `/files/stage/` URL |

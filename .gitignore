@@ -34,6 +34,8 @@ deploy/stage/*.fbx
 # Cloudflare Pages build output
 pages-dist/
 .pages-three-cache/
+.wrangler/
+workers/files/
 
 # GitHub 100MB limit / local-only large assets (if present under root files/)
 files/fbx/2.fbx

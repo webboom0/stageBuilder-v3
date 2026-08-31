@@ -20,6 +20,12 @@ const OUT = path.join(ROOT, 'pages-dist');
 const EDITOR = path.join(ROOT, 'editor');
 
 const DEFAULT_RENDER_API = 'https://stagebuilder-v4-api.onrender.com';
+const deployUrlFile = path.join(ROOT, 'workers', 'deploy-url.txt');
+let DEFAULT_WORKER_API = 'https://stagebuilder-v4-api.tmaniaj.workers.dev';
+if (fs.existsSync(deployUrlFile)) {
+  DEFAULT_WORKER_API = fs.readFileSync(deployUrlFile, 'utf8').trim().replace(/\/$/, '') || DEFAULT_WORKER_API;
+}
+const DEFAULT_API = process.env.DEFAULT_API_BACKEND === 'render' ? DEFAULT_RENDER_API : DEFAULT_WORKER_API;
 
 let API_URL = (process.env.STAGEBUILDER_API_URL || '').replace(/\/$/, '');
 let apiHost = '';
@@ -30,8 +36,8 @@ try {
 }
 if (!API_URL || /\.pages\.dev$/i.test(apiHost)) {
   const bad = API_URL || '(empty)';
-  console.warn(`[pages:build] STAGEBUILDER_API_URL invalid (${bad}) — using ${DEFAULT_RENDER_API}`);
-  API_URL = DEFAULT_RENDER_API;
+  console.warn(`[pages:build] STAGEBUILDER_API_URL invalid (${bad}) — using ${DEFAULT_API}`);
+  API_URL = DEFAULT_API;
 }
 
 const RUNTIME_CANDIDATES = [

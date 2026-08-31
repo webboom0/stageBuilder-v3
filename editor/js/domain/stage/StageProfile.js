@@ -40,13 +40,29 @@ export const GRAND_HALL_DEFAULT = Object.freeze({
   unit: 'meter',
 });
 
-export const DEFAULT_STAGE_PROFILE = GRAND_HALL_DEFAULT;
+/** 예술의전당 예술극장 (극장2) — 12×12.6m, v4 기본 무대 */
+export const SAC_ARTS_HALL2 = Object.freeze({
+  id: 'sac-arts-hall2',
+  name: '예술의전당 예술극장 (극장2)',
+  widthM: 12,
+  depthM: 12.6,
+  areaM2: 151.2,
+  heightM: 8,
+  prosceniumWidthM: 12,
+  prosceniumHeightM: 8,
+  origin: 'center',
+  humanHeightM: 1.7,
+  unit: 'meter',
+});
+
+export const DEFAULT_STAGE_PROFILE = SAC_ARTS_HALL2;
 
 /**
  * Real-world hall presets (W × D × 프로시니엄 H where known).
  * @type {ReadonlyArray<typeof GRAND_HALL_DEFAULT>}
  */
 export const STAGE_PROFILE_PRESETS = Object.freeze([
+  SAC_ARTS_HALL2,
   GRAND_HALL_DEFAULT,
   Object.freeze({
     id: 'sejong-grand',
@@ -114,11 +130,12 @@ export const SHOW_GENRES = Object.freeze([
  * @type {ReadonlyArray<{ venue: string, scale: string, profileId: string }>}
  */
 export const PROJECT_VENUE_GROUPS = Object.freeze([
+  { venue: '예술의전당', scale: '예술극장 극장2', profileId: 'sac-arts-hall2' },
+  { venue: '예술의전당', scale: '오페라극장 (주무대)', profileId: 'sac-opera' },
   { venue: '대공연장', scale: '표준', profileId: 'grand-hall-standard' },
   { venue: '세종예술의전당', scale: '대공연장', profileId: 'sejong-grand' },
   { venue: '국립중앙박물관', scale: '극장 (용)', profileId: 'museum-yong' },
   { venue: '청양문화예술회관', scale: '대공연장', profileId: 'cheongyang-grand' },
-  { venue: '예술의전당', scale: '오페라극장 (주무대)', profileId: 'sac-opera' },
 ]);
 
 /** @returns {string[]} */
@@ -179,6 +196,58 @@ export function getStageProfileForVenueScale(venue, scale) {
   const group = getProjectVenueGroup(venue, scale);
   const preset = group ? getStageProfilePreset(group.profileId) : null;
   return preset ? { ...preset } : { ...DEFAULT_STAGE_PROFILE };
+}
+
+/** @param {number} n */
+function formatStageMeter(n) {
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(1)));
+}
+
+/**
+ * 무대 패널 profile → 프로젝트 venue / stageProfile (프로젝트 수정 폼과 동일 규칙)
+ * @param {Partial<typeof GRAND_HALL_DEFAULT>} profile
+ * @returns {{ venue: string, stageProfile: object }}
+ */
+export function resolveProjectMetaFromStageProfile(profile) {
+  const p = profile && profile.widthM > 0 && profile.depthM > 0 ? profile : DEFAULT_STAGE_PROFILE;
+
+  if (p.id && p.id !== 'custom') {
+    const group = PROJECT_VENUE_GROUPS.find((g) => g.profileId === p.id);
+    const preset = getStageProfilePreset(p.id);
+    if (group && preset) {
+      return {
+        venue: formatProjectVenueLabel(group.venue, group.scale),
+        stageProfile: { ...preset },
+      };
+    }
+    if (preset) {
+      const mapped = PROJECT_VENUE_GROUPS.find((g) => g.profileId === preset.id);
+      return {
+        venue: mapped ? formatProjectVenueLabel(mapped.venue, mapped.scale) : preset.name,
+        stageProfile: { ...preset },
+      };
+    }
+  }
+
+  const bySize = STAGE_PROFILE_PRESETS.find(
+    (preset) => preset.widthM === p.widthM && preset.depthM === p.depthM,
+  );
+  if (bySize) {
+    const group = PROJECT_VENUE_GROUPS.find((g) => g.profileId === bySize.id);
+    return {
+      venue: group ? formatProjectVenueLabel(group.venue, group.scale) : bySize.name,
+      stageProfile: { ...bySize },
+    };
+  }
+
+  const w = p.widthM;
+  const d = p.depthM;
+  return {
+    venue: `직접 입력 · ${formatStageMeter(w)}×${formatStageMeter(d)}m`,
+    stageProfile: {
+      ...createStageProfile({ ...p, id: 'custom', name: '' }),
+    },
+  };
 }
 
 /**
