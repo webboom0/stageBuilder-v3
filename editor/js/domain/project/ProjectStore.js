@@ -194,6 +194,7 @@ export class ProjectStore {
    *   director?: string,
    *   startDate?: string,
    *   endDate?: string,
+   *   stageProfile?: object,
    * }} patch
    */
   applyMetaPatch(patch) {
@@ -208,6 +209,9 @@ export class ProjectStore {
     p.startDate = String(patch.startDate ?? p.startDate ?? '').trim();
     p.endDate = String(patch.endDate ?? p.endDate ?? '').trim();
     p.showPeriod = p.startDate && p.endDate ? `${p.startDate} ~ ${p.endDate}` : (p.showPeriod || '');
+    if (patch.stageProfile) {
+      p.stageProfile = { ...patch.stageProfile };
+    }
     this.dirty = true;
   }
 

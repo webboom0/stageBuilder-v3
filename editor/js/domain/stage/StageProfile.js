@@ -95,6 +95,92 @@ export function getStageProfilePreset(id) {
   return STAGE_PROFILE_PRESETS.find((p) => p.id === id) ?? null;
 }
 
+/** 공연 장르 — 프로젝트 생성/수정 폼 */
+export const SHOW_GENRES = Object.freeze([
+  '뮤지컬',
+  '연극',
+  '오페라',
+  '발레',
+  '무용',
+  '콘서트',
+  '클래식',
+  '국악',
+  '아동·가족',
+  '기타',
+]);
+
+/**
+ * 공연장소 + 규모 → stageProfile 프리셋
+ * @type {ReadonlyArray<{ venue: string, scale: string, profileId: string }>}
+ */
+export const PROJECT_VENUE_GROUPS = Object.freeze([
+  { venue: '대공연장', scale: '표준', profileId: 'grand-hall-standard' },
+  { venue: '세종예술의전당', scale: '대공연장', profileId: 'sejong-grand' },
+  { venue: '국립중앙박물관', scale: '극장 (용)', profileId: 'museum-yong' },
+  { venue: '청양문화예술회관', scale: '대공연장', profileId: 'cheongyang-grand' },
+  { venue: '예술의전당', scale: '오페라극장 (주무대)', profileId: 'sac-opera' },
+]);
+
+/** @returns {string[]} */
+export function getProjectVenueNames() {
+  return [...new Set(PROJECT_VENUE_GROUPS.map((g) => g.venue))];
+}
+
+/** @param {string} venue */
+export function getProjectScalesForVenue(venue) {
+  return PROJECT_VENUE_GROUPS.filter((g) => g.venue === venue);
+}
+
+/** @param {string} venue @param {string} scale */
+export function getProjectVenueGroup(venue, scale) {
+  return PROJECT_VENUE_GROUPS.find((g) => g.venue === venue && g.scale === scale) ?? null;
+}
+
+/** @param {string} profileId */
+export function getProjectVenueGroupByProfileId(profileId) {
+  return PROJECT_VENUE_GROUPS.find((g) => g.profileId === profileId) ?? PROJECT_VENUE_GROUPS[0];
+}
+
+/** @param {string} venue @param {string} scale */
+export function formatProjectVenueLabel(venue, scale) {
+  if (venue === '대공연장' && scale === '표준') return '대공연장 (표준)';
+  return `${venue}/${scale}`;
+}
+
+/**
+ * @param {{ stageProfile?: { id?: string } | null, venue?: string }} opts
+ * @returns {{ venue: string, scale: string }}
+ */
+export function resolveProjectVenueInitial(opts = {}) {
+  const { stageProfile, venue: venueText } = opts;
+  if (stageProfile?.id) {
+    const g = getProjectVenueGroupByProfileId(stageProfile.id);
+    if (g) return { venue: g.venue, scale: g.scale };
+  }
+  if (venueText) {
+    const slash = venueText.indexOf('/');
+    if (slash > 0) {
+      const v = venueText.slice(0, slash);
+      const s = venueText.slice(slash + 1);
+      const g = getProjectVenueGroup(v, s);
+      if (g) return { venue: g.venue, scale: g.scale };
+    }
+    const byFull = PROJECT_VENUE_GROUPS.find(
+      (g) => formatProjectVenueLabel(g.venue, g.scale) === venueText.trim(),
+    );
+    if (byFull) return { venue: byFull.venue, scale: byFull.scale };
+  }
+  const d = PROJECT_VENUE_GROUPS[0];
+  return { venue: d.venue, scale: d.scale };
+}
+
+/** @param {string} venue @param {string} scale */
+export function getStageProfileForVenueScale(venue, scale) {
+  const group = getProjectVenueGroup(venue, scale);
+  const preset = group ? getStageProfilePreset(group.profileId) : null;
+  return preset ? { ...preset } : { ...DEFAULT_STAGE_PROFILE };
+}
+
 /**
  * @param {Partial<typeof GRAND_HALL_DEFAULT>} overrides
  */

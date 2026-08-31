@@ -76,6 +76,7 @@ export function showProjectManagerDialog(opts = {}) {
             endDate: project.endDate || '',
             venue: project.venue || '',
             director: project.director || '',
+            stageProfile: project.stageProfile || null,
           },
         });
         if (!meta) return;
@@ -93,6 +94,7 @@ export function showProjectManagerDialog(opts = {}) {
         next.director = String(meta.director ?? '').trim();
         next.startDate = String(meta.startDate ?? '').trim();
         next.endDate = String(meta.endDate ?? '').trim();
+        if (meta.stageProfile) next.stageProfile = { ...meta.stageProfile };
         next.showPeriod = next.startDate && next.endDate
           ? `${next.startDate} ~ ${next.endDate}`
           : (next.showPeriod || '');

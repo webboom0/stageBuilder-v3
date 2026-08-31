@@ -1,9 +1,17 @@
-import { DEFAULT_STAGE_PROFILE } from '../../domain/stage/StageProfile.js';
+import {
+  DEFAULT_STAGE_PROFILE,
+  SHOW_GENRES,
+  formatProjectVenueLabel,
+  getProjectScalesForVenue,
+  getProjectVenueNames,
+  getStageProfileForVenueScale,
+  resolveProjectVenueInitial,
+} from '../../domain/stage/StageProfile.js';
 
 /**
  * @param {{
  *   mode?: 'create' | 'edit',
- *   initial?: Record<string, string | undefined>,
+ *   initial?: Record<string, string | undefined> & { stageProfile?: { id?: string } | null },
  *   title?: string,
  *   subtitle?: string,
  *   submitLabel?: string,
@@ -19,6 +27,11 @@ export function showProjectMetaPopup(opts = {}) {
     : '공연 기본 정보를 입력해주세요');
   const submitLabel = opts.submitLabel || (mode === 'edit' ? '저장' : '프로젝트 시작');
 
+  const venueInit = resolveProjectVenueInitial({
+    stageProfile: initial.stageProfile,
+    venue: initial.venue || '',
+  });
+
   return new Promise((resolve) => {
     document.querySelector('.sb-project-setup-overlay')?.remove();
 
@@ -32,16 +45,17 @@ export function showProjectMetaPopup(opts = {}) {
       <p class="sb-project-setup__subtitle">${escapeHtml(subtitle)}</p>
       <form class="sb-project-setup__form" novalidate>
         ${field('공연명', 'showName', 'text', '예: 로미오와 줄리엣', true, initial.showName || initial.name || '')}
-        ${field('장르', 'genre', 'text', '예: 뮤지컬, 연극', false, initial.genre || '')}
+        ${genreSelect(initial.genre || '')}
         <div class="sb-project-field">
           <label class="sb-project-label">공연기간</label>
           <div class="sb-project-period">
-            <input class="sb-project-input" type="date" name="startDate" value="${escapeAttr(initial.startDate || '')}" />
+            <input class="sb-project-input sb-project-input--date" type="date" name="startDate" value="${escapeAttr(initial.startDate || '')}" />
             <span class="sb-project-period__sep">~</span>
-            <input class="sb-project-input" type="date" name="endDate" value="${escapeAttr(initial.endDate || '')}" />
+            <input class="sb-project-input sb-project-input--date" type="date" name="endDate" value="${escapeAttr(initial.endDate || '')}" />
           </div>
         </div>
-        ${field('공연장소/규모', 'venue', 'text', '예: 예술의전당/대극장', false, initial.venue || '')}
+        ${venueSelect(venueInit.venue)}
+        ${scaleSelect(venueInit.venue, venueInit.scale)}
         ${field('연출', 'director', 'text', '예: 홍길동', false, initial.director || '')}
         <div class="sb-project-setup__actions">
           <button type="button" class="sb-project-btn sb-project-btn--cancel">취소</button>
@@ -54,6 +68,15 @@ export function showProjectMetaPopup(opts = {}) {
     document.body.appendChild(overlay);
 
     const form = /** @type {HTMLFormElement} */ (popup.querySelector('form'));
+    const venueSelectEl = /** @type {HTMLSelectElement} */ (popup.querySelector('[name="venueName"]'));
+    const scaleSelectEl = /** @type {HTMLSelectElement} */ (popup.querySelector('[name="venueScale"]'));
+
+    venueSelectEl?.addEventListener('change', () => {
+      const scales = getProjectScalesForVenue(venueSelectEl.value);
+      const prev = scaleSelectEl.value;
+      scaleSelectEl.innerHTML = renderScaleOptions(venueSelectEl.value, scales.some((s) => s.scale === prev) ? prev : scales[0]?.scale);
+    });
+
     const close = (result) => {
       overlay.remove();
       resolve(result);
@@ -72,21 +95,59 @@ export function showProjectMetaPopup(opts = {}) {
       }
       const startDate = String(fd.get('startDate') || '');
       const endDate = String(fd.get('endDate') || '');
+      const venueName = String(fd.get('venueName') || '');
+      const venueScale = String(fd.get('venueScale') || '');
       const meta = {
         showName,
         genre: String(fd.get('genre') || '').trim(),
         startDate,
         endDate,
         showPeriod: startDate && endDate ? `${startDate} ~ ${endDate}` : '',
-        venue: String(fd.get('venue') || '').trim(),
+        venue: formatProjectVenueLabel(venueName, venueScale),
         director: String(fd.get('director') || '').trim(),
+        stageProfile: getStageProfileForVenueScale(venueName, venueScale),
       };
-      if (mode === 'create') {
+      if (mode === 'create' && !meta.stageProfile) {
         meta.stageProfile = { ...DEFAULT_STAGE_PROFILE };
       }
       close(meta);
     });
   });
+}
+
+function genreSelect(selected) {
+  const options = [
+    { value: '', label: '선택하세요' },
+    ...SHOW_GENRES.map((g) => ({ value: g, label: g })),
+  ];
+  return selectField('장르', 'genre', options, selected || '');
+}
+
+function venueSelect(selectedVenue) {
+  const options = getProjectVenueNames().map((v) => ({ value: v, label: v }));
+  return selectField('공연장소', 'venueName', options, selectedVenue);
+}
+
+function scaleSelect(venue, selectedScale) {
+  const options = getProjectScalesForVenue(venue).map((g) => ({
+    value: g.scale,
+    label: g.scale,
+  }));
+  return `
+    <div class="sb-project-field">
+      <label class="sb-project-label">규모</label>
+      <select class="sb-project-select" name="venueScale">
+        ${renderScaleOptions(venue, selectedScale)}
+      </select>
+    </div>`;
+}
+
+/** @param {string} venue @param {string} [selectedScale] */
+function renderScaleOptions(venue, selectedScale) {
+  return getProjectScalesForVenue(venue).map((g) => {
+    const sel = g.scale === selectedScale ? ' selected' : '';
+    return `<option value="${escapeAttr(g.scale)}"${sel}>${escapeHtml(g.scale)}</option>`;
+  }).join('');
 }
 
 function field(label, name, type, placeholder, required = false, value = '') {
@@ -95,6 +156,19 @@ function field(label, name, type, placeholder, required = false, value = '') {
     <div class="sb-project-field">
       <label class="sb-project-label">${label}</label>
       <input class="sb-project-input" type="${type}" name="${name}" placeholder="${escapeAttr(placeholder)}" value="${escapeAttr(value)}"${req} />
+    </div>`;
+}
+
+/** @param {string} label @param {string} name @param {{ value: string, label: string }[]} options @param {string} selected */
+function selectField(label, name, options, selected) {
+  const opts = options.map((o) => {
+    const sel = o.value === selected ? ' selected' : '';
+    return `<option value="${escapeAttr(o.value)}"${sel}>${escapeHtml(o.label)}</option>`;
+  }).join('');
+  return `
+    <div class="sb-project-field">
+      <label class="sb-project-label">${label}</label>
+      <select class="sb-project-select" name="${escapeAttr(name)}">${opts}</select>
     </div>`;
 }
 

@@ -98,6 +98,8 @@ export function createProjectPanelBody(opts) {
 
       director: p.director || '',
 
+      stageProfile: p.stageProfile || null,
+
     };
 
   }

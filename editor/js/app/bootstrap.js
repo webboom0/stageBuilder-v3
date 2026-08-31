@@ -1733,6 +1733,10 @@ async function main(initialProjectStore) {
       if (!projectStore) return;
       try {
         projectStore.applyMetaPatch(meta);
+        if (meta.stageProfile) {
+          stageManager.applyProfile(meta.stageProfile);
+          shellRef.current?.syncStagePanel?.();
+        }
         await projectStore.saveMetaOnly();
         shellRef.current?.refreshProjectPanel?.();
         refreshStatus('프로젝트 정보 저장됨');
