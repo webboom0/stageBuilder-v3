@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { API_BASE_URL, apiUrl, API } from '../config/app-config.js';
+import { API_BASE_URL, apiUrl, API, tutorialUrl } from '../config/app-config.js';
 import { DEFAULT_STAGE_PROFILE } from '../domain/stage/StageProfile.js';
 import { StageManager } from '../domain/stage/StageManager.js';
 import { StageViewportHelpers } from '../domain/stage/StageViewportHelpers.js';
@@ -2069,7 +2069,7 @@ async function main(initialProjectStore) {
         return;
       }
       if (action === 'help:tutorial') {
-        const url = apiUrl('/stageBuilder/tutorial/');
+        const url = tutorialUrl();
         window.open(url, '_blank', 'noopener,noreferrer');
         refreshStatus('사용 안내 열림');
         return;

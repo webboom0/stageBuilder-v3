@@ -81,6 +81,17 @@ export function apiUrl(path) {
 }
 
 /**
+ * Editor static pages (tutorial) — same host as the editor, NOT the API host.
+ * Pages: stagebuilder.pages.dev/stageBuilder/tutorial/
+ * Local/PIVOT: same origin as editor.
+ */
+export function tutorialUrl() {
+  if (typeof window === 'undefined') return '/stageBuilder/tutorial/';
+  const { origin } = window.location;
+  return `${origin}/stageBuilder/tutorial/`;
+}
+
+/**
  * Resolve a user-asset path from API (`/files/fbx/foo.fbx`) to a fetch URL.
  * @param {string} path
  */
