@@ -815,55 +815,16 @@
         </table>
         <ul class="section-toc">
           <li><a href="#properties-panel">Properties</a> — 선택 트랙의 <strong>패턴 · 속성</strong> 탭 (기본은 패턴)</li>
+          <li><a href="#char-pattern">Characters · 패턴</a></li>
+          <li><a href="#char-props">Characters · 속성</a></li>
+          <li><a href="#stage-pattern">Stage · 패턴</a></li>
+          <li><a href="#stage-props">Stage · 속성</a></li>
           <li><a href="#char-group">그룹</a> — Characters 묶음 · 포메이션 · 키프레임 적용</li>
           <li><a href="#pattern-library">패턴 라이브러리</a> — 저장된 동작 패턴 보관·적용 · 위치 프리셋 링크 유지</li>
           <li><a href="#position-presets">위치 프리셋</a> — 프로젝트 공통 무대 좌표</li>
           <li><a href="#light-props">조명</a> — HOUSE/Fixture 라이브 조절 · + 키</li>
         </ul>
         <div class="note"><strong>Properties 패턴</strong>은 선택 트랙 1개(씬) 편집입니다. <strong>패턴 라이브러리</strong>는 프로젝트에 여러 패턴을 보관해 두었다가 어느 씬 트랙에나 적용합니다. 둘 다 시작·끝 지점에 <strong>위치 프리셋</strong>을 연결할 수 있습니다.</div>
-      </section>
-
-      <section id="position-presets">
-        <h2>위치 프리셋 <span class="kbd">프로젝트</span></h2>
-        <p>오른쪽 레일 <strong>위치 프리셋</strong> 패널 — 프로젝트 공통 무대 좌표(등장·퇴장·중앙 등). 씬이 바뀌어도 <strong>프로젝트 전체</strong>에서 공유됩니다.</p>
-        <table>
-          <thead><tr><th>동작</th><th>설명</th></tr></thead>
-          <tbody>
-            <tr><td>ⓘ (타이틀 옆)</td><td>패널 설명 보기/닫기</td></tr>
-            <tr><td>칩 클릭</td><td>무대 <strong>미리보기</strong> + <strong>선택 Character/Stage 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용</td></tr>
-            <tr><td>+ 위치 추가</td><td>이름 · X/Z · Y 회전 · 무대 픽으로 프리셋 저장</td></tr>
-            <tr><td>편집 · 삭제</td><td>칩 옆 아이콘 — 연결된 패턴·그룹 좌표도 함께 갱신</td></tr>
-            <tr><td>패턴·그룹에 연결</td><td>시작 위치·이동·퇴장 편집 창에서 칩을 고르면 <strong>프리셋 링크</strong>로 저장. 창을 다시 열면 같은 칩이 선택된 상태로 보입니다</td></tr>
-          </tbody>
-        </table>
-        <div class="note">
-          Properties <strong>패턴</strong>·<strong>그룹</strong>·<strong>패턴 라이브러리</strong>·AI 문장의 <code>@등장</code> 등에서도 같은 프리셋에 연결됩니다.
-          프리셋 좌표를 수정하면 링크된 키·패턴도 따라갑니다. <strong>키프레임 적용</strong> 후에도 링크가 유지됩니다.
-        </div>
-        <figure class="tutorial-figure" data-file="images/24-position-presets.png">
-          <img class="tutorial-shot" src="./images/24-position-presets.png" alt="위치 프리셋 패널" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>위치 프리셋 — 칩 · ⓘ · + 위치 추가 · 뱃지「프로젝트」</figcaption>
-        </figure>
-      </section>
-
-      <section id="pattern-library">
-        <h2>패턴 라이브러리 <span class="kbd">프로젝트</span></h2>
-        <p>오른쪽 레일 <strong>패턴 라이브러리</strong> — 이동→대기→퇴장 등 <strong>동작 패턴</strong>을 저장하고 다른 트랙에 적용합니다. Properties <strong>패턴</strong>은 선택 트랙 1개(씬) 편집, 여기는 <strong>여러 패턴 보관함</strong>(프로젝트 공통)입니다.</p>
-        <table>
-          <thead><tr><th>동작</th><th>설명</th></tr></thead>
-          <tbody>
-            <tr><td>패턴 등록</td><td>+ 패턴 만들기 · 이름 변경 · 삭제 · 탭 선택</td></tr>
-            <tr><td>1 · 키프레임 패턴</td><td>시작(시각·Opacity·위치) → 단계 사이 <strong>+</strong>로 중간 삽입 · 드래그로 순서 변경 · 단계 클릭으로 편집</td></tr>
-            <tr><td>위치 프리셋 링크</td><td>시작·끝 지점에 프리셋 칩을 고르면 링크가 패턴에 저장됩니다. 목록·편집 창에는 프리셋의 <strong>절대 좌표</strong>가 보입니다</td></tr>
-            <tr><td>키프레임 적용</td><td>선택 Character/Stage 트랙에 반영. 프리셋이 연결된 키는 캐릭터 <strong>현재 위치 상대 이동이 아니라</strong> 프리셋 <strong>절대 좌표</strong>로 갑니다</td></tr>
-            <tr><td>트랙에서 가져오기</td><td>트랙 <strong>우클릭 → 패턴 라이브러리에 저장</strong> (키 2개 이상) — 타임라인에 있던 프리셋 링크도 함께 저장</td></tr>
-          </tbody>
-        </table>
-        <div class="note">시작 위치 편집 창은 Properties·그룹과 같이 <strong>시작 시각 · Opacity</strong>가 위쪽에 있습니다. 프리셋만 고른 뒤 다시 열어도 칩 선택이 유지됩니다.</div>
-        <figure class="tutorial-figure" data-file="images/25-pattern-library.png">
-          <img class="tutorial-shot" src="./images/25-pattern-library.png" alt="패턴 라이브러리 패널" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>패턴 라이브러리 — 패턴 등록 · 키프레임 적용 · 뱃지「프로젝트」</figcaption>
-        </figure>
       </section>
 
       <section id="properties-panel">
@@ -885,27 +846,6 @@
           </tbody>
         </table>
         <div class="note">Character·Stage <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 <strong>패턴</strong> 탭 · <strong>그룹</strong> · <strong>패턴 라이브러리</strong>에서 만듭니다. 트랙 표시 이름은 트랙 선택 후 <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong>으로 바꿉니다(Assets 라이브러리 이름과 별개).</div>
-      </section>
-
-      <section id="char-props">
-        <h2>Properties — Characters · 속성</h2>
-        <p>Character 선택 시 Properties <strong>속성</strong> 탭. 단일 객체의 기본 상태·선택 키를 편집합니다. <strong>퇴장·이동 시퀀스는 <a href="#char-pattern">패턴</a> 탭</strong>에서 만듭니다.</p>
-        <table>
-          <thead><tr><th>필드</th><th>설명</th></tr></thead>
-          <tbody>
-            <tr><td>타입 · 이름</td><td>객체 종류 · <strong>타임라인 트랙 이름</strong>(편집 가능)</td></tr>
-            <tr><td>위치 X / Z</td><td>슬라이더·숫자 · <strong>Y 고정</strong> (바닥 높이)</td></tr>
-            <tr><td>무대에서 위치 지정</td><td>버튼 → 무대 클릭 · <span class="kbd">Esc</span> 취소</td></tr>
-            <tr><td>회전</td><td><strong>Y축 칩</strong> (시계 / 반시계)</td></tr>
-            <tr><td>틴트 색상</td><td>캐릭터 색조</td></tr>
-            <tr><td>Opacity</td><td>0~1 · 등장·페이드</td></tr>
-            <tr><td>선택 키</td><td>키 선택 시 — <strong>시간</strong> · <strong>Easing</strong> (Linear / Step / Smooth)</td></tr>
-          </tbody>
-        </table>
-        <figure class="tutorial-figure" data-file="images/13-char-props.png">
-          <img class="tutorial-shot" src="./images/13-char-props.png" alt="Properties — Characters 속성" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Properties — Characters 속성</figcaption>
-        </figure>
       </section>
 
       <section id="char-pattern">
@@ -950,25 +890,24 @@
         </figure>
       </section>
 
-      <section id="stage-props">
-        <h2>Properties — Stage · 속성</h2>
-        <p>Stage 선택 시 Properties <strong>속성</strong> 탭 — XYZ·회전·크기·색·Opacity. 이동 시퀀스는 <strong><a href="#stage-pattern">패턴</a></strong> 탭.</p>
+      <section id="char-props">
+        <h2>Properties — Characters · 속성</h2>
+        <p>Character 선택 시 Properties <strong>속성</strong> 탭. 단일 객체의 기본 상태·선택 키를 편집합니다. <strong>퇴장·이동 시퀀스는 <a href="#char-pattern">패턴</a> 탭</strong>에서 만듭니다.</p>
         <table>
           <thead><tr><th>필드</th><th>설명</th></tr></thead>
           <tbody>
-            <tr><td>타입 · 이름</td><td>메시 종류 · <strong>타임라인 트랙 이름</strong>(편집 가능)</td></tr>
-            <tr><td>위치 X / Y / Z</td><td>전 축 (Characters와 달리 Y 편집) · <strong>바닥 아래</strong>로는 자동 보정</td></tr>
-            <tr><td>무대에서 위치 지정</td><td>무대 클릭 픽</td></tr>
-            <tr><td>회전 X / Y / Z</td><td>도(°) 슬라이더</td></tr>
-            <tr><td>크기 X / Y / Z</td><td>스케일</td></tr>
-            <tr><td>색상 · Opacity</td><td>틴트 · 0=숨김/퇴장 연출</td></tr>
-            <tr><td>선택 키</td><td>시간 · Easing</td></tr>
+            <tr><td>타입 · 이름</td><td>객체 종류 · <strong>타임라인 트랙 이름</strong>(편집 가능)</td></tr>
+            <tr><td>위치 X / Z</td><td>슬라이더·숫자 · <strong>Y 고정</strong> (바닥 높이)</td></tr>
+            <tr><td>무대에서 위치 지정</td><td>버튼 → 무대 클릭 · <span class="kbd">Esc</span> 취소</td></tr>
+            <tr><td>회전</td><td><strong>Y축 칩</strong> (시계 / 반시계)</td></tr>
+            <tr><td>틴트 색상</td><td>캐릭터 색조</td></tr>
+            <tr><td>Opacity</td><td>0~1 · 등장·페이드</td></tr>
+            <tr><td>선택 키</td><td>키 선택 시 — <strong>시간</strong> · <strong>Easing</strong> (Linear / Step / Smooth)</td></tr>
           </tbody>
         </table>
-        <div class="note">퇴장·이동 연출은 <a href="#stage-pattern">패턴</a> 탭 또는 타임라인에서 키를 직접 추가·드래그하세요.</div>
-        <figure class="tutorial-figure" data-file="images/17-stage-props.png">
-          <img class="tutorial-shot" src="./images/17-stage-props.png" alt="Properties — Stage 속성" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Properties — Stage 속성</figcaption>
+        <figure class="tutorial-figure" data-file="images/13-char-props.png">
+          <img class="tutorial-shot" src="./images/13-char-props.png" alt="Properties — Characters 속성" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>Properties — Characters 속성</figcaption>
         </figure>
       </section>
 
@@ -992,6 +931,28 @@
         </figure>
       </section>
 
+      <section id="stage-props">
+        <h2>Properties — Stage · 속성</h2>
+        <p>Stage 선택 시 Properties <strong>속성</strong> 탭 — XYZ·회전·크기·색·Opacity. 이동 시퀀스는 <strong><a href="#stage-pattern">패턴</a></strong> 탭.</p>
+        <table>
+          <thead><tr><th>필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>타입 · 이름</td><td>메시 종류 · <strong>타임라인 트랙 이름</strong>(편집 가능)</td></tr>
+            <tr><td>위치 X / Y / Z</td><td>전 축 (Characters와 달리 Y 편집) · <strong>바닥 아래</strong>로는 자동 보정</td></tr>
+            <tr><td>무대에서 위치 지정</td><td>무대 클릭 픽</td></tr>
+            <tr><td>회전 X / Y / Z</td><td>도(°) 슬라이더</td></tr>
+            <tr><td>크기 X / Y / Z</td><td>스케일</td></tr>
+            <tr><td>색상 · Opacity</td><td>틴트 · 0=숨김/퇴장 연출</td></tr>
+            <tr><td>선택 키</td><td>시간 · Easing</td></tr>
+          </tbody>
+        </table>
+        <div class="note">퇴장·이동 연출은 <a href="#stage-pattern">패턴</a> 탭 또는 타임라인에서 키를 직접 추가·드래그하세요.</div>
+        <figure class="tutorial-figure" data-file="images/17-stage-props.png">
+          <img class="tutorial-shot" src="./images/17-stage-props.png" alt="Properties — Stage 속성" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>Properties — Stage 속성</figcaption>
+        </figure>
+      </section>
+
       <section id="char-group">
         <h2>그룹 <span class="kbd">씬</span></h2>
         <p>오른쪽 <strong>그룹</strong> 패널 — 여러 Characters를 묶어 포메이션·애니메이션·키프레임 적용으로 한 번에 배치. <strong>씬마다</strong> 그룹·멤버를 따로 둡니다. Stage는 등록 불가.</p>
@@ -1010,6 +971,49 @@
         <figure class="tutorial-figure" data-file="images/15-char-group.png">
           <img class="tutorial-shot" src="./images/15-char-group.png" alt="그룹 패널 · 등록 · 키프레임 적용" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>그룹 패널 · 등록 · 키프레임 적용</figcaption>
+        </figure>
+      </section>
+
+      <section id="pattern-library">
+        <h2>패턴 라이브러리 <span class="kbd">프로젝트</span></h2>
+        <p>오른쪽 레일 <strong>패턴 라이브러리</strong> — 이동→대기→퇴장 등 <strong>동작 패턴</strong>을 저장하고 다른 트랙에 적용합니다. Properties <strong>패턴</strong>은 선택 트랙 1개(씬) 편집, 여기는 <strong>여러 패턴 보관함</strong>(프로젝트 공통)입니다.</p>
+        <table>
+          <thead><tr><th>동작</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>패턴 등록</td><td>+ 패턴 만들기 · 이름 변경 · 삭제 · 탭 선택</td></tr>
+            <tr><td>1 · 키프레임 패턴</td><td>시작(시각·Opacity·위치) → 단계 사이 <strong>+</strong>로 중간 삽입 · 드래그로 순서 변경 · 단계 클릭으로 편집</td></tr>
+            <tr><td>위치 프리셋 링크</td><td>시작·끝 지점에 프리셋 칩을 고르면 링크가 패턴에 저장됩니다. 목록·편집 창에는 프리셋의 <strong>절대 좌표</strong>가 보입니다</td></tr>
+            <tr><td>키프레임 적용</td><td>선택 Character/Stage 트랙에 반영. 프리셋이 연결된 키는 캐릭터 <strong>현재 위치 상대 이동이 아니라</strong> 프리셋 <strong>절대 좌표</strong>로 갑니다</td></tr>
+            <tr><td>트랙에서 가져오기</td><td>트랙 <strong>우클릭 → 패턴 라이브러리에 저장</strong> (키 2개 이상) — 타임라인에 있던 프리셋 링크도 함께 저장</td></tr>
+          </tbody>
+        </table>
+        <div class="note">시작 위치 편집 창은 Properties·그룹과 같이 <strong>시작 시각 · Opacity</strong>가 위쪽에 있습니다. 프리셋만 고른 뒤 다시 열어도 칩 선택이 유지됩니다.</div>
+        <figure class="tutorial-figure" data-file="images/25-pattern-library.png">
+          <img class="tutorial-shot" src="./images/25-pattern-library.png" alt="패턴 라이브러리 패널" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>패턴 라이브러리 — 패턴 등록 · 키프레임 적용 · 뱃지「프로젝트」</figcaption>
+        </figure>
+      </section>
+
+      <section id="position-presets">
+        <h2>위치 프리셋 <span class="kbd">프로젝트</span></h2>
+        <p>오른쪽 레일 <strong>위치 프리셋</strong> 패널 — 프로젝트 공통 무대 좌표(등장·퇴장·중앙 등). 씬이 바뀌어도 <strong>프로젝트 전체</strong>에서 공유됩니다.</p>
+        <table>
+          <thead><tr><th>동작</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>ⓘ (타이틀 옆)</td><td>패널 설명 보기/닫기</td></tr>
+            <tr><td>칩 클릭</td><td>무대 <strong>미리보기</strong> + <strong>선택 Character/Stage 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용</td></tr>
+            <tr><td>+ 위치 추가</td><td>이름 · X/Z · Y 회전 · 무대 픽으로 프리셋 저장</td></tr>
+            <tr><td>편집 · 삭제</td><td>칩 옆 아이콘 — 연결된 패턴·그룹 좌표도 함께 갱신</td></tr>
+            <tr><td>패턴·그룹에 연결</td><td>시작 위치·이동·퇴장 편집 창에서 칩을 고르면 <strong>프리셋 링크</strong>로 저장. 창을 다시 열면 같은 칩이 선택된 상태로 보입니다</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          Properties <strong>패턴</strong>·<strong>그룹</strong>·<strong>패턴 라이브러리</strong>·AI 문장의 <code>@등장</code> 등에서도 같은 프리셋에 연결됩니다.
+          프리셋 좌표를 수정하면 링크된 키·패턴도 따라갑니다. <strong>키프레임 적용</strong> 후에도 링크가 유지됩니다.
+        </div>
+        <figure class="tutorial-figure" data-file="images/24-position-presets.png">
+          <img class="tutorial-shot" src="./images/24-position-presets.png" alt="위치 프리셋 패널" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>위치 프리셋 — 칩 · ⓘ · + 위치 추가 · 뱃지「프로젝트」</figcaption>
         </figure>
       </section>
 
