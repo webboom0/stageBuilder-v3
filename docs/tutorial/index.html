@@ -49,16 +49,15 @@
         <a href="#audio-track" class="nav-l3">트랙 · 클립</a>
 
         <div class="nav-group">오른쪽 패널</div>
-        <a href="#right-panels" class="nav-l2">개요 · 데이터 범위</a>
-        <a href="#properties-panel" class="nav-l3">Properties (씬)</a>
-        <a href="#char-pattern" class="nav-l3">Characters · 패턴</a>
-        <a href="#char-props" class="nav-l3">Characters · 속성</a>
-        <a href="#stage-pattern" class="nav-l3">Stage · 패턴</a>
-        <a href="#stage-props" class="nav-l3">Stage · 속성</a>
-        <a href="#char-group" class="nav-l3">그룹 (씬)</a>
-        <a href="#pattern-library" class="nav-l3">패턴 라이브러리 (프로젝트)</a>
-        <a href="#position-presets" class="nav-l3">위치 프리셋 (프로젝트)</a>
-        <a href="#light-props" class="nav-l3">조명 (씬)</a>
+        <a href="#properties-panel" class="nav-l2">Properties (씬)</a>
+        <a href="#char-pattern" class="nav-l2">Characters · 패턴</a>
+        <a href="#char-props" class="nav-l2">Characters · 속성</a>
+        <a href="#stage-pattern" class="nav-l2">Stage · 패턴</a>
+        <a href="#stage-props" class="nav-l2">Stage · 속성</a>
+        <a href="#char-group" class="nav-l2">그룹 (씬)</a>
+        <a href="#pattern-library" class="nav-l2">패턴 라이브러리 (프로젝트)</a>
+        <a href="#position-presets" class="nav-l2">위치 프리셋 (프로젝트)</a>
+        <a href="#light-props" class="nav-l2">조명 (씬)</a>
 
         <div class="nav-group">더보기</div>
         <a href="#viewport-multiview" class="nav-l2">멀티뷰</a>
@@ -86,7 +85,7 @@
             <tr><td>메뉴 바로 아래</td><td>연결 상태 · 무대 크기 · 안내 메시지 (상태 표시줄)</td></tr>
             <tr><td>왼쪽</td><td><strong>프로젝트</strong>·Assets(<span class="kbd">프로젝트</span>) · 무대(<span class="kbd">씬</span>)</td></tr>
             <tr><td>가운데</td><td>3D 무대 뷰 · 하단 <strong>뷰포트 툴바</strong> (이동/카메라/빌딩고정)</td></tr>
-            <tr><td>오른쪽</td><td><a href="#right-panels">오른쪽 패널</a> — 뱃지 <strong>프로젝트</strong> / <strong>씬</strong></td></tr>
+            <tr><td>오른쪽</td><td><a href="#properties-panel">오른쪽 패널</a> — 뱃지 <strong>프로젝트</strong> / <strong>씬</strong></td></tr>
             <tr><td>하단</td><td>타임라인 (<span class="kbd">씬</span>)</td></tr>
           </tbody>
         </table>
@@ -800,35 +799,16 @@
         </figure>
       </section>
 
-      <section id="right-panels" class="section-overview">
-        <h2>오른쪽 패널</h2>
+      <section id="properties-panel">
+        <h2>Properties <span class="kbd">씬</span></h2>
         <p>화면 <strong>오른쪽</strong> 패널입니다. 타이틀 옆 뱃지로 <strong>프로젝트</strong>(공통) / <strong>씬</strong>(현재 씬)을 구분합니다.</p>
         <table>
           <thead><tr><th>구역 · 패널</th><th>저장 범위</th><th>씬 전환 시</th></tr></thead>
           <tbody>
-            <tr><td><a href="#properties-panel">Properties</a></td><td><strong>씬</strong></td><td>갱신</td></tr>
-            <tr><td><a href="#char-group">그룹</a></td><td><strong>씬</strong></td><td>갱신</td></tr>
-            <tr><td><a href="#pattern-library">패턴 라이브러리</a></td><td><strong>프로젝트</strong></td><td>유지</td></tr>
-            <tr><td><a href="#position-presets">위치 프리셋</a></td><td><strong>프로젝트</strong></td><td>유지</td></tr>
-            <tr><td><a href="#light-props">조명</a></td><td><strong>씬</strong></td><td>갱신</td></tr>
+            <tr><td>Properties · 그룹 · 조명</td><td><strong>씬</strong></td><td>갱신</td></tr>
+            <tr><td>패턴 라이브러리 · 위치 프리셋</td><td><strong>프로젝트</strong></td><td>유지</td></tr>
           </tbody>
         </table>
-        <ul class="section-toc">
-          <li><a href="#properties-panel">Properties</a> — 선택 트랙의 <strong>패턴 · 속성</strong> 탭 (기본은 패턴)</li>
-          <li><a href="#char-pattern">Characters · 패턴</a></li>
-          <li><a href="#char-props">Characters · 속성</a></li>
-          <li><a href="#stage-pattern">Stage · 패턴</a></li>
-          <li><a href="#stage-props">Stage · 속성</a></li>
-          <li><a href="#char-group">그룹</a> — Characters 묶음 · 포메이션 · 키프레임 적용</li>
-          <li><a href="#pattern-library">패턴 라이브러리</a> — 저장된 동작 패턴 보관·적용 · 위치 프리셋 링크 유지</li>
-          <li><a href="#position-presets">위치 프리셋</a> — 프로젝트 공통 무대 좌표</li>
-          <li><a href="#light-props">조명</a> — HOUSE/Fixture 라이브 조절 · + 키</li>
-        </ul>
-        <div class="note"><strong>Properties 패턴</strong>은 선택 트랙 1개(씬) 편집입니다. <strong>패턴 라이브러리</strong>는 프로젝트에 여러 패턴을 보관해 두었다가 어느 씬 트랙에나 적용합니다. 둘 다 시작·끝 지점에 <strong>위치 프리셋</strong>을 연결할 수 있습니다.</div>
-      </section>
-
-      <section id="properties-panel">
-        <h2>Properties <span class="kbd">씬</span></h2>
         <p>오른쪽 레일 <strong>Properties</strong> — 무대·타임라인에서 <strong>선택한 객체·트랙</strong>에 맞춰 내용이 바뀝니다. Character·Stage는 상단 <strong>패턴 · 속성</strong> 탭으로 나뉘며, <strong>기본으로 패턴</strong> 탭이 열립니다. 씬을 바꾸면 Properties 내용도 그 씬 기준으로 바뀝니다.</p>
         <table>
           <thead><tr><th>탭</th><th>역할</th></tr></thead>

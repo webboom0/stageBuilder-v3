@@ -9,7 +9,6 @@ const targets = [
 ];
 
 const order = [
-  'right-panels',
   'properties-panel',
   'char-pattern',
   'char-props',
@@ -30,7 +29,7 @@ for (const file of targets) {
   while ((m = re.exec(html)) !== null) {
     sections.set(m[1], m[0]);
   }
-  const start = html.indexOf('<section id="right-panels"');
+  const start = html.indexOf('<section id="properties-panel"');
   const end = html.indexOf('<section id="viewport-multiview"');
   if (start < 0 || end < 0) {
     console.warn('[reorder] skip', file, 'markers missing');
