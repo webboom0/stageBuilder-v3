@@ -134,6 +134,18 @@ export class TimelineEngine {
   }
 
   /**
+   * Remove an empty group folder from the timeline UI.
+   * @param {string} folderId
+   * @returns {boolean}
+   */
+  removeFolder(folderId) {
+    if (!this.folders.has(folderId)) return false;
+    this.folders.delete(folderId);
+    this.emit('tracks');
+    return true;
+  }
+
+  /**
    * @param {string} id
    * @param {{ history?: boolean }} [opt] history:false when scene object was disposed (no safe undo)
    * @returns {boolean}

@@ -1,128 +1,297 @@
-# StageBuilder v4 → PIVOT 배포
+# StageBuilder v4 → PIVOT 배포 (전체 절차)
 
-PIVOT([pivot.mhsoft.co.kr](https://pivot.mhsoft.co.kr/index.html)) 서버 **`server.js`는 수정하지 않고**, v4 **에디터 폴더만** 교체하는 방법입니다.
+PIVOT([pivot.mhsoft.co.kr](https://pivot.mhsoft.co.kr/index.html))에 v4 에디터 + API를 올리는 **처음부터 끝까지** 체크리스트입니다.
 
-## 로컬 개발 (PIVOT 연결 금지)
+로컬 준비 폴더: `E:\SynologyDrive\pivot\nginx_v4`  
+(기존 `pivot\nginx`의 `node_modules`·`package.json` 복사 + v4 `server.js` 반영본)
 
-```bash
-node server/server.js
-# → http://localhost:3000/stageBuilder/index.html
-```
+---
 
-**Three.js:** v3/PIVOT과 동일한 `../build/three.module.js` (CDN 사용 안 함)
+## 0. 배포 전 요약
 
-처음 한 번 — `runtime` junction (PIVOT stageBuilder 폴더):
+| 항목 | 내용 |
+|------|------|
+| SSH | `pivot.mhsoft.co.kr` 포트 **3422**, 사용자 `accf` |
+| StageBuilder 디스크 | `{server.js}/html/stageBuilder/` 아래 전부 |
+| 캐릭터 FBX | **`files/characters/`** (`files/fbx/` 사용 안 함) |
+| server.js | v4 API 반영 필수 (에디터만으로 Phase 6·props 불가) |
+| npm 추가 | **`adm-zip`**, **`extract-zip`** (Phase 6 ZIP) |
+| Node 재시작 | `server.js`·`projectsRoutes.js` 배포 후 필수 |
+
+---
+
+## 1. SSH 접속
+
+### PowerShell
 
 ```powershell
-New-Item -ItemType Junction -Path "runtime" -Target "E:\SynologyDrive\pivot\nginx\html\stageBuilder" -Force
+ssh -p 3422 accf@pivot.mhsoft.co.kr
 ```
 
-서버가 `/build`, `/examples`를 제공합니다. **코드 변경 후 서버 재시작** + 브라우저 **Ctrl+F5**.
+### WinSCP (파일 업로드 권장)
+
+| 설정 | 값 |
+|------|-----|
+| 프로토콜 | SFTP |
+| 호스트 | `pivot.mhsoft.co.kr` |
+| 포트 | **3422** |
+| 사용자 | `accf` |
+
+접속 후 pivot에서 `server.js`가 있는 폴더와 `html/stageBuilder/` 경로를 확인합니다.
+
+```bash
+find ~ -name "server.js" -type f 2>/dev/null | head
+find ~ -name "stageBuilder" -type d 2>/dev/null | head
+```
+
+---
+
+## 2. 로컬 준비 (`nginx_v4`)
+
+### 2-1. 폴더 구조
+
+```
+E:\SynologyDrive\pivot\nginx_v4\
+  server.js              ← v4 반영본
+  projectsRoutes.js
+  aiPatternRoutes.js
+  package.json           ← 기존 pivot nginx와 동일
+  node_modules\          ← 기존 pivot 복사 + 아래 2개 추가
+  html\
+    stageBuilder\
+      editor\            ← StageBuilder_v4/editor/ 업로드
+      build\             ← v3 Three.js (기존 pivot에서 복사)
+      examples\          ← v3 Three addons (기존 pivot에서 복사)
+      files\
+        stage\           ← background.fbx, arena_stage.fbx
+        characters\      ← 등장인물 FBX (v4 정식)
+        props\             ← 무대·소품 FBX/OBJ
+        music\
+        video\
+        projects\          ← Phase 6 (서버가 자동 생성 가능)
+      manifest.json      ← 있으면 유지
+```
+
+**주의:** `editor/`와 `files/`는 **형제 폴더**. `editor` 안에 `files` 넣지 않음.
+
+### 2-2. npm 패키지
+
+기존 pivot에 이미 있음: `express`, `body-parser`, `cookie-parser`, `cors`, `jsonwebtoken`, `multer`, `http-proxy-middleware`
+
+v4 Phase 6에서 **추가 필요**:
+
+```powershell
+cd E:\SynologyDrive\pivot\nginx_v4
+npm install adm-zip extract-zip
+```
+
+서버에 `npm`만 있다면 pivot 폴더에서 위 2개만 추가 설치해도 됩니다.
+
+### 2-3. 로컬에서 서버 기동 테스트 (선택)
+
+```powershell
+cd E:\SynologyDrive\pivot\nginx_v4
+node server.js
+```
 
 확인:
-- http://localhost:3000/build/three.module.js → 200
+
+- http://localhost:3000/api/health → `{ "status": "ok", "version": 4 }`
 - http://localhost:3000/files/stage/background.fbx → 200
-- 상태줄 `Stage shell OK`
+- http://localhost:3000/build/three.module.js → 200
 
-## 디렉터리 (PIVOT)
+---
 
-```
-html/stageBuilder/
-  editor/          ← v4 `StageBuilder_v4/editor/` 내용 업로드
-  build/           ← Three.js (기존 v3 유지, 건드리지 않음)
-  examples/jsm/    ← Three addons (기존 v3 유지)
-  files/
-    stage/         ← 프로시니엄/아레나 건물 FBX (에디터 업로드와 별도)
-    fbx/           ← Characters FBX (Assets API)
-    music/         ← Audio
-    video/         ← Video
-```
+## 3. `server.js` v4 변경 요약 (이미 `nginx_v4` 반영)
 
-## Phase 6 — 프로젝트·씬 (로컬 완료 후 pivot 배포)
+다른 pivot 앱(PB, MSS, MOL, 로그인)은 **건드리지 않음**. StageBuilder만 아래처럼 동작.
 
-로컬 `server/projectsRoutes.js`를 pivot에도 붙입니다 (**editor만으로는 Phase 6 API 동작 안 함**).
+### 경로 상수
 
-### pivot server.js 에 추가
-
-`StageBuilder_v4/server/projectsRoutes.js` 와 동일 파일을 pivot에서 require:
-
-```javascript
-const { mountProjectRoutes } = require('E:/SynologyDrive/StageBuilder_v2_new/StageBuilder_v4/server/projectsRoutes');
-// 또는 pivot/nginx/server.js 옆에 projectsRoutes.js 복사 후:
-// const { mountProjectRoutes } = require('./projectsRoutes');
-
-mountProjectRoutes(app, {
-  requireAuth,
-  filesRoot: STAGEBUILDER_FILES_ROOT,
-  ensureDir,          // pivot에 이미 있는 헬퍼 재사용
-  getUniqueFileName,
-  safeListFiles,
-  safeDeleteFile,
-  buildUploadResponse,
-  MEDIA_EXTS,
-  multer,
-  createFileFilter,
-});
+```text
+STAGEBUILDER_ROOT     = html/stageBuilder
+STAGEBUILDER_FILES_ROOT = html/stageBuilder/files
 ```
 
-`STAGEBUILDER_FILES_ROOT` 아래 **`projects/`** 폴더 생성 후 Node **재시작**.
+### URL 매핑
 
-### 프로젝트 폴더 (서버)
+| 디스크 | URL (정식) | URL (에디터 호환) |
+|--------|-----------|------------------|
+| `editor/` | `/stageBuilder/` | — |
+| `files/` | `/stageBuilder/files/` | `/files/` |
+| `build/` | `/stageBuilder/build/` | `/build/` |
+| `examples/` | `/stageBuilder/examples/` | `/examples/` |
 
+에디터 importmap `../build/three.module.js` → `/build/` alias 유지.
+
+### API (StageBuilder)
+
+| API | 저장/조회 폴더 |
+|-----|----------------|
+| `/api/fbx-files`, `/api/upload-fbx` | `files/characters/` (API 이름만 legacy) |
+| `/api/prop-files`, `/api/upload-prop` | `files/props/` |
+| `/api/audio-files` | `files/music/` |
+| `/api/video-files` | `files/video/` |
+| `/api/projects/*` | `files/projects/{id}/` |
+| `/api/ai/*` | LLM 선택 (`OPENAI_API_KEY`) |
+
+**`files/fbx/` 폴더는 v4에서 제거.** 기존 FBX는 `characters/`로 옮긴 뒤 `fbx/` 삭제.
+
+---
+
+## 4. 파일 준비 (업로드 목록)
+
+### 4-1. StageBuilder_v4 repo에서
+
+| 소스 | 대상 (nginx_v4) |
+|------|-----------------|
+| `StageBuilder_v4/editor/` 전체 | `html/stageBuilder/editor/` |
+| `StageBuilder_v4/server/server.js` 동기 | `server.js` (또는 nginx_v4 수정본) |
+| `StageBuilder_v4/server/projectsRoutes.js` | `projectsRoutes.js` |
+| `StageBuilder_v4/server/aiPatternRoutes.js` | `aiPatternRoutes.js` |
+
+### 4-2. 기존 pivot v3에서 유지·복사
+
+| 항목 | 대상 |
+|------|------|
+| `build/` (Three.js r172) | `html/stageBuilder/build/` |
+| `examples/` | `html/stageBuilder/examples/` |
+| `files/stage/*.fbx` | `html/stageBuilder/files/stage/` |
+| `files/music/`, `video/` | 동일 경로 |
+| 캐릭터 FBX | **`files/characters/`** 로 이동 (`fbx/` 삭제) |
+
+### 4-3. 올리지 않아도 되는 것
+
+- `StageBuilder_v4/workers/` — Cloudflare Pages 테스트용 (PIVOT과 별개)
+- `StageBuilder_v4/server/files/` — 로컬 dev용 샘플
+
+---
+
+## 5. PIVOT 서버 업로드 (WinSCP / scp)
+
+1. pivot `server.js` 위치 백업 (날짜 붙여 rename)
+2. 업로드:
+   - `server.js`, `projectsRoutes.js`, `aiPatternRoutes.js`
+   - `html/stageBuilder/editor/` (덮어쓰기)
+   - `html/stageBuilder/files/` (stage, characters, music, video, props)
+   - `node_modules/` 전체 **또는** 서버에서 `npm install` + `adm-zip extract-zip`
+3. `build/`, `examples/` 없으면 v3 pivot에서 복사
+
+---
+
+## 6. 서버에서 npm (node_modules 안 올렸을 때)
+
+```bash
+cd /path/to/pivot/server   # server.js 있는 폴더
+npm install
+npm install adm-zip extract-zip
 ```
-files/projects/{projectId}/
-  project.json
-  manifest.json
-  scenes/scene_01.json
-  assets/characters|props|audio|video/
+
+---
+
+## 7. Node 재시작
+
+pivot 운영 방식에 맞게 (pm2, systemd, docker 등):
+
+```bash
+# 예: pm2
+pm2 restart server
+# 또는
+node server.js
 ```
 
-일상 저장은 이 폴더에 JSON + 프로젝트별 에셋. 전역 `files/music/` · `fbx/` 는 **레거시** (Phase 6 에디터는 프로젝트 Assets 사용).
+**`server.js` / `projectsRoutes.js` 변경 후 재시작 필수.**
 
-## 업로드 범위
+---
 
-| 대상 | 경로 | 서버 API |
-|------|------|----------|
-| **에디터 UI/코드** | `html/stageBuilder/editor/` | 없음 (정적) |
-| **무대 건물 FBX** | `html/stageBuilder/files/stage/` | 없음 (정적 `/files/stage/`) |
-| **Characters / Audio / Video** | `files/fbx`, `music`, `video` | `/api/upload-*`, `/api/*-files` |
+## 8. 배포 확인 체크리스트
 
-v4는 v3와 동일하게 무대 껍데기를 **`../files/stage/background.fbx`** (상대 경로)로 로드합니다.  
-Assets 업로드 API와 **분리**되어 있습니다.
+### API
 
-## 배포 절차
+- [ ] `GET /api/health` → `{ "status": "ok", "version": 4 }`
+- [ ] 로그인 후 `GET /api/fbx-files` → 200, 경로 `/files/characters/...`
+- [ ] `GET /api/prop-files` → 200
+- [ ] `GET /api/projects` → 200 (빈 배열 OK)
 
-1. `StageBuilder_v4/editor/` 전체를 `html/stageBuilder/editor/`에 **덮어쓰기**
-2. `files/stage/`에 `background.fbx`, `arena_stage.fbx` 있는지 확인 (v3와 동일)
-3. `build/`, `examples/`는 **그대로** 두기
-4. PIVOT 로그인 후 `/stageBuilder/index.html` 접속
+### 정적
 
-## 로컬 vs PIVOT
+- [ ] `GET /files/stage/background.fbx` → 200
+- [ ] `GET /build/three.module.js` → 200
+- [ ] `GET /stageBuilder/index.html` → 200 (로그인 필요)
 
-| 항목 | localhost (v4 dev) | PIVOT |
-|------|----------------------|--------|
-| Three.js | CDN (importmap) | `../build/three.module.js` |
-| 무대 FBX | `../files/stage/` (v4 server) | `../files/stage/` |
-| Assets API | v4 `server/server.js` | `pivot/nginx/server.js` (fbx + **prop-files**) |
-| Stage API | v4 `/api/prop-files` | PIVOT **동일** (`files/props/`) |
+### 에디터 UI (로그인 후)
 
-## Stage (PIVOT)
+- [ ] https://pivot.mhsoft.co.kr/stageBuilder/index.html
+- [ ] 상태줄 **Stage shell OK**
+- [ ] 상태줄 **Assets API OK**
+- [ ] 튜토리얼: `/stageBuilder/tutorial/`
+- [ ] 프로젝트 허브: 새 프로젝트 생성·저장
+- [ ] 캐릭터 Assets 목록·업로드
+- [ ] (선택) 프로젝트 ZIP 내보내기/가져오기
 
-PIVOT `server.js`에 v4와 동일한 API가 있습니다.
+### 상태줄 의미
 
-- **Characters**: `/api/fbx-files` → `files/characters/` (+ legacy `files/fbx/` 목록 병합)
-- **Stage**: `/api/prop-files` → `files/props/` (FBX·OBJ)
-- **기본** 직육면체·원통: 서버 불필요 (브라우저 procedural)
+| 메시지 | 의미 |
+|--------|------|
+| `Stage shell OK` | `files/stage/background.fbx` 로드 성공 |
+| `Stage shell missing` | `files/stage/*.fbx` 확인 |
+| `Assets API OK` | 업로드/목록 API 연결됨 |
+| `Assets API unavailable` | 무대 편집 가능, Assets만 불가 |
 
-`server.js` 배포 후 Node 프로세스 **재시작** 필요.
+---
 
-## 상태줄
+## 9. 로컬 개발 vs PIVOT
 
-- `Assets API OK` — 업로드/목록 API 연결됨
-- `Assets API unavailable` — 무대 편집은 가능, Assets 업로드/목록만 불가
-- `Stage shell OK` — `background.fbx` 로드 성공
-- `Stage shell missing` — `files/stage/*.fbx` 확인
+| 항목 | localhost (`server/server.js`) | PIVOT |
+|------|-------------------------------|--------|
+| URL | `http://localhost:3000/stageBuilder/` | `https://pivot.mhsoft.co.kr/stageBuilder/` |
+| Three.js | `runtime/` → pivot stageBuilder junction | `../build/three.module.js` |
+| API | same-origin `:3000` | same-origin (pivot host) |
+| 인증 | `DEV_SKIP_AUTH` 기본 bypass | JWT `pb_token` 필수 |
+| 캐릭터 폴더 | `server/files/characters/` | `html/stageBuilder/files/characters/` |
 
-## 튜토리얼
+로컬 dev — pivot API 연결 금지:
 
-에디터 배포 시 `editor/tutorial/` 포함 → `/stageBuilder/tutorial/`
+```bash
+cd StageBuilder_v4/server
+npm install
+node server.js
+```
+
+runtime junction (한 번):
+
+```powershell
+New-Item -ItemType Junction -Path "runtime" -Target "E:\SynologyDrive\pivot\nginx_v4\html\stageBuilder" -Force
+```
+
+---
+
+## 10. 트러블슈팅
+
+| 증상 | 확인 |
+|------|------|
+| `Cannot find module 'adm-zip'` | `npm install adm-zip extract-zip` |
+| Stage shell missing | `html/stageBuilder/files/stage/background.fbx` |
+| Three.js 404 | `build/`, `examples/` 복사 여부 |
+| Assets 401 | pivot 로그인·쿠키 |
+| 캐릭터 목록 비음 | FBX가 `characters/`에 있는지 (`fbx/` 아님) |
+| 프로젝트 저장 실패 | `projectsRoutes.js` 배포·Node 재시작 |
+| 예전 프로젝트 FBX 404 | JSON 경로 `/files/fbx/` → `/files/characters/` 수정 |
+
+---
+
+## 11. 보안
+
+- SSH·DB 비밀번호는 채팅/깃에 올리지 않음
+- `OPENAI_API_KEY`는 서버 환경변수로만 (AI 패턴 초안, 선택)
+
+---
+
+## 12. Cloudflare Pages 테스트 (PIVOT과 별개)
+
+외부 테스터용: editor → Pages, API → Workers + R2.  
+PIVOT 배포와 **동시에 필수 아님**. See `DEPLOY-CLOUDFLARE.md`.
+
+---
+
+*마지막 갱신: v4 nginx_v4 반영 — STAGEBUILDER_ROOT, characters 전용, fbx 제거, adm-zip/extract-zip.*

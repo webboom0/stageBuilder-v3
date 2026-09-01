@@ -3,6 +3,7 @@
  */
 
 import { normalizeGroupAnimation } from '../motion/groupSegments.js';
+import { isGroupDeployed } from '../motion/applyGroupKeyframes.js';
 import { recolorGroupDeployedMembers } from '../motion/walkLitePerformer.js';
 
 /**
@@ -75,6 +76,65 @@ export function relinkGroupDeployments(motion, groupStore, engine = null) {
  * @param {import('../motion/MotionDirector.js').MotionDirector} motion
  * @param {import('../timeline/TimelineEngine.js').TimelineEngine | null} [engine]
  */
+/**
+ * Whether a group still has timeline folder rows and/or live deployed members.
+ * @param {import('../motion/MotionGroupStore.js').MotionGroup | null | undefined} group
+ * @param {import('../motion/MotionDirector.js').MotionDirector} motion
+ * @param {import('../timeline/TimelineEngine.js').TimelineEngine} engine
+ */
+export function getGroupTimelineUsage(group, motion, engine) {
+  if (!group) return { onTimeline: false, trackCount: 0, folderId: null };
+  const folderId = group.deployedFolderId ?? null;
+  const folderTracks = folderId
+    ? engine.listTracks().filter((t) => t.folderId === folderId)
+    : [];
+  const memberTrackRefs = (group.members || []).filter((m) => m.deployedMotionId).length;
+  const onTimeline = isGroupDeployed(group, (id) => motion.get(id))
+    || folderTracks.length > 0
+    || (folderId != null && memberTrackRefs > 0);
+  const trackCount = Math.max(folderTracks.length, memberTrackRefs);
+  return { onTimeline, trackCount, folderId };
+}
+
+/**
+ * Remove a group's deployed folder, timeline tracks, and scene motion instances.
+ * @param {import('../motion/MotionGroupStore.js').MotionGroup} group
+ * @param {import('../motion/MotionDirector.js').MotionDirector} motion
+ * @param {import('../timeline/TimelineEngine.js').TimelineEngine} engine
+ * @returns {number} removed track count
+ */
+export function removeGroupFromTimeline(group, motion, engine) {
+  if (!group) return 0;
+  let removed = 0;
+  const folderId = group.deployedFolderId ?? null;
+
+  for (const mem of group.members || []) {
+    if (!mem.deployedMotionId) continue;
+    if (motion.get(mem.deployedMotionId)) {
+      motion.remove(mem.deployedMotionId);
+      removed++;
+    }
+    mem.deployedMotionId = null;
+  }
+
+  if (folderId) {
+    for (const tr of engine.listTracks().filter((t) => t.folderId === folderId)) {
+      const item = motion.findByTrackId(tr.id);
+      if (item) {
+        motion.remove(item.id);
+      } else {
+        engine.removeTrack(tr.id, { history: true });
+      }
+      removed++;
+    }
+    engine.removeFolder(folderId);
+  }
+
+  group.deployedFolderId = null;
+  engine.emit('tracks');
+  return removed;
+}
+
 export function listGroupFolderMotions(group, motion, engine = null) {
   if (!group?.deployedFolderId) return [];
   /** @type {Map<string, number>} */

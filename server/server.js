@@ -60,7 +60,6 @@ ensureDir(STAGEBUILDER_FILES_ROOT);
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'music'));
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'characters'));
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'props'));
-ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'fbx'));
 ensureDir(path.join(STAGEBUILDER_FILES_ROOT, 'video'));
 ensureDir(PROJECTS_ROOT);
 
@@ -91,7 +90,6 @@ function requireAuth(req, res, next) {
 
 const MEDIA_EXTS = {
   music: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'],
-  fbx: ['.fbx'],
   characters: ['.fbx'],
   props: ['.fbx', '.obj'],
   video: ['.mp4', '.webm', '.ogg', '.avi', '.mov'],
@@ -221,38 +219,19 @@ app.delete('/api/audio-files/:filename', requireAuth, (req, res) => {
   return res.json({ success: true });
 });
 
-// ─── Characters (등장인물 FBX) — legacy /api/*-fbx* aliases kept ───
-function listCharacterFiles() {
-  const chars = safeListFiles(
-    path.join(STAGEBUILDER_FILES_ROOT, 'characters'),
-    '/files/characters/',
-    MEDIA_EXTS.characters,
-  );
-  const legacy = safeListFiles(
-    path.join(STAGEBUILDER_FILES_ROOT, 'fbx'),
-    '/files/fbx/',
-    MEDIA_EXTS.fbx,
-  );
-  const seen = new Set(chars.map((f) => f.filename.toLowerCase()));
-  for (const f of legacy) {
-    if (!seen.has(f.filename.toLowerCase())) chars.push(f);
-  }
-  return chars.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
-}
-
+// ─── Characters (등장인물 FBX) → files/characters/ ───
 app.post('/api/upload-fbx', requireAuth, uploadFbx.single('fbxFile'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'fbxFile이 필요합니다.' });
   return res.json(buildUploadResponse(req, '/files/characters/'));
 });
 
 app.get('/api/fbx-files', requireAuth, (_req, res) => {
-  return res.json(listCharacterFiles());
+  const charsPath = path.join(STAGEBUILDER_FILES_ROOT, 'characters');
+  return res.json(safeListFiles(charsPath, '/files/characters/', MEDIA_EXTS.characters));
 });
 
 app.delete('/api/fbx-files/:filename', requireAuth, (req, res) => {
-  const name = req.params.filename;
-  const ok = safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'characters'), name)
-    || safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'fbx'), name);
+  const ok = safeDeleteFile(path.join(STAGEBUILDER_FILES_ROOT, 'characters'), req.params.filename);
   if (!ok) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
   return res.json({ success: true });
 });

@@ -88,7 +88,10 @@ export function mountTimelineShell(host, ctx) {
       <button type="button" class="sb-tl-btn sb-tl-btn-help" data-act="shortcuts" title="타임라인 단축키">?</button>
     </div>
     <div class="sb-tl-body">
-      <div class="sb-tl-labels" data-role="labels"></div>
+      <div class="sb-tl-labels" data-role="labels">
+        <div class="sb-tl-labels-ruler" data-role="labels-ruler" aria-hidden="true"></div>
+        <div class="sb-tl-labels-content" data-role="labels-content"></div>
+      </div>
       <div class="sb-tl-viewport" data-role="viewport">
         <div class="sb-tl-canvas" data-role="canvas">
           <div class="sb-tl-ruler" data-role="ruler"></div>
@@ -121,6 +124,7 @@ export function mountTimelineShell(host, ctx) {
     time: host.querySelector('[data-role="time"]'),
     duration: host.querySelector('[data-role="duration"]'),
     labels: host.querySelector('[data-role="labels"]'),
+    labelsContent: host.querySelector('[data-role="labels-content"]'),
     viewport: host.querySelector('[data-role="viewport"]'),
     canvas: host.querySelector('[data-role="canvas"]'),
     ruler: host.querySelector('[data-role="ruler"]'),
@@ -197,6 +201,7 @@ export function mountTimelineShell(host, ctx) {
       if (sec.id === 'audio') {
         if (!folded) {
           tracksHtml += audioSectionToolbarHtml(audio);
+          labelsHtml += '<div class="sb-tl-labels-audio-spacer" data-section="audio" aria-hidden="true"></div>';
         } else {
           tracksHtml += `<div class="sb-tl-sec-lane" data-section="${sec.id}"></div>`;
         }
@@ -238,7 +243,7 @@ export function mountTimelineShell(host, ctx) {
       }
     }
 
-    el.labels.innerHTML = labelsHtml;
+    el.labelsContent.innerHTML = labelsHtml;
     el.tracks.innerHTML = tracksHtml;
 
     bindAudioClipInteractions(el.viewport, {
@@ -282,6 +287,13 @@ export function mountTimelineShell(host, ctx) {
     el.viewport.scrollTop = keepY;
     el.labels.scrollTop = keepY;
     syncingScroll = false;
+    syncLabelViewportLayout();
+  }
+
+  /** Match labels column height when viewport shows a horizontal scrollbar (Windows). */
+  function syncLabelViewportLayout() {
+    const hScrollbar = Math.max(0, el.viewport.offsetHeight - el.viewport.clientHeight);
+    el.labels.style.paddingBottom = hScrollbar > 0 ? `${hScrollbar}px` : '';
   }
 
   // toolbar actions
@@ -380,7 +392,7 @@ export function mountTimelineShell(host, ctx) {
   }
 
   function syncTrackVolumeIcon(trackId, pct) {
-    const label = el.labels.querySelector(`.sb-tl-label-audio[data-track="${trackId}"]`);
+    const label = el.labelsContent.querySelector(`.sb-tl-label-audio[data-track="${trackId}"]`);
     if (!label) return;
     const track = engine.getTrack(trackId);
     const icon = label.querySelector('[data-role="track-vol-icon"]');
@@ -1389,6 +1401,7 @@ export function mountTimelineShell(host, ctx) {
     syncingScroll = true;
     el.labels.scrollTop = el.viewport.scrollTop;
     syncingScroll = false;
+    syncLabelViewportLayout();
   }, { passive: true });
   el.labels.addEventListener('scroll', () => {
     if (syncingScroll) return;
@@ -1401,6 +1414,11 @@ export function mountTimelineShell(host, ctx) {
   }, { passive: false });
 
   render();
+
+  const ro = typeof ResizeObserver !== 'undefined'
+    ? new ResizeObserver(() => syncLabelViewportLayout())
+    : null;
+  ro?.observe(el.viewport);
 
   /** @type {HTMLElement | null} */
   let assetDropHighlight = null;
@@ -1484,6 +1502,7 @@ export function mountTimelineShell(host, ctx) {
       closeShortcutsPopup();
       closeTimeMoveDialog();
       detachHeight?.();
+      ro?.disconnect();
     },
     render,
   };
@@ -1705,10 +1724,10 @@ function trackRowHtml(tr, engine, secToX, audio) {
 }
 
 function sectionAccent(section) {
-  if (section === 'stage') return '#a67c52';
-  if (section === 'light') return '#c9a227';
+  if (section === 'stage') return '#00c9d4';
+  if (section === 'light') return '#ffd200';
   if (section === 'audio') return '#4a7ab5';
-  return '#3d7a5a';
+  return '#ec00e0';
 }
 
 function formatTick(t) {

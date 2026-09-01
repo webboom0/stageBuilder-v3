@@ -26,6 +26,11 @@ import { repairGroupFromTimeline } from '../domain/project/sceneGroupRepair.js';
  *   onPresetRemoved?: (presetId: string) => void,
  *   onChange?: () => void,
  *   onGroupRename?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
+ *   onGroupDelete?: (groupId: string) => void | Promise<void>,
+ *   getGroupTimelineUsage?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => {
+ *     onTimeline: boolean,
+ *     trackCount: number,
+ *   },
  *   onGroupColor?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup) => void,
  *   onGroupPresetApplied?: (group: import('../domain/motion/MotionGroupStore.js').MotionGroup, preset: import('../domain/motion/positionPresets.js').PositionPreset) => void,
  *   onPickGroupPoint?: (opts: {
@@ -582,8 +587,20 @@ export function createGroupsPanelBody(opts) {
     if (act === 'delete') {
       const active = store.getActive();
       if (!active) return;
-      if (!window.confirm(`그룹 «${active.name}» 삭제?`)) return;
-      store.remove(active.id);
+      const usage = opts.getGroupTimelineUsage?.(active);
+      let msg = `그룹 «${active.name}»을(를) 삭제할까요?`;
+      if (usage?.onTimeline) {
+        const n = usage.trackCount || 0;
+        msg = `그룹 «${active.name}»이(가) 타임라인에 적용되어 있습니다`
+          + (n > 0 ? ` (${n}개 트랙)` : '')
+          + '.\n\n삭제하면 타임라인 트랙과 씬 객체도 함께 제거됩니다. 계속할까요?';
+      }
+      if (!window.confirm(msg)) return;
+      if (opts.onGroupDelete) {
+        await opts.onGroupDelete(active.id);
+      } else {
+        store.remove(active.id);
+      }
       render();
       opts.onChange?.();
       return;

@@ -55,6 +55,13 @@ body.sb-tl-resize-active * {
 
 .sb-tl {
   --sb-tl-ruler-h: 22px;
+  /* Timeline section palette (attached swatch grid: top=accent, bottom=pastel tint) */
+  --sb-tl-motion-accent: #ec00e0;
+  --sb-tl-motion-tint: rgba(240, 184, 216, 0.14);
+  --sb-tl-stage-accent: #00c9d4;
+  --sb-tl-stage-tint: rgba(176, 232, 228, 0.14);
+  --sb-tl-light-accent: #ffd200;
+  --sb-tl-light-tint: rgba(245, 240, 200, 0.14);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -140,14 +147,34 @@ body.sb-tl-resize-active * {
   overflow-y: auto;
   border-right: 1px solid var(--line);
   background: #1a1a1a;
-  /* sticky ruler 높이만큼 내려서 첫 라벨 = 첫 키 행 */
-  padding-top: var(--sb-tl-ruler-h);
+  box-sizing: border-box;
   /* viewport 쪽 세로 스크롤만 보이게 — 헤더는 휠/스크롤 동기화 */
   scrollbar-width: none;
 }
 .sb-tl-labels::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+.sb-tl-labels-ruler {
+  position: sticky;
+  top: 0;
+  height: var(--sb-tl-ruler-h);
+  z-index: 4;
+  background: #1a1a1a;
+  border-bottom: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.sb-tl-labels-content {
+  position: relative;
+}
+
+.sb-tl-labels-audio-spacer {
+  height: 28px;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(74, 122, 181, 0.12);
 }
 
 .sb-tl-label {
@@ -263,8 +290,13 @@ body.sb-tl-resize-active * {
   height: var(--sb-tl-ruler-h);
   background: #1d1d1d;
   border-bottom: 1px solid var(--line);
-  z-index: 3;
+  z-index: 8;
   cursor: ew-resize;
+}
+
+.sb-tl-tracks {
+  position: relative;
+  z-index: 1;
 }
 
 .sb-tl-tick {
@@ -286,21 +318,43 @@ body.sb-tl-resize-active * {
   white-space: nowrap;
 }
 
-.sb-tl-tracks {
-  position: relative;
-}
-
 .sb-tl-track {
   position: relative;
   height: 28px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  background: repeating-linear-gradient(
+  --sb-tl-track-tint: transparent;
+  background-color: var(--sb-tl-track-tint);
+  background-image: repeating-linear-gradient(
     90deg,
     transparent,
     transparent calc(var(--sb-tl-sec, 8px) - 1px),
     rgba(255, 255, 255, 0.03) calc(var(--sb-tl-sec, 8px) - 1px),
     rgba(255, 255, 255, 0.03) var(--sb-tl-sec, 8px)
   );
+}
+
+.sb-tl-track[data-section="motion"] {
+  --sb-tl-track-tint: var(--sb-tl-motion-tint);
+}
+
+.sb-tl-track[data-section="stage"] {
+  --sb-tl-track-tint: var(--sb-tl-stage-tint);
+}
+
+.sb-tl-track[data-section="light"] {
+  --sb-tl-track-tint: var(--sb-tl-light-tint);
+}
+
+.sb-tl-label[data-section="motion"] {
+  background: var(--sb-tl-motion-tint);
+}
+
+.sb-tl-label[data-section="stage"] {
+  background: var(--sb-tl-stage-tint);
+}
+
+.sb-tl-label[data-section="light"] {
+  background: var(--sb-tl-light-tint);
 }
 
 .sb-tl-key {
@@ -316,7 +370,7 @@ body.sb-tl-resize-active * {
   transform: rotate(45deg);
   cursor: grab;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
-  z-index: 5;
+  z-index: 2;
 }
 
 .sb-tl-key:hover {
@@ -359,7 +413,7 @@ body.sb-tl-resize-active * {
   height: var(--sb-tl-ruler-h);
   pointer-events: auto;
   cursor: ew-resize;
-  z-index: 6;
+  z-index: 9;
 }
 
 .sb-tl-playhead-head::before {
@@ -465,6 +519,21 @@ body.sb-tl-resize-active * {
   color: #fff;
 }
 
+.sb-tl-jump.is-on[data-section="motion"] {
+  background: color-mix(in srgb, var(--sb-tl-motion-accent) 28%, transparent);
+  border-color: var(--sb-tl-motion-accent);
+}
+
+.sb-tl-jump.is-on[data-section="stage"] {
+  background: color-mix(in srgb, var(--sb-tl-stage-accent) 28%, transparent);
+  border-color: var(--sb-tl-stage-accent);
+}
+
+.sb-tl-jump.is-on[data-section="light"] {
+  background: color-mix(in srgb, var(--sb-tl-light-accent) 28%, transparent);
+  border-color: var(--sb-tl-light-accent);
+}
+
 .sb-tl-sec-label {
   height: 20px;
   display: flex;
@@ -478,6 +547,24 @@ body.sb-tl-resize-active * {
   color: #c9b8ff;
   background: #161616;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sb-tl-sec-label[data-section="motion"] {
+  color: var(--sb-tl-motion-accent);
+  background: color-mix(in srgb, var(--sb-tl-motion-tint) 65%, #161616);
+  border-bottom-color: color-mix(in srgb, var(--sb-tl-motion-accent) 28%, transparent);
+}
+
+.sb-tl-sec-label[data-section="stage"] {
+  color: var(--sb-tl-stage-accent);
+  background: color-mix(in srgb, var(--sb-tl-stage-tint) 65%, #161616);
+  border-bottom-color: color-mix(in srgb, var(--sb-tl-stage-accent) 28%, transparent);
+}
+
+.sb-tl-sec-label[data-section="light"] {
+  color: var(--sb-tl-light-accent);
+  background: color-mix(in srgb, var(--sb-tl-light-tint) 65%, #161616);
+  border-bottom-color: color-mix(in srgb, var(--sb-tl-light-accent) 28%, transparent);
 }
 
 .sb-tl-sec-toggle {
@@ -578,12 +665,17 @@ body.sb-tl-resize-active * {
 
 .sb-tl-sec-lane.is-asset-drop-target,
 .sb-tl-track[data-section="stage"].is-asset-drop-target,
-.sb-tl-label[data-section="stage"].is-asset-drop-target,
+.sb-tl-label[data-section="stage"].is-asset-drop-target {
+  outline: 1px dashed color-mix(in srgb, var(--sb-tl-stage-accent) 85%, transparent);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--sb-tl-stage-tint) 80%, transparent);
+}
+
 .sb-tl-track[data-section="motion"].is-asset-drop-target,
 .sb-tl-label[data-section="motion"].is-asset-drop-target {
-  outline: 1px dashed rgba(166, 124, 82, 0.85);
+  outline: 1px dashed color-mix(in srgb, var(--sb-tl-motion-accent) 85%, transparent);
   outline-offset: -1px;
-  background: rgba(166, 124, 82, 0.12);
+  background: color-mix(in srgb, var(--sb-tl-motion-tint) 80%, transparent);
 }
 
 body.sb-asset-dragging-stage .sb-tl [data-section="stage"],

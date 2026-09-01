@@ -43,7 +43,7 @@ function mountProjectRoutes(app, deps) {
     characters: {
       subDir: 'assets/characters',
       field: 'fbxFile',
-      exts: MEDIA_EXTS.characters || MEDIA_EXTS.fbx,
+      exts: MEDIA_EXTS.characters,
       maxBytes: 100 * 1024 * 1024,
     },
     props: {
@@ -522,7 +522,7 @@ function mountProjectRoutes(app, deps) {
 
   /** Global `files/` library → copy into project assets (no re-upload). */
   const LIBRARY_SOURCES = {
-    characters: ['characters', 'fbx'],
+    characters: ['characters'],
     props: ['props'],
     audio: ['music'],
     video: ['video'],

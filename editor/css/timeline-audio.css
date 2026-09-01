@@ -136,12 +136,23 @@
 
 .sb-tl-track-audio {
   position: relative;
+  height: 36px;
   min-height: 36px;
+  box-sizing: border-box;
   background: rgba(74, 122, 181, 0.06);
 }
 
 .sb-tl-track-audio.is-empty {
   background: rgba(74, 122, 181, 0.03);
+}
+
+.sb-tl-track.sb-tl-track-audio-empty {
+  height: 36px;
+  min-height: 36px;
+}
+
+.sb-tl-label-stub[data-section="audio"] {
+  height: 36px;
 }
 
 .sb-audio-track-empty {
@@ -156,10 +167,11 @@
 }
 
 .sb-tl-label-audio {
-  min-height: 28px;
-  height: auto;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  height: 36px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .sb-tl-label-audio.is-target .sb-tl-label-name {

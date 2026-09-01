@@ -295,6 +295,8 @@ export function mountEditorShell(root, ctx) {
       getDefaultSpawn: () => ctx.getGroupDefaultSpawn?.() || { fromX: 0, fromZ: 50 },
       getSegmentStagePreview: () => ctx.segmentStagePreview ?? null,
       onGroupRename: (group) => ctx.onGroupRename?.(group),
+      onGroupDelete: (groupId) => ctx.onGroupDelete?.(groupId),
+      getGroupTimelineUsage: (group) => ctx.getGroupTimelineUsage?.(group) ?? { onTimeline: false, trackCount: 0 },
       onGroupColor: (group) => ctx.onGroupColor?.(group),
       onChange: () => ctx.onChange?.(),
     });

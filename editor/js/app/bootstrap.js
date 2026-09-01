@@ -64,7 +64,12 @@ import { showProjectMetaPopup } from '../ui/project/ProjectMetaPopup.js';
 import { createProject, exportProjectBundle, exportProjectSnapshot, importProjectBundle, restoreProjectSnapshot, listProjects, probeProjectsApi } from '../domain/project/projectApi.js';
 import { ProjectStore } from '../domain/project/ProjectStore.js';
 import { resolveProjectAssetUrl } from '../domain/project/projectPaths.js';
-import { memberDeployTrackName, relinkGroupDeployments } from '../domain/project/sceneGroups.js';
+import {
+  getGroupTimelineUsage,
+  memberDeployTrackName,
+  relinkGroupDeployments,
+  removeGroupFromTimeline,
+} from '../domain/project/sceneGroups.js';
 import { createEditorLoadingOverlay } from '../ui/EditorLoadingOverlay.js';
 import { MultiViewManager } from '../domain/viewport/MultiViewManager.js';
 import { MultiViewPopup } from '../domain/viewport/MultiViewPopup.js';
@@ -1918,6 +1923,24 @@ async function main(initialProjectStore) {
     onGroupRename: (group) => {
       syncGroupNameToTimeline(group);
       refreshStatus(`그룹 이름: ${group.name}`);
+    },
+    getGroupTimelineUsage: (group) => getGroupTimelineUsage(group, motion, timeline),
+    onGroupDelete: (groupId) => {
+      const group = groupStore.get(groupId);
+      if (!group) return;
+      const usage = getGroupTimelineUsage(group, motion, timeline);
+      if (usage.onTimeline) {
+        removeGroupFromTimeline(group, motion, timeline);
+        segmentStagePreview.resetPreview();
+        const selId = interaction?.getSelectedMotionId?.();
+        if (selId && !motion.get(selId)) interaction.clearSelection();
+        applyAllDirectorsAtPlayhead();
+      }
+      const name = group.name;
+      groupStore.remove(groupId);
+      markSceneDirty();
+      shell.refreshGroups?.();
+      refreshStatus(usage.onTimeline ? `그룹 삭제: ${name} (타임라인 제거)` : `그룹 삭제: ${name}`);
     },
     onGroupColor: (group) => {
       const idx = groupStore.list().findIndex((g) => g.id === group.id);
