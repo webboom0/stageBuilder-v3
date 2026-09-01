@@ -391,7 +391,8 @@ body.sb-tl-resize-active * {
   margin-left: -7px;
   border-left: none;
   pointer-events: none;
-  z-index: 4;
+  /* keys(2) < ruler(8) < playhead — line stays visible over time ruler */
+  z-index: 10;
 }
 
 .sb-tl-playhead::after {
@@ -413,7 +414,6 @@ body.sb-tl-resize-active * {
   height: var(--sb-tl-ruler-h);
   pointer-events: auto;
   cursor: ew-resize;
-  z-index: 9;
 }
 
 .sb-tl-playhead-head::before {
