@@ -3,6 +3,11 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { getStageDeckWorldY } from '../stage/stageGridAdaptive.js';
 import { clampMotionAboveDeck, isStageMotionItem } from '../motion/MotionDirector.js';
 import { asMotionKeyValue } from '../motion/motionKeyValue.js';
+import {
+  applyStageTransform,
+  previewStageTransform,
+  snapshotStageTransformKeys,
+} from '../motion/stageTransformSync.js';
 import { cloneKeyframeValue } from '../timeline/cloneValue.js';
 import { keyframeTimeEps } from '../timeline/KeyframeStore.js';
 
@@ -43,7 +48,7 @@ export function createViewportInteraction(opts) {
   /** @type {null | ((pt: { x: number, z: number }) => void)} */
   let pickPointCallback = null;
 
-  /** @type {{ motionId: string, before: object, keyId: string | null, trackId: string | null, keyBefore: any, lockY?: boolean, canCommit: boolean } | null} */
+  /** @type {{ motionId: string, before: object, keyId: string | null, trackId: string | null, keyBefore: any, keysBefore?: { id: string, before: any }[], lockY?: boolean, canCommit: boolean } | null} */
   let dragSnap = null;
   let dragging = false;
 
@@ -95,20 +100,32 @@ export function createViewportInteraction(opts) {
         ? engine.selectedKeyframeId
         : null;
       const writable = resolveWritableKeyframe(track, explicitKeyId);
+      const stageSync = isStageMotionItem(m, engine);
+      const editedKeyId = writable?.id ?? null;
       dragSnap = {
         motionId: m.id,
         before: snapshotObject(m.object),
-        keyId: writable?.id ?? null,
+        keyId: editedKeyId,
         trackId: m.trackId,
         keyBefore: writable ? cloneKeyframeValue(writable.value) : null,
+        keysBefore: stageSync && track && editedKeyId
+          ? snapshotStageTransformKeys(track, editedKeyId)
+          : undefined,
         lockY: isCharacterMotion(m),
-        canCommit: !!writable,
+        canCommit: !!writable || (stageSync && (track?.keys.list().length ?? 0) > 0),
       };
     } else if (dragSnap) {
       const m = motion.get(dragSnap.motionId);
       if (m) {
         if (dragSnap.canCommit) {
-          commitTransform(m, dragSnap.before, dragSnap.trackId, dragSnap.keyId, dragSnap.keyBefore);
+          commitTransform(
+            m,
+            dragSnap.before,
+            dragSnap.trackId,
+            dragSnap.keyId,
+            dragSnap.keyBefore,
+            dragSnap.keysBefore,
+          );
         } else {
           motion.apply(engine.playheadSec);
         }
@@ -298,8 +315,9 @@ export function createViewportInteraction(opts) {
    * @param {string | null} trackId
    * @param {string | null} keyId
    * @param {any} keyBeforeSnap
+   * @param {{ id: string, before: any }[] | undefined} [keysBefore]
    */
-  function commitTransform(m, before, trackId, keyId, keyBeforeSnap) {
+  function commitTransform(m, before, trackId, keyId, keyBeforeSnap, keysBefore) {
     const after = snapshotObject(m.object);
     const track = trackId ? engine.getTrack(trackId) : null;
     if (track?.locked) {
@@ -307,6 +325,21 @@ export function createViewportInteraction(opts) {
       motion.apply(engine.playheadSec);
       return;
     }
+
+    if (isStageMotionItem(m, engine) && track) {
+      const editedKeyId = keyId ?? resolveWritableKeyframe(track, null)?.id ?? null;
+      applyStageTransform(engine, m.trackId, {
+        position: [after.position.x, after.position.y, after.position.z],
+        rotation: [after.rotation.x, after.rotation.y, after.rotation.z],
+        scale: [after.scale.x, after.scale.y, after.scale.z],
+      }, editedKeyId, {
+        label: 'Transform motion',
+        keysBefore,
+      });
+      motion.apply(engine.playheadSec);
+      return;
+    }
+
     const target = track ? resolveWritableKeyframe(track, keyId) : null;
     if (!target) {
       motion.apply(engine.playheadSec);
@@ -345,9 +378,24 @@ export function createViewportInteraction(opts) {
   }
 
   function syncLiveKeyPreview(m) {
-    if (!dragSnap || engine.selectedTrackId !== m.trackId || !engine.selectedKeyframeId) return;
+    if (!dragSnap) return;
     const track = engine.getTrack(m.trackId);
     if (track?.locked) return;
+
+    if (isStageMotionItem(m, engine)) {
+      const editedKeyId = dragSnap.keyId
+        ?? (engine.selectedTrackId === m.trackId ? engine.selectedKeyframeId : null)
+        ?? resolveWritableKeyframe(track, null)?.id
+        ?? null;
+      previewStageTransform(engine, m.trackId, {
+        position: [m.object.position.x, m.object.position.y, m.object.position.z],
+        rotation: [m.object.rotation.x, m.object.rotation.y, m.object.rotation.z],
+        scale: [m.object.scale.x, m.object.scale.y, m.object.scale.z],
+      }, editedKeyId);
+      return;
+    }
+
+    if (engine.selectedTrackId !== m.trackId || !engine.selectedKeyframeId) return;
     const kf = track?.keys.get(engine.selectedKeyframeId);
     if (!kf) return;
     const bag = asMotionKeyValue(kf.value);

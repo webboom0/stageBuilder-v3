@@ -689,6 +689,7 @@
             <tr><td>키 선택</td><td>다이아몬드 클릭 → 무대 객체 선택 · 플레이헤드 이동 · 툴바 <strong>◀ ▶</strong> 또는 <span class="kbd">,</span> / <span class="kbd">.</span> 로 이전/다음 키</td></tr>
             <tr><td>키 삭제</td><td>키 선택 → <span class="kbd">Del</span> / <span class="kbd">D</span> · 우클릭 메뉴</td></tr>
             <tr><td>키 시간 이동</td><td>키 드래그 · <span class="kbd">←/→</span> 1프레임 · Shift 1초 · Alt 0.1초 · 우클릭 <strong>키 이동…</strong> · <span class="kbd">M</span> 초 입력</td></tr>
+            <tr><td>위치 복사·붙여넣기</td><td>키 우클릭 — <strong>위치 복사</strong> → 다른 키 우클릭 <strong>위치 붙여넣기</strong> (Characters/Stage · 다른 트랙 가능 · XYZ 그대로 · Undo 가능)</td></tr>
             <tr><td>키 수정</td><td>키 선택 → <a href="#char-props">속성</a> 또는 기즈모 (플레이헤드 키 또는 선택 키 필요)</td></tr>
             <tr><td>트랙 이름</td><td>트랙 선택 · <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong></td></tr>
             <tr><td>트랙 삭제</td><td>트랙 선택 후 <span class="kbd">Del</span> (확인) · 또는 라벨 <strong>우클릭 → 트랙 삭제</strong> — 무대 객체 함께 제거</td></tr>
@@ -727,7 +728,7 @@
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
             <tr><td>키 추가/삭제/이동</td><td>Characters와 동일 (<span class="kbd">K</span> · Del · ◀ ▶ · <span class="kbd">,</span>/<span class="kbd">.</span> · 드래그 · 화살표 · M · 우클릭)</td></tr>
-            <tr><td>키 수정</td><td><a href="#stage-props">속성</a> 또는 기즈모 (XYZ 위치·회전·크기) · Y는 위로만 (바닥 아래 불가)</td></tr>
+            <tr><td>키 수정</td><td><a href="#stage-props">속성</a> 또는 기즈모 — <strong>키 2개만</strong>일 때 시작 키=퇴장 키도 동시 · 퇴장 키=이 키만 · <strong>3개 이상</strong>=선택 키만 · Opacity는 선택 키만</td></tr>
             <tr><td>트랙 이름</td><td>트랙 선택 · <span class="kbd">F2</span> · 우클릭 · Properties <strong>이름</strong></td></tr>
             <tr><td>트랙 삭제</td><td>트랙 선택 · <span class="kbd">Del</span> (확인) · 또는 라벨 우클릭 → 트랙 삭제 — 무대 메시 제거</td></tr>
           </tbody>
@@ -939,7 +940,7 @@
 
       <section id="stage-props">
         <h2>Properties — Stage · 속성</h2>
-        <p>Stage 선택 시 Properties <strong>속성</strong> 탭 — XYZ·회전·크기·색·Opacity. 이동 시퀀스는 <strong><a href="#stage-pattern">패턴</a></strong> 탭.</p>
+        <p>Stage 선택 시 Properties <strong>속성</strong> 탭 — XYZ·회전·크기·색·Opacity. <strong>키 2개(시작·퇴장)만</strong> 있을 때 <strong>시작 키</strong>의 위치·회전·크기는 <strong>퇴장 키에도 함께</strong> 적용 · <strong>퇴장 키</strong>는 따로 · 키 3개 이상이면 <strong>선택 키만</strong>. 이동 시퀀스는 <strong><a href="#stage-pattern">패턴</a></strong> 탭.</p>
         <table>
           <thead><tr><th>필드</th><th>설명</th></tr></thead>
           <tbody>

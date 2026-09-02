@@ -7,6 +7,12 @@ import { clampMotionAboveDeck } from '../domain/motion/MotionDirector.js';
 import { supportsPresenceClip } from '../domain/timeline/presenceClip.js';
 import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
+import {
+  applyStageTransform,
+  isStageMotionTrack,
+  stageTransformEditHint,
+  snapshotStageTransformKeys,
+} from '../domain/motion/stageTransformSync.js';
 
 /**
  * Properties — tabs: 패턴 (move/hold/exit keyframe pattern) · 속성 (object/key).
@@ -137,6 +143,7 @@ export function createKeyframePropertiesPanel(opts) {
           <div class="ec-row-group" data-role="stage-pos-group">
             <div class="ec-row-group-label">위치</div>
           </div>
+          <div class="sb-kf-props-hint" data-role="stage-transform-hint" hidden></div>
           <button type="button" class="sb-stage-pick-btn" data-role="stage-pick-stage">
             <span class="sb-stage-pick-ico" aria-hidden="true">◎</span>
             <span>
@@ -221,6 +228,7 @@ export function createKeyframePropertiesPanel(opts) {
   const posGroup = root.querySelector('[data-role="pos-group"]');
   const rotyHost = /** @type {HTMLElement} */ (root.querySelector('[data-role="roty-host"]'));
   const stagePosGroup = root.querySelector('[data-role="stage-pos-group"]');
+  const stageTransformHint = root.querySelector('[data-role="stage-transform-hint"]');
   const stageRotGroup = root.querySelector('[data-role="stage-rot-group"]');
   const stageScaleGroup = root.querySelector('[data-role="stage-scale-group"]');
   const segmentsTab = root.querySelector('[data-role="segments-tab"]');
@@ -355,7 +363,18 @@ export function createKeyframePropertiesPanel(opts) {
 
   function isStageItem(m, track) {
     if (!m) return false;
-    return m.assetRole === 'stage' || m.section === 'stage' || track?.section === 'stage';
+    return m.assetRole === 'stage' || m.section === 'stage' || isStageMotionTrack(track);
+  }
+
+  function pushStageTransform(m) {
+    const track = engine.getTrack(m.trackId);
+    if (!track || track.locked || !isStageItem(m, track)) return false;
+    const keyId = resolveMotionKeyId(m, track);
+    return applyStageTransform(engine, m.trackId, {
+      position: [m.object.position.x, m.object.position.y, m.object.position.z],
+      rotation: [m.object.rotation.x, m.object.rotation.y, m.object.rotation.z],
+      scale: [m.object.scale.x, m.object.scale.y, m.object.scale.z],
+    }, keyId, { label: 'Edit stage transform' });
   }
 
   function commitCharTransform() {
@@ -386,7 +405,7 @@ export function createKeyframePropertiesPanel(opts) {
     const pos = stageXyz.pos.read();
     m.object.position.set(pos[0], pos[1], pos[2]);
     clampMotionAboveDeck(m.object, stageManager);
-    pushObjectToSelectedKey(m);
+    pushStageTransform(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
   }
@@ -407,7 +426,7 @@ export function createKeyframePropertiesPanel(opts) {
       THREE.MathUtils.degToRad(rot[2]),
     );
     clampMotionAboveDeck(m.object, stageManager);
-    pushObjectToSelectedKey(m);
+    pushStageTransform(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
   }
@@ -424,7 +443,7 @@ export function createKeyframePropertiesPanel(opts) {
     const sc = stageXyz.scale.read().map((v) => Math.max(1e-6, v));
     m.object.scale.set(sc[0], sc[1], sc[2]);
     clampMotionAboveDeck(m.object, stageManager);
-    pushObjectToSelectedKey(m);
+    pushStageTransform(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
   }
@@ -478,6 +497,39 @@ export function createKeyframePropertiesPanel(opts) {
     const bag = asMotionKeyValue(kf.value);
     Object.assign(bag, bagBase);
     bag.opacity = opacity;
+    engine.editKeyframe(m.trackId, keyId, { value: bag });
+    engine.selectKeyframe(m.trackId, keyId);
+  }
+
+  function resolveMotionKeyId(m, track) {
+    let keyId = engine.selectedTrackId === m.trackId ? engine.selectedKeyframeId : null;
+    if (!keyId) {
+      const at = track.keys.list().find((k) => Math.abs(k.timeSec - engine.playheadSec) < 1e-3);
+      keyId = at?.id ?? null;
+    }
+    return keyId;
+  }
+
+  function pushOpacityToSelectedKey(m) {
+    const track = engine.getTrack(m.trackId);
+    if (!track || track.locked) return;
+    const keyId = resolveMotionKeyId(m, track);
+    const opacity = readOpacityValue(m, track);
+    if (!keyId) {
+      engine.addKeyframe(m.trackId, engine.playheadSec, {
+        position: [m.object.position.x, m.object.position.y, m.object.position.z],
+        rotation: [m.object.rotation.x, m.object.rotation.y, m.object.rotation.z],
+        scale: [m.object.scale.x, m.object.scale.y, m.object.scale.z],
+        opacity,
+        visible: true,
+      });
+      return;
+    }
+    const kf = track.keys.get(keyId);
+    if (!kf) return;
+    const bag = asMotionKeyValue(kf.value);
+    bag.opacity = opacity;
+    bag.visible = !isTrackExitKeyframe(track, keyId);
     engine.editKeyframe(m.trackId, keyId, { value: bag });
     engine.selectKeyframe(m.trackId, keyId);
   }
@@ -588,6 +640,15 @@ export function createKeyframePropertiesPanel(opts) {
     const isStage = isStageItem(m, track);
     if (charProps) /** @type {HTMLElement} */ (charProps).hidden = isStage;
     if (stageProps) /** @type {HTMLElement} */ (stageProps).hidden = !isStage;
+    if (stageTransformHint) {
+      const hintKeyId = (kf && engine.selectedTrackId === m.trackId)
+        ? kf.id
+        : resolveMotionKeyId(m, track ?? engine.getTrack(m.trackId));
+      const hintTrack = track ?? engine.getTrack(m.trackId);
+      const hint = hintTrack ? stageTransformEditHint(hintTrack, hintKeyId) : '';
+      /** @type {HTMLElement} */ (stageTransformHint).textContent = hint;
+      /** @type {HTMLElement} */ (stageTransformHint).hidden = !isStage || !hint;
+    }
     if (segmentsTab) /** @type {HTMLElement} */ (segmentsTab).hidden = false;
 
     if (isStage) {
@@ -828,7 +889,7 @@ export function createKeyframePropertiesPanel(opts) {
     if (which === 'char' && isStage) return;
     const n = clamp01(Number(raw));
     writeOpacityValue(m, track, n);
-    pushObjectToSelectedKey(m);
+    pushOpacityToSelectedKey(m);
     opts.onObjectEdited?.(m.id);
     opts.onChange?.();
   };

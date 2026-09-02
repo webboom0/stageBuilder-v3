@@ -25,6 +25,8 @@ import {
   parseAssetDrag,
   ASSET_DRAG_MIME,
 } from '../../domain/assets/stageAssetDrag.js';
+import { asMotionKeyValue } from '../../domain/motion/motionKeyValue.js';
+import { isStageMotionTrack, applyStageTransform } from '../../domain/motion/stageTransformSync.js';
 
 /**
  * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
@@ -70,6 +72,9 @@ export function mountTimelineShell(host, ctx) {
     onSaveTrackToPatternLibrary,
     onRenameMotionTrack,
   } = ctx;
+
+  /** @type {{ position: number[] } | null} */
+  let copiedMotionKeyPosition = null;
 
   host.classList.add('sb-tl');
   host.tabIndex = 0;
@@ -804,6 +809,54 @@ export function mountTimelineShell(host, ctx) {
   }
 
   /**
+   * @param {number[]} pos
+   * @returns {string}
+   */
+  function formatCopiedPositionHint(pos) {
+    return `(${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)})`;
+  }
+
+  /**
+   * @param {string} trackId
+   * @param {string} keyId
+   * @returns {boolean}
+   */
+  function copyMotionKeyPosition(trackId, keyId) {
+    const track = engine.getTrack(trackId);
+    if (!track || track.kind !== 'motion' || track.locked) return false;
+    const kf = track.keys.get(keyId);
+    if (!kf) return false;
+    const bag = asMotionKeyValue(kf.value);
+    copiedMotionKeyPosition = { position: bag.position.slice() };
+    return true;
+  }
+
+  /**
+   * @param {string} trackId
+   * @param {string} keyId
+   * @returns {boolean}
+   */
+  function pasteMotionKeyPosition(trackId, keyId) {
+    if (!copiedMotionKeyPosition) return false;
+    const track = engine.getTrack(trackId);
+    if (!track || track.kind !== 'motion' || track.locked) return false;
+    const kf = track.keys.get(keyId);
+    if (!kf) return false;
+    if (isStageMotionTrack(track)) {
+      applyStageTransform(engine, trackId, {
+        position: copiedMotionKeyPosition.position.slice(),
+      }, keyId, { label: 'Paste key position' });
+      applyHistoryChange();
+      return true;
+    }
+    const bag = asMotionKeyValue(kf.value);
+    bag.position = copiedMotionKeyPosition.position.slice();
+    engine.editKeyframe(trackId, keyId, { value: bag });
+    applyHistoryChange();
+    return true;
+  }
+
+  /**
    * Select key on timeline + stage object; scrub playhead to key so opacity/visible match.
    * @param {string} trackId
    * @param {string} keyId
@@ -1240,6 +1293,23 @@ export function mountTimelineShell(host, ctx) {
           disabled: !kf || !!track?.locked,
           action: () => openTimeMoveDialog('key'),
         },
+        ...(track?.kind === 'motion'
+          ? [
+            { sep: true },
+            {
+              label: '위치 복사',
+              disabled: !kf || !!track?.locked,
+              action: () => copyMotionKeyPosition(trackId, keyId),
+            },
+            {
+              label: copiedMotionKeyPosition
+                ? `위치 붙여넣기 ${formatCopiedPositionHint(copiedMotionKeyPosition.position)}`
+                : '위치 붙여넣기',
+              disabled: !kf || !!track?.locked || !copiedMotionKeyPosition,
+              action: () => pasteMotionKeyPosition(trackId, keyId),
+            },
+          ]
+          : []),
         { sep: true },
         {
           label: '키 삭제',
