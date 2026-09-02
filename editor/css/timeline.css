@@ -497,6 +497,26 @@ body.sb-tl-resize-active * {
   padding: 0 4px;
 }
 
+.sb-tl-key-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.sb-tl-key-nav .sb-tl-btn {
+  min-width: 22px;
+  padding: 0 4px;
+}
+
+.sb-tl-key-nav .sb-tl-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .sb-tl-jump {
   height: 22px;
   padding: 0 8px;

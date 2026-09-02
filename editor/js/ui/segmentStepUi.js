@@ -899,6 +899,7 @@ export function openSegmentEditDialog(opts) {
     formation: seg.formation || 'line',
     formationSpacing: Number(seg.formationSpacing ?? 36),
     anchorPresetId: seg.anchorPresetId || null,
+    opacity: clamp01(seg.opacity ?? 1),
   };
 
   const title = `${SEGMENT_KIND_LABELS[kind] || kind} 구간`;
@@ -1025,6 +1026,9 @@ export function openSegmentEditDialog(opts) {
         formationSpacing: 'formationSpacing',
       },
     flushPreview, 'anchorPresetId');
+    if (kind === 'exit') {
+      wireOpacitySlider(body, flushPreview);
+    }
   }
 
   bindDialogSave(dlg, () => {
@@ -1151,6 +1155,14 @@ function opacityRowHtml(draft) {
     </div>`;
 }
 
+function exitVisibleNoteHtml() {
+  return `
+    <div class="sb-ens-seg-row sb-seg-exit-visible-note">
+      <span class="sb-seg-exit-visible-label">안 보임</span>
+      <span class="sb-seg-exit-visible-hint">퇴장 키 — 자동 적용 (Opacity로 페이드아웃 가능)</span>
+    </div>`;
+}
+
 function buildSegmentFormHtml(draft, kind, showFormation, _macroMode = false, _absolutePattern = false) {
   const isHold = kind === 'hold';
   const axLbl = kind === 'exit' ? '퇴장 X' : '끝 X';
@@ -1180,7 +1192,7 @@ function buildSegmentFormHtml(draft, kind, showFormation, _macroMode = false, _a
           <div data-role="ease"></div>
         </div>
       `}
-      ${kind === 'exit' ? opacityRowHtml({ opacity: 0 }) : ''}
+      ${kind === 'exit' ? `${opacityRowHtml(draft)}${exitVisibleNoteHtml()}` : ''}
     </div>`;
 }
 
@@ -1318,6 +1330,7 @@ function wireNumericFields(body, draft, map, onFlush, clearPresetKey = null) {
 
 function readFormIntoDraft(body, draft) {
   body.querySelectorAll('[data-f]').forEach((input) => {
+    if (input instanceof HTMLInputElement && input.type === 'checkbox') return;
     const field = input.getAttribute('data-f');
     if (!field) return;
     let val = Number(/** @type {HTMLInputElement} */ (input).value);
@@ -1917,7 +1930,7 @@ function toggleAiPatternHelp(anchor) {
 
       <p class="sb-seg-ai-help-h">4. 기본 Duration (⏱)</p>
       <ul class="sb-seg-ai-help-list">
-        <li>초·분을 안 쓰면 이동/회전/대기/퇴장 각 <strong>기본 3초</strong> (⏱에서 변경)</li>
+        <li>초·분을 안 쓰면 이동·퇴장 <strong>3초</strong>, 대기 <strong>10초</strong> (⏱에서 변경)</li>
         <li>시간 단위: <code>초</code> · <code>분</code> · <code>분+초</code> (내부는 모두 초로 계산)</li>
       </ul>
 
@@ -1984,7 +1997,6 @@ function openAiPatternDefaultsDialog() {
       「1분까지 대기」같은 절대 시각과는 별개입니다.</p>
     <div class="sb-seg-ai-defaults-grid">
       <label>이동<input type="number" data-dur="move" min="0.5" max="120" step="0.5" value="${defs.move}" /></label>
-      <label>회전<input type="number" data-dur="rotate" min="0.5" max="120" step="0.5" value="${defs.rotate}" /></label>
       <label>대기<input type="number" data-dur="hold" min="0.5" max="120" step="0.5" value="${defs.hold}" /></label>
       <label>퇴장<input type="number" data-dur="exit" min="0.5" max="120" step="0.5" value="${defs.exit}" /></label>
     </div>`;
@@ -1994,7 +2006,7 @@ function openAiPatternDefaultsDialog() {
     body.querySelectorAll('[data-dur]').forEach((el) => {
       const key = el.getAttribute('data-dur');
       const val = Number(/** @type {HTMLInputElement} */ (el).value);
-      if (key && Number.isFinite(val)) next[/** @type {'move'|'rotate'|'hold'|'exit'} */ (key)] = val;
+      if (key && Number.isFinite(val)) next[/** @type {'move'|'hold'|'exit'} */ (key)] = val;
     });
     saveAiPatternDefaults(next);
     closeDialog(dlg);

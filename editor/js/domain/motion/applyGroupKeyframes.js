@@ -2,15 +2,11 @@ import { applyGroupSegmentsToMotion } from './applyGroupSegments.js';
 import { ensureGroupSegments, getGroupClipRange } from './groupSegments.js';
 import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
 
-/**
- * @param {import('./MotionGroupStore.js').MotionGroup | null | undefined} group
- * @param {(id: string) => import('./MotionDirector.js').MotionItem | null | undefined} getMotionItem
- */
-/** Playhead time aligned to baked keys (same snap as addKeyframe). */
+/** Playhead at pattern start after bake. */
 export function groupBakePlayheadSec(group, engine) {
   ensureGroupSegments(group);
   const clip = getGroupClipRange(group, engine.durationSec);
-  return snapKeyframeTimeSec(clip.startTime, engine.fps);
+  return snapKeyframeTimeSec(Math.max(0, Number(clip.startTime) || 0), engine.fps);
 }
 
 export function isGroupDeployed(group, getMotionItem) {
@@ -36,24 +32,25 @@ export function reapplyGroupKeyframes(opts) {
   const { engine, group, getMotionItem } = opts;
   ensureGroupSegments(group);
   let applied = 0;
-  for (let i = 0; i < group.members.length; i++) {
-    const mem = group.members[i];
-    if (!mem.deployedMotionId) continue;
-    const item = getMotionItem(mem.deployedMotionId);
-    if (!item?.object) continue;
-    applyGroupSegmentsToMotion({
-      engine,
-      motionItem: item,
-      group,
-      memberIndex: i,
-      feetY: item.object.position.y,
-      quiet: true,
-    });
-    applied++;
-  }
-  if (applied > 0) {
-    engine.emit('keys');
-    engine.emit('tracks');
+  engine.beginKeyframeBake();
+  try {
+    for (let i = 0; i < group.members.length; i++) {
+      const mem = group.members[i];
+      if (!mem.deployedMotionId) continue;
+      const item = getMotionItem(mem.deployedMotionId);
+      if (!item?.object) continue;
+      applyGroupSegmentsToMotion({
+        engine,
+        motionItem: item,
+        group,
+        memberIndex: i,
+        feetY: item.object.position.y,
+        quiet: true,
+      });
+      applied++;
+    }
+  } finally {
+    engine.endKeyframeBake();
   }
   return applied;
 }

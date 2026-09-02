@@ -9,6 +9,7 @@ import {
 } from './KeyframeCommands.js';
 import { Track, syncTrackIdSeqFromSnapshots } from './Track.js';
 import { syncKeyframeIdSeqFromSnapshots } from './KeyframeStore.js';
+import { supportsPresenceClip, syncPresenceClipFromKeys } from './presenceClip.js';
 
 /**
  * TimelineEngine — duration, fps, playhead, zoom/pan, tracks, commands.
@@ -52,6 +53,21 @@ export class TimelineEngine {
 
     this._lastTick = 0;
     this._raf = 0;
+    /** Defer keys/tracks/selection emits while pattern/group bake replaces many keys at once */
+    this._keyframeBakeDepth = 0;
+  }
+
+  /** Coalesce timeline refresh during bulk key rewrite (pattern / group / library apply). */
+  beginKeyframeBake() {
+    this._keyframeBakeDepth += 1;
+  }
+
+  endKeyframeBake() {
+    this._keyframeBakeDepth = Math.max(0, this._keyframeBakeDepth - 1);
+    if (this._keyframeBakeDepth === 0) {
+      this.emit('keys');
+      this.emit('tracks');
+    }
   }
 
   /** @param {(ev: { type: string }) => void} fn */
@@ -61,6 +77,12 @@ export class TimelineEngine {
   }
 
   emit(type = 'change') {
+    if (
+      this._keyframeBakeDepth > 0
+      && (type === 'keys' || type === 'tracks' || type === 'selection')
+    ) {
+      return;
+    }
     const ev = { type };
     this._listeners.forEach((fn) => fn(ev));
   }
@@ -175,18 +197,35 @@ export class TimelineEngine {
   /** Unified keyframe API (P2-3) */
   addKeyframe(trackId, timeSec, value, interpolation) {
     const result = cmdAddKeyframe(this, { trackId, timeSec, value, interpolation });
+    if (result) {
+      const track = this.getTrack(trackId);
+      if (track) {
+        this._syncTrackPresenceClip(track);
+        if (supportsPresenceClip(track)) this.emit('tracks');
+      }
+    }
     this.emit('keys');
     return result;
   }
 
   removeKeyframe(trackId, keyframeId) {
+    const track = this.getTrack(trackId);
     const result = cmdRemoveKeyframe(this, { trackId, keyframeId });
+    if (result && track) {
+      this._syncTrackPresenceClip(track);
+      if (supportsPresenceClip(track)) this.emit('tracks');
+    }
     this.emit('keys');
     return result;
   }
 
   moveKeyframe(trackId, keyframeId, timeSec) {
+    const track = this.getTrack(trackId);
     const result = cmdMoveKeyframe(this, { trackId, keyframeId, timeSec });
+    if (result && track) {
+      this._syncTrackPresenceClip(track);
+      if (supportsPresenceClip(track)) this.emit('tracks');
+    }
     this.emit('keys');
     return result;
   }
@@ -412,6 +451,7 @@ export class TimelineEngine {
   undo() {
     const ok = this.commands.undo();
     if (ok) {
+      this._syncAllPresenceClips();
       this.emit('keys');
       this.emit('tracks');
       this.emit('selection');
@@ -422,11 +462,32 @@ export class TimelineEngine {
   redo() {
     const ok = this.commands.redo();
     if (ok) {
+      this._syncAllPresenceClips();
       this.emit('keys');
       this.emit('tracks');
       this.emit('selection');
     }
     return ok;
+  }
+
+  /** Rebuild presence clip envelope from first/last keys after history or key edits. */
+  _syncTrackPresenceClip(track) {
+    if (!supportsPresenceClip(track)) return false;
+    const hadClip = !!track.presenceClip;
+    if (!track.keys.list().length) {
+      track.presenceClip = null;
+      return hadClip;
+    }
+    syncPresenceClipFromKeys(track, this.fps);
+    return true;
+  }
+
+  _syncAllPresenceClips() {
+    let tracksChanged = false;
+    for (const track of this.listTracks()) {
+      if (this._syncTrackPresenceClip(track)) tracksChanged = true;
+    }
+    return tracksChanged;
   }
 
   play() {

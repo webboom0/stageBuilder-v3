@@ -1,5 +1,6 @@
 import { KeyframeStore } from './KeyframeStore.js';
 import { AudioClipStore } from '../audio/AudioClipStore.js';
+import { normalizePresenceClip } from './presenceClip.js';
 
 let _trackSeq = 1;
 
@@ -46,9 +47,11 @@ export class Track {
     this.keys = new KeyframeStore();
     /** Audio clips when kind === 'audio' */
     this.clips = opts.kind === 'audio' ? new AudioClipStore() : null;
-    /** @deprecated clip schedule — not used for visibility; kept for snapshot compat */
+    /** @deprecated use presenceClip — kept for snapshot compat */
     this.clipStartSec = opts.clipStartSec ?? 0;
     this.clipDurationSec = opts.clipDurationSec ?? 10;
+    /** Motion/stage presence envelope (enter/body/exit) */
+    this.presenceClip = opts.presenceClip ?? null;
     /** Timeline group folder (Show Control / Ensemble MVP) */
     this.folderId = opts.folderId ?? null;
     this.motionId = opts.motionId ?? null;
@@ -75,6 +78,7 @@ export class Track {
       clips: this.clips ? this.clips.snapshot() : [],
       clipStartSec: this.clipStartSec,
       clipDurationSec: this.clipDurationSec,
+      presenceClip: this.presenceClip ? { ...this.presenceClip } : null,
       folderId: this.folderId,
       motionId: this.motionId,
       color: this.color,
@@ -104,6 +108,9 @@ export class Track {
       motionMeta: data.motionMeta ?? null,
     });
     t.keys.restore(data.keys);
+    if (data.presenceClip) {
+      t.presenceClip = normalizePresenceClip(data.presenceClip, { keys: t.keys });
+    }
     if (data.kind === 'audio' || (data.clips && data.clips.length)) {
       if (!t.clips) t.clips = new AudioClipStore();
       t.clips.restore(data.clips || []);

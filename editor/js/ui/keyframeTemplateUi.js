@@ -66,7 +66,7 @@ export function templateToDraft(tpl) {
     const dz = i > 0 ? Math.abs((Number(kf.offsetZ) || 0) - (Number(prev?.offsetZ) || 0)) : 0;
     let kind = /** @type {'move'|'hold'|'exit'} */ ('move');
     if (i === 0) kind = 'move';
-    else if (kf.visible === false || kf.opacity === 0) kind = 'exit';
+    else if (kf.visible === false) kind = 'exit';
     else if (dx < 0.01 && dz < 0.01) kind = 'hold';
     return {
       id: newDraftKeyframeId(),
@@ -80,7 +80,18 @@ export function templateToDraft(tpl) {
       presetId: kf.presetId ?? null,
     };
   });
-  return { label: tpl.label || '', keyframes };
+  return {
+    label: tpl.label || '',
+    absoluteCoords: tpl.absoluteCoords === true,
+    startTimeSec: tpl.absoluteCoords && Number.isFinite(Number(tpl.startTimeSec))
+      ? Number(tpl.startTimeSec)
+      : undefined,
+    fromX: tpl.fromX,
+    fromZ: tpl.fromZ,
+    fromRotY: tpl.fromRotY,
+    fromPresetId: tpl.fromPresetId ?? null,
+    keyframes,
+  };
 }
 
 /** @param {DraftKeyframe[]} keys */
@@ -152,8 +163,8 @@ export function draftToMotionTemplate(draft) {
     offsetX: Number(kf.offsetX) || 0,
     offsetZ: Number(kf.offsetZ) || 0,
     deltaRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
-    opacity: kf.kind === 'exit' ? 0 : (Number.isFinite(Number(kf.opacity)) ? Number(kf.opacity) : 1),
-    visible: kf.kind === 'exit' ? false : kf.visible !== false,
+    opacity: Number.isFinite(Number(kf.opacity)) ? Number(kf.opacity) : 1,
+    visible: kf.kind === 'exit' ? false : true,
     presetId: kf.presetId ?? null,
   }));
 
@@ -168,6 +179,14 @@ export function draftToMotionTemplate(draft) {
     label,
     opacity: normalized[0]?.opacity ?? 1,
     keyframes: normalized,
+    ...(draft.absoluteCoords ? {
+      absoluteCoords: true,
+      startTimeSec: Number(draft.startTimeSec) || 0,
+      fromX: Number(draft.fromX ?? draft.keyframes[0]?.offsetX) || 0,
+      fromZ: Number(draft.fromZ ?? draft.keyframes[0]?.offsetZ) || 0,
+      fromRotY: normalizeRotYDeg(draft.fromRotY ?? draft.keyframes[0]?.deltaRotY ?? 0),
+      fromPresetId: draft.fromPresetId ?? draft.keyframes[0]?.presetId ?? null,
+    } : {}),
   });
 }
 
@@ -346,11 +365,13 @@ export function renderKeyframeTemplateSteps(container, ctx) {
         toRotY: linked ? normalizeRotYDeg(linked.rotY ?? kf.deltaRotY) : kf.deltaRotY,
         easing: 'smooth',
         anchorPresetId: kf.presetId ?? null,
+        opacity: kf.opacity ?? 1,
       },
       onSave: (patch) => {
         let offsetX = patch.anchorX;
         let offsetZ = patch.anchorZ;
         const presetId = patch.anchorPresetId ?? null;
+        const segKind = kf.kind || 'move';
         // 프리셋 연결 시 절대좌표 → 시작(프리셋) 기준 상대좌표로 저장
         if (macroLib && presetId) {
           const p = lookupPreset(presetId);
@@ -364,13 +385,12 @@ export function renderKeyframeTemplateSteps(container, ctx) {
           }
         }
         Object.assign(kf, {
-          kind: kf.kind || 'move',
+          kind: segKind,
           timeOffset: patch.duration,
           offsetX,
           offsetZ,
           deltaRotY: patch.toRotY,
-          opacity: kf.kind === 'exit' ? 0 : kf.opacity,
-          visible: kf.kind !== 'exit',
+          opacity: clamp01(patch.opacity ?? kf.opacity ?? 1),
           presetId,
         });
         ctx.onChange?.();
@@ -418,7 +438,7 @@ export function renderKeyframeTemplateSteps(container, ctx) {
         offsetX: prev?.offsetX ?? 0,
         offsetZ: prev?.offsetZ ?? 0,
         deltaRotY: prev?.deltaRotY ?? 0,
-        opacity: kind === 'exit' ? 0 : (prev?.opacity ?? 1),
+        opacity: prev?.opacity ?? 1,
         visible: kind !== 'exit',
         presetId: null,
       };
@@ -476,4 +496,11 @@ function escapeHtml(s) {
 
 function escapeAttr(s) {
   return escapeHtml(s).replace(/"/g, '&quot;');
+}
+
+/** @param {number} n */
+function clamp01(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 1;
+  return Math.max(0, Math.min(1, v));
 }

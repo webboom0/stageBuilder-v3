@@ -1,11 +1,19 @@
 import * as THREE from 'three';
 import { INTERPOLATION } from '../timeline/types.js';
 import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
-import { buildMemberWaypoints, getGroupClipRange, ensureGroupSegments } from './groupSegments.js';
+import { cmdAddKeyframe } from '../timeline/KeyframeCommands.js';
+import {
+  buildMemberWaypoints,
+  ensureGroupSegments,
+  SEGMENT_KIND,
+  normalizeSegmentKind,
+} from './groupSegments.js';
 import { asMotionKeyValue } from './motionKeyValue.js';
+import { syncPresenceClipFromKeys } from '../timeline/presenceClip.js';
 
 /**
  * Apply group animation segments as compound motion keys on a deployed member.
+ * Keys include visible start + body + visible-false exit (no leadIn leadOut offset).
  *
  * @param {{
  *   engine: import('../timeline/TimelineEngine.js').TimelineEngine,
@@ -34,49 +42,55 @@ export function applyGroupSegmentsToMotion(opts) {
     motionItem.object.scale.z,
   ];
 
-  // Replace keys
-  track.keys.clear?.();
-  if (!track.keys.clear) {
-    track.keys.list().slice().forEach((k) => track.keys.remove(k.id));
-  }
+  const segments = ensureGroupSegments(group);
+  const lastSeg = segments[segments.length - 1];
+  const endsWithExit = lastSeg && normalizeSegmentKind(lastSeg.kind) === SEGMENT_KIND.exit;
+  const exitOpacity = endsWithExit ? clamp01(lastSeg.opacity ?? 1) : 1;
 
-  const clip = getGroupClipRange(group, engine.durationSec);
-  const smooth = INTERPOLATION.SMOOTH ?? INTERPOLATION.LINEAR;
-  const startOpacity = clamp01(group.opacity ?? 1);
-  // Enter fade (opacity≈0): first key invisible, then fade to full during first span.
-  // Otherwise keep uniform opacity (e.g. semi-transparent 0.8 throughout).
-  const showOpacity = startOpacity <= 0.05 ? 1 : startOpacity;
+  const batch = !opts.quiet;
+  if (batch) engine.beginKeyframeBake();
+  try {
+    track.keys.clear?.();
+    if (!track.keys.clear) {
+      track.keys.list().slice().forEach((k) => track.keys.remove(k.id));
+    }
 
-  for (let i = 0; i < waypoints.length; i++) {
-    const wp = waypoints[i];
-    const next = waypoints[i + 1];
-    const easing = wp.spanEasing || next?.spanEasing;
-    const interp = easing === 'linear' ? INTERPOLATION.LINEAR : smooth;
-    const isFirst = i === 0;
-    const isLast = i === waypoints.length - 1;
-    const hide = clip.endsWithExit && isLast;
-    const opacity = hide ? 0 : (isFirst ? startOpacity : showOpacity);
+    const smooth = INTERPOLATION.SMOOTH ?? INTERPOLATION.LINEAR;
+    const startOpacity = clamp01(group.opacity ?? 1);
+    const showOpacity = startOpacity <= 0.05 ? 1 : startOpacity;
 
-    const bag = asMotionKeyValue({
-      position: [wp.x, feetY, wp.z],
-      rotation: [0, THREE.MathUtils.degToRad(Number(wp.rotY) || 0), 0],
-      scale: scale.slice(),
-      opacity,
-      visible: !hide,
-    });
-    const keyTime = snapKeyframeTimeSec(wp.time, engine.fps);
-    engine.addKeyframe(track.id, keyTime, bag, interp);
-  }
+    for (let i = 0; i < waypoints.length; i++) {
+      const wp = waypoints[i];
+      const next = waypoints[i + 1];
+      const easing = wp.spanEasing || next?.spanEasing;
+      const interp = easing === 'linear' ? INTERPOLATION.LINEAR : smooth;
+      const isFirst = i === 0;
+      const isExitEnd = endsWithExit && i === waypoints.length - 1;
 
-  // Pose object at first waypoint
-  const first = waypoints[0];
-  motionItem.object.position.set(first.x, feetY, first.z);
-  motionItem.object.rotation.set(0, THREE.MathUtils.degToRad(Number(first.rotY) || 0), 0);
-  motionItem.object.visible = true;
+      const bag = asMotionKeyValue({
+        position: [wp.x, feetY, wp.z],
+        rotation: [0, THREE.MathUtils.degToRad(Number(wp.rotY) || 0), 0],
+        scale: scale.slice(),
+        opacity: isFirst ? startOpacity : (isExitEnd ? exitOpacity : showOpacity),
+        visible: !isExitEnd,
+      });
+      const keyTime = snapKeyframeTimeSec(wp.time, engine.fps);
+      cmdAddKeyframe(engine, {
+        trackId: track.id,
+        timeSec: keyTime,
+        value: bag,
+        interpolation: interp,
+      }, { select: false });
+    }
 
-  if (!opts.quiet) {
-    engine.emit('keys');
-    engine.emit('tracks');
+    syncPresenceClipFromKeys(track, engine.fps);
+
+    const first = waypoints[0];
+    motionItem.object.position.set(first.x, feetY, first.z);
+    motionItem.object.rotation.set(0, THREE.MathUtils.degToRad(Number(first.rotY) || 0), 0);
+    motionItem.object.visible = true;
+  } finally {
+    if (batch) engine.endKeyframeBake();
   }
   return true;
 }

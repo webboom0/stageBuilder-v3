@@ -343,6 +343,8 @@ async function main(initialProjectStore) {
 
   /** @type {{ current: ReturnType<typeof mountEditorShell> | null }} */
   const shellRef = { current: null };
+  /** @type {{ current: { render?: () => void } | null }} */
+  const timelineShellRef = { current: null };
   /** @type {{ current: VideoBackground }} */
   const videoBgRef = { current: new VideoBackground() };
   const viewport = initViewport(stageManager, helpers, shellRef, videoBgRef);
@@ -413,7 +415,7 @@ async function main(initialProjectStore) {
   }
 
   if (timelineHost) {
-    mountTimelineShell(timelineHost, {
+    timelineShellRef.current = mountTimelineShell(timelineHost, {
       engine: timeline,
       getMotionKeyValue: (trackId) => motion.keyValueForTrack(trackId),
       getLightKeyValue: (trackId) =>
@@ -776,13 +778,20 @@ async function main(initialProjectStore) {
     audio.apply(timeline.playheadSec);
   }
 
+  function refreshAfterKeyframeBake() {
+    segmentStagePreview.resetPreview();
+    applyAllDirectorsAtPlayhead();
+    timelineShellRef.current?.render?.();
+    shellRef.current?.syncKeyframeProps?.();
+  }
+
   /** Seek to group clip start (frame-snapped) and apply motion keys — ready for immediate play. */
   function finalizeGroupMotionBake(group) {
     segmentStagePreview.resetPreview();
     timeline.pause();
     const t = group ? groupBakePlayheadSec(group, timeline) : timeline.playheadSec;
     timeline.setPlayhead(t);
-    applyAllDirectorsAtPlayhead();
+    refreshAfterKeyframeBake();
   }
 
   async function deployGroup(groupId) {
@@ -1082,15 +1091,13 @@ async function main(initialProjectStore) {
     const track = timeline.getTrack(item.trackId);
     if (track?.locked) return false;
     timeline.pause();
-    segmentStagePreview.resetPreview();
     const ok = applyPatternDraftToMotionTrack(item, draft, timeline);
     if (ok) {
       const t = snapKeyframeTimeSec(draft.startTimeSec ?? timeline.playheadSec, timeline.fps);
       timeline.setPlayhead(t);
-      applyAllDirectorsAtPlayhead();
+      refreshAfterKeyframeBake();
     }
     markSceneDirty();
-    shellRef.current?.syncKeyframeProps?.();
     return ok;
   }
 
@@ -1107,7 +1114,9 @@ async function main(initialProjectStore) {
     const name = window.prompt('패턴 라이브러리 이름', defaultName);
     if (name === null) return;
     const label = name.trim() || defaultName;
-    const tpl = trackToMotionTemplate(track, item, label);
+    const tpl = trackToMotionTemplate(track, item, label, {
+      presets: positionPresetStore.list(),
+    });
     if (!tpl) {
       window.alert('패턴으로 변환하지 못했습니다.');
       return;
@@ -1132,17 +1141,15 @@ async function main(initialProjectStore) {
     const track = timeline.getTrack(item.trackId);
     if (track?.locked) return false;
     timeline.pause();
-    segmentStagePreview.resetPreview();
     const ok = applyKeyframeTemplateToMotion(item, tpl, pose, timeline, {
       presets: positionPresetStore.list(),
     });
     if (ok) {
       const t = snapKeyframeTimeSec(pose.startTime ?? timeline.playheadSec, timeline.fps);
       timeline.setPlayhead(t);
-      applyAllDirectorsAtPlayhead();
+      refreshAfterKeyframeBake();
     }
     markSceneDirty();
-    shellRef.current?.syncKeyframeProps?.();
     return ok;
   }
 
@@ -1783,7 +1790,6 @@ async function main(initialProjectStore) {
       const item = motion.get(motionId);
       if (!item) return;
       timeline.pause();
-      segmentStagePreview.resetPreview();
       const anim = item.anim;
       const ok = applyMotionSegmentsToTrack({ engine: timeline, motionItem: item });
       let t = anim && Number.isFinite(anim.startTime)
@@ -1795,7 +1801,7 @@ async function main(initialProjectStore) {
         t = snapKeyframeTimeSec(endFirst, timeline.fps);
       }
       timeline.setPlayhead(t);
-      applyAllDirectorsAtPlayhead();
+      refreshAfterKeyframeBake();
       markSceneDirty();
       refreshStatus(ok
         ? `키프레임 적용: ${item.name}`
@@ -1954,16 +1960,16 @@ async function main(initialProjectStore) {
       markSceneDirty();
     },
     onGroupPresetApplied: (group) => {
-      segmentStagePreview.resetPreview();
       if (isGroupDeployed(group, (id) => motion.get(id))) {
         reapplyGroupKeyframes({
           engine: timeline,
           group,
           getMotionItem: (id) => motion.get(id),
         });
-        motion.apply(timeline.playheadSec);
-        timeline.emit('keys');
+        refreshAfterKeyframeBake();
         markSceneDirty();
+      } else {
+        segmentStagePreview.resetPreview();
       }
     },
     onPickGroupPoint: (pick) => {

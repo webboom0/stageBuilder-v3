@@ -56,7 +56,6 @@ export function createMotionTemplatesPanelBody(opts) {
     }
     draft = templateToDraft(active);
     draft.label = active.label || draft.label || '';
-    draft.startTimeSec = 0;
   }
 
   async function persistDraft() {
@@ -222,12 +221,21 @@ export function createMotionTemplatesPanelBody(opts) {
     }
 
     let motions = 0;
-    const startTime = snapKeyframeTimeSec(opts.engine.playheadSec, opts.engine.fps);
+    const defaultStart = snapKeyframeTimeSec(opts.engine.playheadSec, opts.engine.fps);
 
     for (const motionId of motionIds) {
       const item = opts.motion.get(motionId);
       if (!item?.object) continue;
-      const pose = { ...resolveStartPose(item), startTime };
+      const pose = tpl.absoluteCoords
+        ? {
+          fromX: Number(tpl.fromX ?? tpl.keyframes[0]?.offsetX) || 0,
+          fromZ: Number(tpl.fromZ ?? tpl.keyframes[0]?.offsetZ) || 0,
+          fromRotY: tpl.fromRotY ?? tpl.keyframes[0]?.deltaRotY ?? 0,
+          startTime: Number.isFinite(Number(tpl.startTimeSec))
+            ? snapKeyframeTimeSec(Number(tpl.startTimeSec), opts.engine.fps)
+            : defaultStart,
+        }
+        : { ...resolveStartPose(item), startTime: defaultStart };
       const ok = await opts.applyToMotion?.(motionId, active.id, pose);
       if (ok) motions += 1;
     }

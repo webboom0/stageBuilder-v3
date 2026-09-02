@@ -1,12 +1,11 @@
-/** @typedef {{ move: number, rotate: number, hold: number, exit: number }} AiPatternDefaults */
+/** @typedef {{ move: number, hold: number, exit: number }} AiPatternDefaults */
 
 const STORAGE_KEY = 'sb_ai_pattern_defaults_v1';
 
 /** @type {AiPatternDefaults} */
 export const AI_PATTERN_DEFAULT_DUR = {
   move: 3,
-  rotate: 3,
-  hold: 3,
+  hold: 10,
   exit: 3,
 };
 
@@ -31,7 +30,7 @@ export function saveAiPatternDefaults(next) {
 export function sanitizeAiPatternDefaults(raw) {
   /** @type {Partial<AiPatternDefaults>} */
   const out = {};
-  for (const key of /** @type {(keyof AiPatternDefaults)[]} */ (['move', 'rotate', 'hold', 'exit'])) {
+  for (const key of /** @type {(keyof AiPatternDefaults)[]} */ (['move', 'hold', 'exit'])) {
     const n = Number(raw?.[key]);
     if (Number.isFinite(n) && n >= 0.5 && n <= 120) out[key] = n;
   }

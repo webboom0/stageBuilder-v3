@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { INTERPOLATION } from '../timeline/types.js';
 import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
+import { cmdAddKeyframe } from '../timeline/KeyframeCommands.js';
 import { normalizeRotYDeg } from './groupSegments.js';
 import { asMotionKeyValue } from './motionKeyValue.js';
+import { syncPresenceClipFromKeys } from '../timeline/presenceClip.js';
 
 const TIME_COLLAPSE_EPS = 0.02;
 const POS_EPS = 0.08;
@@ -109,12 +111,14 @@ export function trackKeyframesToPatternDraft(track, motionItem, fallbackStartSec
       && Math.abs(bag.position[2] - prevBag.position[2]) < POS_EPS;
     const sameRot = Math.abs(normalizeRotYDeg(rotY - prevRotY)) < 0.5;
     const isLast = i === collapsed.length - 1;
-    const isExit = isLast && (clamp01(bag.opacity ?? 1) <= 0.05 || bag.visible === false);
+    const isExit = isLast && (bag.visible === false || clamp01(bag.opacity ?? 1) <= 0.05);
     /** @type {'move'|'hold'|'exit'} */
     let kind = 'move';
-    if (samePos && sameRot) kind = 'hold';
-    else if (isExit && samePos) kind = 'exit';
-    else if (isExit) kind = 'exit';
+    if (isExit) {
+      kind = 'exit';
+    } else if (samePos && sameRot) {
+      kind = 'hold';
+    }
     keyframes.push({
       id: newTrackPatternKeyframeId(),
       kind,
@@ -122,8 +126,8 @@ export function trackKeyframesToPatternDraft(track, motionItem, fallbackStartSec
       offsetX: bag.position[0],
       offsetZ: bag.position[2],
       deltaRotY: rotY,
-      opacity: kind === 'exit' ? 0 : clamp01(bag.opacity ?? 1),
-      visible: kind !== 'exit' && bag.visible !== false,
+      opacity: clamp01(bag.opacity ?? 1),
+      visible: kind === 'exit' ? false : bag.visible !== false,
     });
   }
 
@@ -158,23 +162,35 @@ export function applyPatternDraftToMotionTrack(motionItem, draft, engine) {
   ];
   const smooth = INTERPOLATION.SMOOTH ?? INTERPOLATION.LINEAR;
 
-  track.keys.clear();
+  engine.beginKeyframeBake();
+  try {
+    track.keys.clear();
 
-  let cumulative = 0;
-  for (let i = 0; i < keys.length; i++) {
-    const kf = keys[i];
-    if (i > 0) cumulative += Math.max(0.1, Number(kf.timeOffset) || 0);
-    const kind = kf.kind || (i === 0 ? 'move' : 'move');
-    const rotY = normalizeRotYDeg(kf.deltaRotY ?? 0);
-    const bag = asMotionKeyValue({
-      position: [Number(kf.offsetX) || 0, feetY, Number(kf.offsetZ) || 0],
-      rotation: [0, THREE.MathUtils.degToRad(rotY), 0],
-      scale: scale.slice(),
-      opacity: kind === 'exit' ? 0 : clamp01(kf.opacity ?? 1),
-      visible: kind !== 'exit' && kf.visible !== false,
-    });
-    const timeSec = snapKeyframeTimeSec(startTime + cumulative, engine.fps);
-    engine.addKeyframe(track.id, timeSec, bag, smooth);
+    let cumulative = 0;
+    for (let i = 0; i < keys.length; i++) {
+      const kf = keys[i];
+      if (i > 0) cumulative += Math.max(0.1, Number(kf.timeOffset) || 0);
+      const kind = kf.kind || (i === 0 ? 'move' : 'move');
+      const rotY = normalizeRotYDeg(kf.deltaRotY ?? 0);
+      const bag = asMotionKeyValue({
+        position: [Number(kf.offsetX) || 0, feetY, Number(kf.offsetZ) || 0],
+        rotation: [0, THREE.MathUtils.degToRad(rotY), 0],
+        scale: scale.slice(),
+        opacity: clamp01(kf.opacity ?? 1),
+        visible: kind === 'exit' ? false : true,
+      });
+      const timeSec = snapKeyframeTimeSec(startTime + cumulative, engine.fps);
+      cmdAddKeyframe(engine, {
+        trackId: track.id,
+        timeSec,
+        value: bag,
+        interpolation: smooth,
+      }, { select: false });
+    }
+
+    syncPresenceClipFromKeys(track, engine.fps);
+  } finally {
+    engine.endKeyframeBake();
   }
 
   const first = keys[0];
@@ -190,8 +206,6 @@ export function applyPatternDraftToMotionTrack(motionItem, draft, engine) {
   );
   motionItem.object.visible = first.visible !== false;
 
-  engine.emit('keys');
-  engine.emit('tracks');
   return true;
 }
 

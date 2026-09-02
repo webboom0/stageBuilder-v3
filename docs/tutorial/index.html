@@ -430,21 +430,30 @@
           <li>길이를 줄여도 <strong>키 시각은 유지</strong> — 새 끝보다 뒤 키만 정리</li>
           <li>타임라인 툴바 <strong>Undo</strong> · <strong>Redo</strong> 또는 <span class="kbd">Ctrl+Z</span> / <span class="kbd">Ctrl+Y</span> (메뉴 <strong>편집</strong>과 동일)</li>
         </ul>
-        <p><strong>Undo/Redo 대상</strong> — 타임라인 키 추가·삭제·이동 · 트랙 삭제 · Character/Stage <strong>트랙 이름 변경</strong> · <strong>기즈모</strong> 드래그(키가 기록될 때) · 조명 키·패널 슬라이더.</p>
+        <p><strong>Undo/Redo 대상</strong> — 타임라인 키 추가·삭제·이동 · 트랙 삭제 · Character/Stage <strong>트랙 이름 변경</strong> · <strong>기즈모</strong> 드래그(키가 기록될 때) · 조명 키·패널 슬라이더. Characters/Stage <strong>등장 클립</strong> 길이도 마지막 키와 함께 Undo/Redo됩니다.</p>
         <p><strong>Undo 대상 아님</strong> — 그룹 멤버 등록 · 구간/패턴 <strong>설계만</strong> 저장 · <a href="#position-presets">위치 프리셋</a>·<a href="#pattern-library">패턴 라이브러리</a> 목록 편집(프로젝트 JSON). 다만 <strong>키프레임 적용</strong>으로 타임라인에 키가 생긴 뒤에는 그 키 편집은 Undo 가능.</p>
         <h3>선택 · 키 추가 (<span class="kbd">K</span>)</h3>
         <ul>
           <li><strong>Characters · Stage · Light · Audio</strong> — 섹션마다 선택이 분리됩니다. 다른 섹션 키가 동시에 노란색으로 표시되지 않습니다.</li>
           <li>키 다이아몬드 클릭 — 해당 트랙·키 선택 · 무대 객체 선택 · 플레이헤드 이동</li>
-          <li><span class="kbd">K</span> / <span class="tut-tl-diamond" aria-hidden="true"></span> — <strong>마지막으로 키를 추가·선택한 트랙</strong>에 플레이헤드 키 추가 (상단 <strong>Characters / Stage</strong> 등 필터가 켜져 있으면 그 섹션 우선)</li>
-          <li>트랙 라벨 클릭 — 그 트랙을 키 추가 대상으로 지정</li>
+          <li><span class="kbd">K</span> / <span class="tut-tl-diamond" aria-hidden="true"></span> / 툴바 <strong>+ Key</strong> — <strong>키 작업 대상 트랙</strong>에 플레이헤드 키 추가 (아래 우선순위)</li>
+          <li>툴바 <strong>◀</strong> <strong>▶</strong> — 대상 트랙에서 <strong>이전/다음 키</strong> 선택 · 플레이헤드 이동 (<span class="kbd">,</span> / <span class="kbd">.</span>)</li>
+          <li>트랙 라벨 클릭 — 그 트랙을 키 작업 대상으로 지정</li>
           <li>Character/Stage 트랙 선택 · <span class="kbd">F2</span> — 트랙 이름 변경 · <span class="kbd">Del</span> — 트랙 삭제(확인, 키 미선택 시)</li>
+          <li>Characters·Stage — 타임라인 툴바 <strong>Clip</strong> / <strong>Keys</strong> 로 등장 클립 막대 표시 전환 (<a href="#char-track">등장 클립</a>)</li>
           <li>무대 <strong>빈 곳</strong> 클릭 — 3D 선택만 해제 · <strong>타임라인 선택·키 작업 트랙은 유지</strong></li>
         </ul>
         <div class="note">
+          <strong>키 작업 대상 트랙</strong> (선택이 없어도 <span class="kbd">K</span> · <strong>+ Key</strong> · <strong>◀ ▶</strong>에 사용):
+          (1) 상단 <strong>Characters / Stage</strong> 등 섹션 필터가 켜져 있으면 그 섹션의 <strong>최근 키 작업 트랙</strong> → 없으면 그 섹션 첫 트랙
+          → (2) 전체에서 <strong>가장 최근</strong> 키·트랙 선택
+          → (3) 현재 선택 트랙
+          → (4) 없으면 첫 Characters 트랙.
+        </div>
+        <div class="note">
           예: Characters에 키 추가 → Stage 소품을 기즈모로 이동 → 플레이헤드만 옮긴 뒤 <span class="kbd">K</span> —
           방금 작업하던 <strong>Characters</strong> 트랙에 키가 추가됩니다.
-          Stage 트랙에서 키를 직접 추가·선택하면 그때부터 <span class="kbd">K</span> 대상이 Stage로 바뀝니다.
+          Stage 트랙에서 키를 직접 추가·선택하면 그때부터 대상이 Stage로 바뀝니다.
         </div>
         <div class="note">
           트랙 추가 방법은 종류마다 다릅니다 — 아래 <strong>Characters / Stage / Light / Audio</strong> 각 「트랙」 항목을 참고하세요.
@@ -520,7 +529,7 @@
             <tr><td>무대 타입</td><td>프로시니엄 ↔ 아레나 전환 후에도 <strong>같은 규격이면 동일 크기</strong></td></tr>
             <tr><td>위치 편집</td><td>Properties·기즈모는 <strong>X/Z만</strong> (Y는 바닥 높이 고정)</td></tr>
             <tr><td>색</td><td>Properties <strong>속성</strong> 탭 · 틴트 색상</td></tr>
-            <tr><td>등장·퇴장</td><td>클립 길이가 아니라 <strong>Opacity 키</strong>와 <strong>패턴</strong> 탭으로 연출</td></tr>
+            <tr><td>등장·퇴장</td><td>오디오처럼 클립 길이로 숨기지 않음 · <strong>등장 클립 막대</strong>는 구간 표시 · 연출은 <strong>패턴</strong>·<strong>Opacity</strong>(페이드) · 마지막 키 <strong>자동 안 보임</strong></td></tr>
             <tr><td>그룹</td><td>오른쪽 <strong>그룹</strong> 패널에 FBX 등록 가능 (Stage는 불가)</td></tr>
           </tbody>
         </table>
@@ -566,7 +575,7 @@
             <tr><td>Properties 탭</td><td><strong>패턴</strong> · <strong>속성</strong> (기본은 패턴 · Characters와 동일 UI, 포메이션 없음)</td></tr>
             <tr><td>위치·회전·크기</td><td><strong>X/Y/Z</strong> 전부 편집</td></tr>
             <tr><td>바닥</td><td><strong>무대 바닥 아래</strong>로는 내려가지 않음 (기즈모·속성·재생)</td></tr>
-            <tr><td>퇴장 연출</td><td>Opacity 0 키 · 크기/위치 키로 수동 연출</td></tr>
+            <tr><td>퇴장 연출</td><td><a href="#stage-pattern">패턴</a> <strong>퇴장</strong> 구간 · 마지막 키 <strong>자동 안 보임</strong> · Opacity 페이드(선택)</td></tr>
             <tr><td>그룹</td><td>등록 불가 (Characters만)</td></tr>
           </tbody>
         </table>
@@ -631,7 +640,7 @@
         <p>타임라인 <strong>Characters</strong> 섹션 — WalkLite·FBX 등 <strong>사람 모션</strong>. 1객체=1트랙, compound 키(위치·회전·Opacity 등).</p>
         <p class="flow-hint"><strong>흐름</strong> <a href="#assets-characters">Assets +</a> → <strong>트랙</strong> → <a href="#properties-panel">Properties</a> · 포메이션은 <a href="#char-group">그룹</a></p>
         <ul class="section-toc">
-          <li><a href="#char-track">트랙</a> — 추가 · 키 · 우클릭 · 삭제 · 잠금</li>
+          <li><a href="#char-track">트랙</a> — 추가 · 키 · 등장 클립 · 우클릭 · 삭제 · 잠금</li>
         </ul>
       </section>
 
@@ -657,14 +666,29 @@
           </tbody>
         </table>
 
+        <h3>등장 클립 바 · Clip / Keys</h3>
+        <p>트랙 추가 시 <strong>시작 키 + 퇴장 키</strong>(약 10초 간격)와 함께 타임라인에 <strong>등장 클립</strong> 막대가 생깁니다. 툴바 <strong>Clip</strong> / <strong>Keys</strong> 로 보기 방식을 바꿉니다.</p>
+        <table>
+          <thead><tr><th>모드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Clip</strong></td><td>등장 클립 막대 표시 · <strong>한 번 클릭</strong>으로 트랙 선택(금색 테두리·막대 강조) · 막대 드래그로 <strong>전체 이동</strong> · 오른쪽 핸들로 <strong>퇴장 시각</strong> 조절</td></tr>
+            <tr><td><strong>Keys</strong></td><td>클립 막대 숨김 · 키 다이아몬드 편집에 집중</td></tr>
+            <tr><td>오른쪽 핸들</td><td>마지막(퇴장) 키 시각만 변경 · <strong>앞쪽 키보다 더 짧게 줄일 수 없음</strong>(중간 키가 있으면 그 시각 이전으로 불가)</td></tr>
+            <tr><td>선택</td><td>클립 막대·트랙 라벨 클릭 — Properties·패턴 편집 대상 트랙 지정</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          클립 막대 길이로 캐릭터를 숨기지 <strong>않습니다</strong>(v3와 다름). <strong>마지막 키</strong>는 자동으로 안 보임(퇴장) · 그 외 키는 보임 — <strong>Opacity</strong>로 등장·페이드 연출. 클립 뒤에 키를 추가하면 이전 퇴장 키는 일반 키로, 새 마지막 키가 퇴장이 됩니다.
+        </div>
+
         <h3>키 추가 · 삭제 · 이동 · 수정</h3>
         <table>
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
             <tr><td>키 추가</td><td>트랙 선택 → <span class="tut-tl-diamond" aria-hidden="true"></span> 또는 <span class="kbd">K</span> · 같은 시각 키 있으면 <strong>선택만</strong></td></tr>
-            <tr><td>키 선택</td><td>다이아몬드 클릭 → 무대 객체 선택 · 플레이헤드 이동</td></tr>
-            <tr><td>키 삭제</td><td>키 선택 → <span class="kbd">Del</span> / <span class="kbd">D</span></td></tr>
-            <tr><td>키 이동</td><td>키 드래그 · <span class="kbd">←/→</span> 1프레임 · Shift 1초 · Alt 0.1초 · <span class="kbd">M</span> 초 입력</td></tr>
+            <tr><td>키 선택</td><td>다이아몬드 클릭 → 무대 객체 선택 · 플레이헤드 이동 · 툴바 <strong>◀ ▶</strong> 또는 <span class="kbd">,</span> / <span class="kbd">.</span> 로 이전/다음 키</td></tr>
+            <tr><td>키 삭제</td><td>키 선택 → <span class="kbd">Del</span> / <span class="kbd">D</span> · 우클릭 메뉴</td></tr>
+            <tr><td>키 시간 이동</td><td>키 드래그 · <span class="kbd">←/→</span> 1프레임 · Shift 1초 · Alt 0.1초 · 우클릭 <strong>키 이동…</strong> · <span class="kbd">M</span> 초 입력</td></tr>
             <tr><td>키 수정</td><td>키 선택 → <a href="#char-props">속성</a> 또는 기즈모 (플레이헤드 키 또는 선택 키 필요)</td></tr>
             <tr><td>트랙 이름</td><td>트랙 선택 · <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong></td></tr>
             <tr><td>트랙 삭제</td><td>트랙 선택 후 <span class="kbd">Del</span> (확인) · 또는 라벨 <strong>우클릭 → 트랙 삭제</strong> — 무대 객체 함께 제거</td></tr>
@@ -697,12 +721,12 @@
           <li>1 객체 = <strong>Stage</strong> 섹션 트랙 1줄 · 플레이헤드에 첫 키 · 중복 이름은 Characters와 같이 <strong>2, 3…</strong> 자동 부여</li>
         </ol>
 
-        <h3>트랙 헤더 · 키 조작</h3>
-        <p>Characters와 동일: <span class="tut-tl-hbtn" aria-hidden="true"><i class="fas fa-eye"></i></span> 숨기기 · <span class="tut-tl-diamond" aria-hidden="true"></span>/<span class="kbd">K</span> 키 추가 · <span class="tut-tl-hbtn" aria-hidden="true"><i class="fas fa-lock-open"></i></span> 잠금.</p>
+        <h3>트랙 헤더 · 등장 클립 · 키 조작</h3>
+        <p>Characters와 동일: <span class="tut-tl-hbtn" aria-hidden="true"><i class="fas fa-eye"></i></span> 숨기기 · <span class="tut-tl-diamond" aria-hidden="true"></span>/<span class="kbd">K</span> 키 추가 · <span class="tut-tl-hbtn" aria-hidden="true"><i class="fas fa-lock-open"></i></span> 잠금 · 툴바 <strong>Clip</strong>/<strong>Keys</strong>(<a href="#char-track">등장 클립</a>).</p>
         <table>
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
-            <tr><td>키 추가/삭제/이동</td><td>Characters와 동일 (<span class="kbd">K</span> · Del · 드래그 · 화살표 · M)</td></tr>
+            <tr><td>키 추가/삭제/이동</td><td>Characters와 동일 (<span class="kbd">K</span> · Del · ◀ ▶ · <span class="kbd">,</span>/<span class="kbd">.</span> · 드래그 · 화살표 · M · 우클릭)</td></tr>
             <tr><td>키 수정</td><td><a href="#stage-props">속성</a> 또는 기즈모 (XYZ 위치·회전·크기) · Y는 위로만 (바닥 아래 불가)</td></tr>
             <tr><td>트랙 이름</td><td>트랙 선택 · <span class="kbd">F2</span> · 우클릭 · Properties <strong>이름</strong></td></tr>
             <tr><td>트랙 삭제</td><td>트랙 선택 · <span class="kbd">Del</span> (확인) · 또는 라벨 우클릭 → 트랙 삭제 — 무대 메시 제거</td></tr>
@@ -835,7 +859,7 @@
           <thead><tr><th>영역 · 버튼</th><th>설명</th></tr></thead>
           <tbody>
             <tr><td>시작 위치</td><td>편집 창 위쪽: <strong>시작 시각 · Opacity</strong> · X/Z · Y 회전 · 무대 픽 · <a href="#position-presets">위치 프리셋</a> 칩. 칩을 고르면 링크가 저장되고, 다시 열면 선택 상태가 유지됩니다</td></tr>
-            <tr><td>+ 이동 / 대기 / 퇴장</td><td>종류를 고르면 <strong>바로 편집 창</strong>이 열립니다</td></tr>
+            <tr><td>+ 이동 / 대기 / 퇴장</td><td>종류를 고르면 <strong>바로 편집 창</strong> · <strong>Opacity</strong> 슬라이더(등장·페이드) · <strong>퇴장</strong>은 「<strong>안 보임</strong>」 안내(자동, 수정 불가)</td></tr>
             <tr><td>단계 사이 + · 드래그</td><td>사이 <strong>+</strong>로 중간 삽입(뒤 단계는 삭제하지 않음) · 단계 카드 드래그로 순서 변경</td></tr>
             <tr><td>현재 위치 → 시작</td><td>기즈모 위치를 시작점으로</td></tr>
             <tr><td>키프레임 적용</td><td>설계 → <strong>선택 트랙</strong> 타임라인 compound 키 생성·갱신. 프리셋 링크·Opacity(등장 페이드)도 함께 반영</td></tr>
@@ -845,7 +869,9 @@
         <p>Easing: <strong>Linear</strong> 등속 · <strong>Smooth</strong> 가감속 · 새 구간은 앞 구간 Easing 상속.</p>
         <div class="note">
           <strong>등장(Opacity 0) 프리셋</strong>을 시작에 연결해도, 재생 시 객체가 통째로 숨겨지지 않습니다.
-          첫 키는 보이되 Opacity 0이고, 다음 키에서 페이드 인됩니다. AI·수동 패턴 모두 <strong>키프레임 적용</strong> 후에도 <code>@</code>·칩 링크가 유지됩니다.
+          첫 키는 보이되 Opacity 0이고, 다음 키에서 페이드 인됩니다.<br>
+          <strong>퇴장</strong>은 트랙 <strong>마지막 키</strong>에 자동으로 안 보임이 적용됩니다(패턴 퇴장 편집 창에 안내 표시). Opacity를 내리면 페이드아웃 연출용입니다. 패턴에는 <strong>표시</strong> 체크 없음 — 보임/페이드는 <strong>Opacity</strong>만 조절합니다.
+          AI·수동 패턴 모두 <strong>키프레임 적용</strong> 후에도 <code>@</code>·칩 링크가 유지됩니다.
         </div>
         <h3>AI 패턴 규칙 요약</h3>
         <table>
@@ -856,7 +882,7 @@
             <tr><td><strong>시작 시각</strong></td><td><code>시작 5초</code> · <code>1분부터</code></td><td>패턴 startTime</td></tr>
             <tr><td><strong>@ 위치</strong></td><td><code>@등장</code> <code>@중앙</code> <code>@퇴장</code></td><td>위치 프리셋 연결 (입력 시 보라색 · 키·패턴에 링크 저장)</td></tr>
             <tr><td><strong>키워드 색</strong></td><td>이동·대기·퇴장·회전 (머무르다→[대기] 등 동의어)</td><td>입력칸 밑줄 색 · 아래 「키 예정」칩으로 미리보기</td></tr>
-            <tr><td><strong>⏱ 기본 Duration</strong></td><td>이동·회전·대기·퇴장 숫자(초)</td><td>문장에 시간을 안 쓸 때 사용. 절대 시각(「~까지」)과는 별개</td></tr>
+            <tr><td><strong>⏱ 기본 Duration</strong></td><td>이동·대기·퇴장 숫자(초) — 대기 기본 <strong>10</strong></td><td>문장에 시간을 안 쓸 때 사용. 절대 시각(「~까지」)과는 별개</td></tr>
           </tbody>
         </table>
         <div class="note">
@@ -882,7 +908,7 @@
             <tr><td>회전</td><td><strong>Y축 칩</strong> (시계 / 반시계)</td></tr>
             <tr><td>틴트 색상</td><td>캐릭터 색조</td></tr>
             <tr><td>Opacity</td><td>0~1 · 등장·페이드</td></tr>
-            <tr><td>선택 키</td><td>키 선택 시 — <strong>시간</strong> · <strong>Easing</strong> (Linear / Step / Smooth)</td></tr>
+            <tr><td>선택 키</td><td>키 선택 시 — <strong>시간</strong> · <strong>Easing</strong> (Linear / Step / Smooth) · 마지막(퇴장) 키면 <strong>안 보임 (자동)</strong> 안내</td></tr>
           </tbody>
         </table>
         <figure class="tutorial-figure" data-file="images/13-char-props.png">
@@ -922,8 +948,8 @@
             <tr><td>무대에서 위치 지정</td><td>무대 클릭 픽</td></tr>
             <tr><td>회전 X / Y / Z</td><td>도(°) 슬라이더</td></tr>
             <tr><td>크기 X / Y / Z</td><td>스케일</td></tr>
-            <tr><td>색상 · Opacity</td><td>틴트 · 0=숨김/퇴장 연출</td></tr>
-            <tr><td>선택 키</td><td>시간 · Easing</td></tr>
+            <tr><td>색상 · Opacity</td><td>틴트 · Opacity로 페이드(0=투명)</td></tr>
+            <tr><td>선택 키</td><td>시간 · Easing · 마지막(퇴장) 키면 <strong>안 보임 (자동)</strong></td></tr>
           </tbody>
         </table>
         <div class="note">퇴장·이동 연출은 <a href="#stage-pattern">패턴</a> 탭 또는 타임라인에서 키를 직접 추가·드래그하세요.</div>

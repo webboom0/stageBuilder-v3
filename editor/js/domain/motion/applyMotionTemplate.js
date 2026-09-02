@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { INTERPOLATION } from '../timeline/types.js';
 import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
+import { cmdAddKeyframe } from '../timeline/KeyframeCommands.js';
+import { syncPresenceClipFromKeys } from '../timeline/presenceClip.js';
 import {
   normalizeRotYDeg,
   unwrapRotYDeg,
@@ -38,22 +40,31 @@ import { ensureMotionAnim } from './motionAnim.js';
  * @param {number} index
  * @param {{ fromX: number, fromZ: number, fromRotY?: number }} pose
  * @param {TemplatePresetRef[]} presets
+ * @param {import('./motionTemplates.js').MotionTemplate | null | undefined} [template]
  * @returns {ResolvedKeyframeAbs}
  */
-export function resolveTemplateKeyframeAbs(keyframes, index, pose, presets = []) {
+export function resolveTemplateKeyframeAbs(keyframes, index, pose, presets = [], template = null) {
   const kf = keyframes[index];
   const first = keyframes[0];
   const lookup = (id) => (id && presets.find((p) => p.id === id)) || null;
 
+  if (template?.absoluteCoords) {
+    return {
+      x: Number(kf.offsetX) || 0,
+      z: Number(kf.offsetZ) || 0,
+      rotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
+      opacity: clamp01(kf.opacity ?? 1),
+    };
+  }
+
   if (kf.presetId) {
     const p = lookup(kf.presetId);
     if (p) {
-      const isExit = kf.visible === false || clamp01(kf.opacity ?? 1) <= 0.05;
       return {
         x: Number(p.x) || 0,
         z: Number(p.z) || 0,
         rotY: normalizeRotYDeg(p.rotY ?? 0),
-        opacity: isExit ? clamp01(kf.opacity ?? 0) : clamp01(p.opacity ?? kf.opacity ?? 1),
+        opacity: clamp01(kf.opacity ?? p.opacity ?? 1),
       };
     }
   }
@@ -114,10 +125,20 @@ export function applyKeyframeTemplateToMotion(motionItem, template, pose, engine
 
   const keyframes = template.keyframes;
   const presets = Array.isArray(opts.presets) ? opts.presets : [];
-  const startTime = snapKeyframeTimeSec(
-    Number.isFinite(Number(pose.startTime)) ? Number(pose.startTime) : 0,
-    engine.fps,
-  );
+  const startTime = template.absoluteCoords && Number.isFinite(Number(template.startTimeSec))
+    ? snapKeyframeTimeSec(Number(template.startTimeSec), engine.fps)
+    : snapKeyframeTimeSec(
+      Number.isFinite(Number(pose.startTime)) ? Number(pose.startTime) : 0,
+      engine.fps,
+    );
+
+  const poseForResolve = template.absoluteCoords
+    ? {
+      fromX: Number(template.fromX ?? keyframes[0]?.offsetX) || 0,
+      fromZ: Number(template.fromZ ?? keyframes[0]?.offsetZ) || 0,
+      fromRotY: normalizeRotYDeg(template.fromRotY ?? keyframes[0]?.deltaRotY ?? 0),
+    }
+    : pose;
 
   const feetY = motionItem.object.position.y;
   const scale = [
@@ -127,47 +148,65 @@ export function applyKeyframeTemplateToMotion(motionItem, template, pose, engine
   ];
   const smooth = INTERPOLATION.SMOOTH ?? INTERPOLATION.LINEAR;
 
-  track.keys.clear?.();
-  if (!track.keys.clear) {
-    track.keys.list().slice().forEach((k) => track.keys.remove(k.id));
-  }
-
   /** @type {ResolvedKeyframeAbs[]} */
   const resolved = keyframes.map((_, i) => resolveTemplateKeyframeAbs(
     keyframes,
     i,
-    pose,
+    poseForResolve,
     presets,
+    template,
   ));
 
   // 등장(시작 opacity≈0): 첫 키는 투명만, visible은 true → 다음 키로 페이드인
-  // 퇴장(마지막 opacity≈0 / visible false): 마지막 키만 숨김
+  // 퇴장: visible false — opacity는 키에 저장된 값 유지(기본 1, 페이드아웃은 opacity로)
   const startOp = clamp01(resolved[0]?.opacity ?? keyframes[0]?.opacity ?? 1);
   const showOpacity = startOp <= 0.05 ? 1 : startOp;
 
-  for (let i = 0; i < keyframes.length; i++) {
-    const kf = keyframes[i];
-    const abs = resolved[i];
-    const isFirst = i === 0;
-    const isLast = i === keyframes.length - 1;
-    const isExitKey = isLast && (
-      kf.visible === false || clamp01(kf.opacity ?? abs.opacity ?? 1) <= 0.05
-    );
-    let opacity;
-    if (isExitKey) opacity = 0;
-    else if (isFirst) opacity = startOp;
-    else opacity = showOpacity;
+  engine.beginKeyframeBake();
+  try {
+    track.keys.clear?.();
+    if (!track.keys.clear) {
+      track.keys.list().slice().forEach((k) => track.keys.remove(k.id));
+    }
 
-    const bag = asMotionKeyValue({
-      position: [abs.x, feetY, abs.z],
-      rotation: [0, THREE.MathUtils.degToRad(abs.rotY), 0],
-      scale: scale.slice(),
-      opacity,
-      visible: !isExitKey,
-    });
-    const timeSec = snapKeyframeTimeSec(startTime + (Number(kf.timeOffset) || 0), engine.fps);
-    const interp = Number.isFinite(Number(kf.interpolation)) ? Number(kf.interpolation) : smooth;
-    engine.addKeyframe(track.id, timeSec, bag, interp);
+    for (let i = 0; i < keyframes.length; i++) {
+      const kf = keyframes[i];
+      const abs = resolved[i];
+      const isFirst = i === 0;
+      const isLast = i === keyframes.length - 1;
+      const isExitKey = isLast && kf.visible === false;
+      let opacity;
+      let visible;
+      if (isExitKey) {
+        opacity = clamp01(kf.opacity ?? abs.opacity ?? 1);
+        visible = false;
+      } else if (isFirst) {
+        opacity = startOp;
+        visible = true;
+      } else {
+        opacity = showOpacity;
+        visible = true;
+      }
+      const bag = asMotionKeyValue({
+        position: [abs.x, feetY, abs.z],
+        rotation: [0, THREE.MathUtils.degToRad(abs.rotY), 0],
+        scale: scale.slice(),
+        opacity,
+        visible,
+      });
+      const timeSec = snapKeyframeTimeSec(startTime + (Number(kf.timeOffset) || 0), engine.fps);
+      const interp = Number.isFinite(Number(kf.interpolation)) ? Number(kf.interpolation) : smooth;
+      cmdAddKeyframe(engine, {
+        trackId: track.id,
+        timeSec,
+        value: bag,
+        interpolation: interp,
+      }, { select: false });
+    }
+
+    syncPresenceClipFromKeys(track, engine.fps);
+  } finally {
+    engine.endKeyframeBake();
   }
 
   const firstAbs = resolved[0];
@@ -181,8 +220,6 @@ export function applyKeyframeTemplateToMotion(motionItem, template, pose, engine
     resolved,
   });
 
-  engine.emit('keys');
-  engine.emit('tracks');
   return true;
 }
 
@@ -214,7 +251,7 @@ function syncAnimPresetLinksFromTemplate(motionItem, template, ctx) {
     const prev = keys[i - 1];
     const abs = resolved[i];
     const dur = Math.max(0.1, (Number(kf.timeOffset) || 0) - (Number(prev.timeOffset) || 0));
-    const isExit = kf.visible === false || Number(kf.opacity) <= 0.05;
+    const isExit = kf.visible === false;
     const prevAbs = resolved[i - 1];
     const samePos = Math.abs(abs.x - prevAbs.x) < 0.01 && Math.abs(abs.z - prevAbs.z) < 0.01;
     const sameRot = Math.abs(normalizeRotYDeg(abs.rotY - prevAbs.rotY)) < 0.5;
@@ -229,6 +266,7 @@ function syncAnimPresetLinksFromTemplate(motionItem, template, ctx) {
       anchorX: abs.x,
       anchorZ: abs.z,
       toRotY: abs.rotY,
+      opacity: clamp01(kf.opacity ?? abs.opacity ?? 1),
       anchorPresetId: kind === SEGMENT_KIND.hold ? null : (kf.presetId ?? null),
       easing: kind === SEGMENT_KIND.hold ? 'linear' : 'smooth',
       formation: 'line',

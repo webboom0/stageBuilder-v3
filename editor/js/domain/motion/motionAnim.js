@@ -121,6 +121,7 @@ export function addMotionAnimSegment(anim, kind, atIndex) {
         : anim.fromZ + 5,
       toRotY: prev ? prev.toRotY : anim.fromRotY,
       easing: k === SEGMENT_KIND.hold ? 'linear' : inheritEasing,
+      opacity: prev?.opacity ?? anim.opacity ?? 1,
     },
     anim,
   );
@@ -215,7 +216,7 @@ function nearPos(ax, az, bx, bz) {
  * @param {number} z
  * @returns {string | null}
  */
-function findPresetIdAt(presets, x, z) {
+export function findPresetIdAt(presets, x, z) {
   if (!presets?.length) return null;
   const hit = presets.find((p) => p?.id && nearPos(p.x, p.z, x, z));
   return hit?.id ?? null;
@@ -297,6 +298,7 @@ export function importTrackKeyframesToMotionAnim(track, item, fallbackStartSec =
       toRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
       anchorPresetId,
       easing: 'smooth',
+      opacity: Number.isFinite(Number(kf.opacity)) ? Number(kf.opacity) : 1,
     }, anim);
   });
 

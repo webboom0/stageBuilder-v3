@@ -103,7 +103,7 @@ export function parsePatternPromptLocal(prompt, ctx = {}) {
     ? 0
     : (pickHoldDuration(text) || (intents.hold ? defs.hold : 0));
   const moveSec = pickMoveDuration(text) || defs.move;
-  const rotateSec = pickRotateDuration(text) || defs.rotate;
+  const rotateSec = pickRotateDuration(text) || defs.move;
   const exitSec = pickExitDuration(text) || defs.exit;
 
   /** @type {AiPresetRef} */

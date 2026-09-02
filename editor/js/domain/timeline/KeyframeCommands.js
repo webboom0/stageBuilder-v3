@@ -10,8 +10,9 @@ function recordHistory(engine, cmd) {
 /**
  * @param {import('./TimelineEngine.js').TimelineEngine} engine
  * @param {{ trackId: string, timeSec: number, value: any, interpolation?: number }} args
+ * @param {{ select?: boolean }} [opt]
  */
-export function cmdAddKeyframe(engine, args) {
+export function cmdAddKeyframe(engine, args, opt = {}) {
   const track = engine.getTrack(args.trackId);
   if (!track) throw new Error(`Track not found: ${args.trackId}`);
   if (track.locked) return null;
@@ -29,10 +30,14 @@ export function cmdAddKeyframe(engine, args) {
           ...(args.interpolation !== undefined ? { interpolation: args.interpolation } : {}),
         },
       });
-      engine.selectKeyframe(track.id, existing.id);
+      if (opt.select !== false) {
+        engine.selectKeyframe(track.id, existing.id);
+      }
       return track.keys.get(existing.id);
     }
-    engine.selectKeyframe(track.id, existing.id);
+    if (opt.select !== false) {
+      engine.selectKeyframe(track.id, existing.id);
+    }
     return existing;
   }
 
@@ -58,7 +63,9 @@ export function cmdAddKeyframe(engine, args) {
     },
   });
 
-  engine.selectKeyframe(track.id, added.id);
+  if (opt.select !== false) {
+    engine.selectKeyframe(track.id, added.id);
+  }
   return added;
 }
 

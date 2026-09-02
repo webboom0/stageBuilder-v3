@@ -1,5 +1,52 @@
-import { repairMotionsFromTracks, repairMotionsFromGroups } from './sceneMotionPersistence.js';
+import { repairMotionsFromTracks, repairMotionsFromGroups, isMotionTrackSnapshot } from './sceneMotionPersistence.js';
 import { repairGroupsFromTracks } from './sceneGroupRepair.js';
+import { KeyframeStore } from '../timeline/KeyframeStore.js';
+import {
+  inferPresenceFromKeys,
+  normalizePresenceClip,
+  stripLegacyEdgeKeys,
+  syncMotionExitKeyVisibility,
+  supportsPresenceClip,
+} from '../timeline/presenceClip.js';
+
+/**
+ * v4 legacy tracks: infer presence envelope, strip enter/exit edge keys from body.
+ * @param {object} doc
+ * @param {number} [fps]
+ */
+export function migratePresenceClipsOnTracks(doc, fps = 30) {
+  for (const t of doc.tracks || []) {
+    if (!isMotionTrackSnapshot(t)) continue;
+    if (t.presenceClip) {
+      const ks = new KeyframeStore();
+      ks.restore(t.keys || []);
+      t.presenceClip = normalizePresenceClip(t.presenceClip, { fps, keys: ks });
+    } else if (Array.isArray(t.keys) && t.keys.length) {
+      const ks = new KeyframeStore();
+      ks.restore(t.keys);
+      const clip = inferPresenceFromKeys(ks, fps);
+      if (clip) {
+        stripLegacyEdgeKeys(ks, fps);
+        t.keys = ks.snapshot();
+        t.presenceClip = normalizePresenceClip(clip, { fps, keys: ks });
+      }
+    }
+    repairTrackExitKeyVisibility(t, fps);
+  }
+}
+
+/** @param {object} track @param {number} fps */
+function repairTrackExitKeyVisibility(track, fps) {
+  if (!track || !supportsPresenceClip(track)) return;
+  const ks = new KeyframeStore();
+  ks.restore(track.keys || []);
+  if (!ks.list().length) return;
+  syncMotionExitKeyVisibility({ ...track, keys: ks });
+  track.keys = ks.snapshot();
+  if (track.presenceClip) {
+    track.presenceClip = normalizePresenceClip(track.presenceClip, { fps, keys: ks });
+  }
+}
 
 /**
  * Repair motion/track desync in saved scene documents (Phase 6 load).
@@ -13,6 +60,7 @@ export function repairSceneDocument(doc) {
   repairMotionsFromTracks(doc);
   repairMotionsFromGroups(doc);
   repairGroupsFromTracks(doc);
+  migratePresenceClipsOnTracks(doc, Number(doc.fps) || 30);
 
   /** @type {Map<string, object>} */
   const trackById = new Map();

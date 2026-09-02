@@ -77,7 +77,15 @@ export function normalizeSegment(seg, groupDefaults = {}) {
     toRotY: normalizeRotYDeg(seg.toRotY),
     anchorPresetId: seg.anchorPresetId || null,
     easing: kind === SEGMENT_KIND.hold ? SEGMENT_EASING.linear : normalizeSegmentEasing(seg.easing),
+    opacity: clamp01(seg.opacity ?? 1),
   };
+}
+
+/** @param {number} n */
+function clamp01(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 1;
+  return Math.max(0, Math.min(1, v));
 }
 
 /** 레거시 단일 구간 → segments 배열 */

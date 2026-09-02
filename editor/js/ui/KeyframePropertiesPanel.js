@@ -4,6 +4,7 @@ import { asLightKeyValue } from '../domain/lighting/lightKeyValue.js';
 import { asFixtureKeyValue } from '../domain/lighting/fixtureKeyValue.js';
 import { applyMotionTint } from '../domain/motion/walkLitePerformer.js';
 import { clampMotionAboveDeck } from '../domain/motion/MotionDirector.js';
+import { supportsPresenceClip } from '../domain/timeline/presenceClip.js';
 import { mountRotYChips } from './rotYChips.js';
 import { createMotionAnimSection } from './MotionAnimSection.js';
 
@@ -179,6 +180,10 @@ export function createKeyframePropertiesPanel(opts) {
               <option value="2">Smooth</option>
             </select>
           </div>
+          <div class="ec-row" data-role="key-exit-row" hidden>
+            <label>퇴장</label>
+            <span class="sb-key-exit-note">안 보임 (자동)</span>
+          </div>
         </div>
       </div>
 
@@ -227,6 +232,7 @@ export function createKeyframePropertiesPanel(opts) {
   const timeEl = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time"]'));
   const timeRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time-range"]'));
   const interpEl = /** @type {HTMLSelectElement} */ (root.querySelector('[data-role="interp"]'));
+  const keyExitRow = /** @type {HTMLElement} */ (root.querySelector('[data-role="key-exit-row"]'));
   const opRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="opacity-range"]'));
   const opPct = /** @type {HTMLElement} */ (root.querySelector('[data-role="opacity-pct"]'));
   const stageOpRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="stage-opacity-range"]'));
@@ -441,6 +447,12 @@ export function createKeyframePropertiesPanel(opts) {
     if (pct) pct.textContent = `${Math.round(n * 100)}%`;
   }
 
+  function isTrackExitKeyframe(track, keyId) {
+    if (!track || !keyId || !supportsPresenceClip(track)) return false;
+    const list = track.keys.list();
+    return list.length >= 2 && list[list.length - 1].id === keyId;
+  }
+
   function pushObjectToSelectedKey(m) {
     const track = engine.getTrack(m.trackId);
     if (!track || track.locked) return;
@@ -455,7 +467,7 @@ export function createKeyframePropertiesPanel(opts) {
       rotation: [m.object.rotation.x, m.object.rotation.y, m.object.rotation.z],
       scale: [m.object.scale.x, m.object.scale.y, m.object.scale.z],
       opacity,
-      visible: m.object.visible !== false,
+      visible: !keyId || !isTrackExitKeyframe(track, keyId),
     };
     if (!keyId) {
       engine.addKeyframe(m.trackId, engine.playheadSec, bagBase);
@@ -655,9 +667,13 @@ export function createKeyframePropertiesPanel(opts) {
       timeEl.value = String(Number(kf.timeSec.toFixed(3)));
       timeRange.value = String(kf.timeSec);
       interpEl.value = String(kf.interpolation ?? 0);
+      if (keyExitRow) {
+        keyExitRow.hidden = !isTrackExitKeyframe(track, kf.id);
+      }
     } else {
       writeOpacityValue(m, track, 1);
       keyBlock.hidden = true;
+      if (keyExitRow) keyExitRow.hidden = true;
     }
     timeRange.max = String(engine.durationSec || 180);
     syncing = false;

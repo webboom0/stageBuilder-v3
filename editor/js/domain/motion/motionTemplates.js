@@ -26,6 +26,12 @@ export function newMotionTemplateId() {
  *   label: string,
  *   opacity: number,
  *   keyframes: RelativeKeyframe[],
+ *   absoluteCoords?: boolean,
+ *   startTimeSec?: number,
+ *   fromX?: number,
+ *   fromZ?: number,
+ *   fromRotY?: number,
+ *   fromPresetId?: string | null,
  * }} MotionTemplate
  */
 
@@ -38,12 +44,22 @@ export function normalizeMotionTemplate(raw) {
   const keyframes = Array.isArray(p.keyframes) && p.keyframes.length
     ? p.keyframes.map(normalizeRelativeKeyframe)
     : [];
-  return {
+  /** @type {MotionTemplate} */
+  const tpl = {
     id: p.id || newMotionTemplateId(),
     label: String(p.label || '패턴').trim() || '패턴',
     opacity: clamp01(p.opacity ?? keyframes[0]?.opacity ?? 1),
     keyframes,
   };
+  if (p.absoluteCoords === true) {
+    tpl.absoluteCoords = true;
+    if (Number.isFinite(Number(p.startTimeSec))) tpl.startTimeSec = Number(p.startTimeSec);
+    if (Number.isFinite(Number(p.fromX))) tpl.fromX = Number(p.fromX);
+    if (Number.isFinite(Number(p.fromZ))) tpl.fromZ = Number(p.fromZ);
+    if (Number.isFinite(Number(p.fromRotY))) tpl.fromRotY = normalizeRotYDeg(p.fromRotY);
+    if (typeof p.fromPresetId === 'string' && p.fromPresetId) tpl.fromPresetId = p.fromPresetId;
+  }
+  return tpl;
 }
 
 /** @param {Partial<RelativeKeyframe>} kf */

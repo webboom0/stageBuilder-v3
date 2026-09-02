@@ -14,6 +14,12 @@ import {
   resolveStageProceduralId,
 } from './stageMeshPrimitives.js';
 import { sampleMotionBag } from './sampleTracks.js';
+import {
+  samplePresenceMotion,
+  seedDefaultMotionTrackKeys,
+  supportsPresenceClip,
+} from '../timeline/presenceClip.js';
+import { importTrackKeyframesToMotionAnim } from './motionAnim.js';
 import { motionKeyFromObject } from './motionKeyValue.js';
 import { createWalkLitePerformer, WALK_LITE_PROCEDURAL_ID, applyMotionTint } from './walkLitePerformer.js';
 import {
@@ -310,7 +316,7 @@ export class MotionDirector {
 
     const keyValue = motionKeyFromObject(root);
     const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
-    this.engine.addKeyframe(track.id, ph, keyValue, INTERPOLATION.LINEAR);
+    seedDefaultMotionTrackKeys(this.engine, track, keyValue, ph);
 
     ensureMaterialsForOpacity(root);
     disableMotionFrustumCull(root);
@@ -332,6 +338,7 @@ export class MotionDirector {
       section,
     };
     this.motions.set(id, item);
+    importTrackKeyframesToMotionAnim(track, item, ph);
     this._syncTrackMotionMeta(track, {
       fileUrl: meta.fileUrl || '',
       assetRole,
@@ -352,11 +359,19 @@ export class MotionDirector {
     if (!m) return null;
     const track = this.engine.getTrack(trackId);
     if (!track) return motionKeyFromObject(m.object);
-    const sampled = sampleMotionBag(
-      track.keys,
-      this.engine.playheadSec,
-      motionKeyFromObject(m.object),
-    );
+    const sampled = track?.presenceClip && supportsPresenceClip(track)
+      ? samplePresenceMotion(
+        track.keys,
+        track.presenceClip,
+        this.engine.playheadSec,
+        motionKeyFromObject(m.object),
+        m.object.position.y,
+      )
+      : sampleMotionBag(
+        track.keys,
+        this.engine.playheadSec,
+        motionKeyFromObject(m.object),
+      );
     return motionKeyFromObject(m.object, {
       opacity: sampled.opacity,
       visible: sampled.visible,
@@ -371,9 +386,18 @@ export class MotionDirector {
     if (this.suspendApply) return;
     for (const m of this.motions.values()) {
       const track = this.engine.getTrack(m.trackId);
-      const bag = track
-        ? sampleMotionBag(track.keys, timeSec, motionKeyFromObject(m.object))
-        : motionKeyFromObject(m.object);
+      const fallback = motionKeyFromObject(m.object);
+      const bag = track?.presenceClip && supportsPresenceClip(track)
+        ? samplePresenceMotion(
+          track.keys,
+          track.presenceClip,
+          timeSec,
+          fallback,
+          m.object.position.y,
+        )
+        : track
+          ? sampleMotionBag(track.keys, timeSec, fallback)
+          : fallback;
 
       // Track-head eye (hidden) wins over keyframe visible
       m.object.visible = !(track?.hidden) && bag.visible !== false;
@@ -714,7 +738,8 @@ export class MotionDirector {
       });
       const keyValue = motionKeyFromObject(m.object);
       const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
-      this.engine.addKeyframe(track.id, ph, keyValue, INTERPOLATION.LINEAR);
+      seedDefaultMotionTrackKeys(this.engine, track, keyValue, ph);
+      importTrackKeyframesToMotionAnim(track, m, ph);
       console.warn('[MotionDirector] reconciled orphan motion track', m.name, m.trackId);
     }
   }
