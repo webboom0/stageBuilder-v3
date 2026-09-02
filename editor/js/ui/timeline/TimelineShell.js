@@ -1,4 +1,5 @@
 import { DURATION_MODE } from '../../domain/timeline/types.js';
+import { previewDurationChange } from '../../domain/timeline/KeyframeCommands.js';
 import { keyframeTimeEps, snapKeyframeTimeSec } from '../../domain/timeline/KeyframeStore.js';
 import {
   audioTrackLabelHtml,
@@ -520,7 +521,29 @@ export function mountTimelineShell(host, ctx) {
   el.duration.addEventListener('change', () => {
     const v = Number(el.duration.value);
     if (!Number.isFinite(v) || v <= 0) return;
-    // Keep absolute key times; only clamp keys past the new end.
+    const prev = engine.durationSec;
+    if (v < prev - 1e-9) {
+      const preview = previewDurationChange(engine, v, DURATION_MODE.CLAMP_END);
+      if (preview.removedCount > 0) {
+        const lines = [
+          `타임라인 길이를 ${Math.round(prev)}초 → ${Math.round(v)}초로 줄입니다.`,
+          '',
+        ];
+        if (preview.clampedCount > 0) {
+          lines.push(`• 끝을 넘는 키 ${preview.clampedCount}개 → ${Math.round(v)}초로 이동`);
+        }
+        lines.push(`• 겹쳐 삭제되는 키 ${preview.removedCount}개`);
+        if (preview.affectedTrackCount > 0) {
+          lines.push(`• 영향 트랙 ${preview.affectedTrackCount}개`);
+        }
+        lines.push('', '계속할까요?');
+        if (!window.confirm(lines.join('\n'))) {
+          el.duration.value = String(Math.round(prev));
+          return;
+        }
+      }
+    }
+    // Keep absolute key times; keys past the new end clamp to the end.
     engine.setDuration(v, DURATION_MODE.CLAMP_END);
   });
 

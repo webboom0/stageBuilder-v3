@@ -1,6 +1,7 @@
 import { DURATION_MODE } from './types.js';
 import { cloneKeyframeValue } from './cloneValue.js';
-import { keyframeTimeEps, snapKeyframeTimeSec } from './KeyframeStore.js';
+import { keyframeTimeEps, snapKeyframeTimeSec, previewDurationClampEnd } from './KeyframeStore.js';
+import { supportsPresenceClip, syncPresenceClipFromKeys } from './presenceClip.js';
 
 /** @param {import('./TimelineEngine.js').TimelineEngine} engine */
 function recordHistory(engine, cmd) {
@@ -192,6 +193,9 @@ export function cmdSetDuration(engine, args) {
   engine.durationSec = newDuration;
   for (const track of engine.listTracks()) {
     track.keys.applyDurationChange(oldDuration, newDuration, mode);
+    if (supportsPresenceClip(track)) {
+      syncPresenceClipFromKeys(track, engine.fps);
+    }
   }
   engine.playheadSec = Math.min(engine.playheadSec, newDuration);
 
@@ -205,16 +209,86 @@ export function cmdSetDuration(engine, args) {
     undo: () => {
       engine.durationSec = oldDuration;
       for (const s of snaps) {
-        engine.getTrack(s.id)?.keys.restore(s.keys);
+        const track = engine.getTrack(s.id);
+        if (!track) continue;
+        track.keys.restore(s.keys);
+        if (supportsPresenceClip(track)) {
+          syncPresenceClipFromKeys(track, engine.fps);
+        }
       }
       engine.playheadSec = Math.min(engine.playheadSec, oldDuration);
     },
     redo: () => {
       engine.durationSec = newDuration;
       for (const s of afterSnaps) {
-        engine.getTrack(s.id)?.keys.restore(s.keys);
+        const track = engine.getTrack(s.id);
+        if (!track) continue;
+        track.keys.restore(s.keys);
+        if (supportsPresenceClip(track)) {
+          syncPresenceClipFromKeys(track, engine.fps);
+        }
       }
       engine.playheadSec = Math.min(engine.playheadSec, newDuration);
     },
   });
+}
+
+/**
+ * Preview shortening timeline — keys past the end are clamped; overlaps may remove keys.
+ * @param {import('./TimelineEngine.js').TimelineEngine} engine
+ * @param {number} newDuration
+ * @param {string} [mode]
+ * @returns {{ shortened: boolean, removedCount: number, clampedCount: number, affectedTrackCount: number, oldDuration: number, newDuration: number }}
+ */
+export function previewDurationChange(engine, newDuration, mode = DURATION_MODE.CLAMP_END) {
+  const oldDuration = engine.durationSec;
+  const next = Math.max(1, Number(newDuration) || oldDuration);
+  if (next >= oldDuration - 1e-9) {
+    return {
+      shortened: false,
+      removedCount: 0,
+      clampedCount: 0,
+      affectedTrackCount: 0,
+      oldDuration,
+      newDuration: next,
+    };
+  }
+
+  let removedCount = 0;
+  let clampedCount = 0;
+  let affectedTrackCount = 0;
+
+  if (mode === DURATION_MODE.SCALE_ALL) {
+    return {
+      shortened: true,
+      removedCount: 0,
+      clampedCount: 0,
+      affectedTrackCount: 0,
+      oldDuration,
+      newDuration: next,
+    };
+  }
+
+  for (const track of engine.listTracks()) {
+    const list = track.keys.list();
+    if (!list.length) continue;
+    const preview = previewDurationClampEnd(
+      list.map((k) => ({ id: k.id, timeSec: k.timeSec })),
+      next,
+    );
+    if (preview.removedCount > 0 || preview.clampedCount > 0) {
+      affectedTrackCount += 1;
+    }
+    removedCount += preview.removedCount;
+    clampedCount += preview.clampedCount;
+  }
+
+  return {
+    shortened: true,
+    removedCount,
+    clampedCount,
+    affectedTrackCount,
+    oldDuration,
+    newDuration: next,
+  };
 }

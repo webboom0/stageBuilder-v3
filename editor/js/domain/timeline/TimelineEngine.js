@@ -243,6 +243,8 @@ export class TimelineEngine {
   setDuration(durationSec, mode = this.durationMode) {
     cmdSetDuration(this, { durationSec, mode });
     this.emit('duration');
+    this.emit('keys');
+    this.emit('tracks');
   }
 
   setDurationMode(mode) {

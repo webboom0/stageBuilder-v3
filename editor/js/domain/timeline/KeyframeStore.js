@@ -137,12 +137,54 @@ export class KeyframeStore {
         kf.timeSec = Math.min(newDuration, kf.timeSec * scale);
       }
     } else {
-      this._keys = this._keys.filter((kf) => kf.timeSec <= newDuration + 1e-9);
-      for (const kf of this._keys) {
-        kf.timeSec = Math.min(kf.timeSec, newDuration);
+      /** @type {{ kf: Keyframe, orig: number }[]} */
+      const entries = this._keys.map((kf) => ({ kf, orig: kf.timeSec }));
+      for (const { kf, orig } of entries) {
+        kf.timeSec = orig > newDuration + 1e-9
+          ? newDuration
+          : Math.min(orig, newDuration);
       }
+      this._sort();
+      this._dedupeKeysAfterDurationClamp(entries);
     }
     this._sort();
+  }
+
+  /**
+   * After clampEnd pulls multiple keys to the same time, keep the one that was furthest out.
+   * @param {{ kf: Keyframe, orig: number }[]} entries
+   */
+  _dedupeKeysAfterDurationClamp(entries) {
+    const origById = new Map(entries.map((e) => [e.kf.id, e.orig]));
+    const remove = new Set();
+    let i = 0;
+    while (i < this._keys.length) {
+      let j = i + 1;
+      while (
+        j < this._keys.length
+        && Math.abs(this._keys[j].timeSec - this._keys[i].timeSec) < 1e-6
+      ) {
+        j++;
+      }
+      if (j > i + 1) {
+        let keepIdx = i;
+        let maxOrig = origById.get(this._keys[i].id) ?? this._keys[i].timeSec;
+        for (let k = i + 1; k < j; k++) {
+          const orig = origById.get(this._keys[k].id) ?? this._keys[k].timeSec;
+          if (orig > maxOrig) {
+            maxOrig = orig;
+            keepIdx = k;
+          }
+        }
+        for (let k = i; k < j; k++) {
+          if (k !== keepIdx) remove.add(this._keys[k].id);
+        }
+      }
+      i = j;
+    }
+    if (remove.size) {
+      this._keys = this._keys.filter((kf) => !remove.has(kf.id));
+    }
   }
 
   clear() {
@@ -173,6 +215,55 @@ export class KeyframeStore {
   _sort() {
     this._keys.sort((a, b) => a.timeSec - b.timeSec || a.id.localeCompare(b.id));
   }
+}
+
+/**
+ * Simulate clampEnd (no mutation) — how many keys move past the end / get removed by overlap.
+ * @param {{ id: string, timeSec: number }[]} keys
+ * @param {number} newDuration
+ * @returns {{ removedCount: number, clampedCount: number }}
+ */
+export function previewDurationClampEnd(keys, newDuration) {
+  if (!keys.length) return { removedCount: 0, clampedCount: 0 };
+
+  /** @type {{ id: string, orig: number, next: number }[]} */
+  const entries = keys.map((kf) => ({
+    id: kf.id,
+    orig: kf.timeSec,
+    next: kf.timeSec > newDuration + 1e-9
+      ? newDuration
+      : Math.min(kf.timeSec, newDuration),
+  }));
+
+  const clampedCount = entries.filter((e) => e.orig > newDuration + 1e-9).length;
+  const sorted = [...entries].sort((a, b) => a.next - b.next || a.id.localeCompare(b.id));
+  const remove = new Set();
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i + 1;
+    while (
+      j < sorted.length
+      && Math.abs(sorted[j].next - sorted[i].next) < 1e-6
+    ) {
+      j++;
+    }
+    if (j > i + 1) {
+      let keepIdx = i;
+      let maxOrig = sorted[i].orig;
+      for (let k = i + 1; k < j; k++) {
+        if (sorted[k].orig > maxOrig) {
+          maxOrig = sorted[k].orig;
+          keepIdx = k;
+        }
+      }
+      for (let k = i; k < j; k++) {
+        if (k !== keepIdx) remove.add(sorted[k].id);
+      }
+    }
+    i = j;
+  }
+
+  return { removedCount: remove.size, clampedCount };
 }
 
 function cloneValue(v) {
