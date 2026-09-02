@@ -427,7 +427,18 @@
         <h3>길이 · 실행 취소 · 다시 실행</h3>
         <ul>
           <li>기본 <strong>180초</strong> · 툴바 <strong>길이</strong>에서 변경</li>
-          <li>길이를 줄여도 <strong>키 시각은 유지</strong> — 새 끝보다 뒤 키만 정리</li>
+          <li><strong>길이를 줄일 때</strong> (절대 시각 유지 · <code>clampEnd</code>):
+            <ul>
+              <li>새 끝 <strong>이전</strong>에 있는 키 → 시각 <strong>그대로</strong></li>
+              <li>새 끝 <strong>넘는</strong> 키 → 새 끝 시각으로 <strong>이동</strong> (삭제 아님)</li>
+              <li>여러 키가 같은 시각에 겹치면 → <strong>가장 뒤에 있던 키 1개</strong>만 남고 나머지 <strong>삭제</strong></li>
+              <li>삭제될 키가 있으면 <strong>확인 창</strong> — 취소 시 길이 변경 안 함</li>
+              <li>Characters/Stage <strong>등장 클립</strong> 막대도 키에 맞춰 갱신</li>
+            </ul>
+          </li>
+          <li>예: 180초·키 <code>0s</code>+<code>180s</code> → 길이 <strong>60초</strong> → <code>0s</code> 유지 · <code>180s</code>→<code>60s</code> 이동 (삭제 없음)</li>
+          <li>예: <code>0, 20, 80, 120, 180</code> → <strong>60초</strong> → <code>0, 20</code> 유지 · <code>80·120·180</code>은 <code>60s</code>로 몰림 → <strong>180s 키만</strong> 남고 80·120 삭제 (확인 창)</li>
+          <li>길이를 <strong>늘리면</strong> 키는 그대로 · 확인 창 없음</li>
           <li>타임라인 툴바 <strong>Undo</strong> · <strong>Redo</strong> 또는 <span class="kbd">Ctrl+Z</span> / <span class="kbd">Ctrl+Y</span> (메뉴 <strong>편집</strong>과 동일)</li>
         </ul>
         <p><strong>Undo/Redo 대상</strong> — 타임라인 키 추가·삭제·이동 · 트랙 삭제 · Character/Stage <strong>트랙 이름 변경</strong> · <strong>기즈모</strong> 드래그(키가 기록될 때) · 조명 키·패널 슬라이더. Characters/Stage <strong>등장 클립</strong> 길이도 마지막 키와 함께 Undo/Redo됩니다.</p>
@@ -689,7 +700,7 @@
             <tr><td>키 선택</td><td>다이아몬드 클릭 → 무대 객체 선택 · 플레이헤드 이동 · 툴바 <strong>◀ ▶</strong> 또는 <span class="kbd">,</span> / <span class="kbd">.</span> 로 이전/다음 키</td></tr>
             <tr><td>키 삭제</td><td>키 선택 → <span class="kbd">Del</span> / <span class="kbd">D</span> · 우클릭 메뉴</td></tr>
             <tr><td>키 시간 이동</td><td>키 드래그 · <span class="kbd">←/→</span> 1프레임 · Shift 1초 · Alt 0.1초 · 우클릭 <strong>키 이동…</strong> · <span class="kbd">M</span> 초 입력</td></tr>
-            <tr><td>위치 복사·붙여넣기</td><td>키 우클릭 — <strong>위치 복사</strong> → 다른 키 우클릭 <strong>위치 붙여넣기</strong> (Characters/Stage · 다른 트랙 가능 · XYZ 그대로 · Undo 가능)</td></tr>
+            <tr><td>위치 복사·붙여넣기</td><td>키 우클릭 — <strong>위치 복사</strong> → 다른 키 우클릭 <strong>위치 붙여넣기</strong> (Characters/Stage · 다른 트랙 · XYZ · Undo) · Stage 키 <strong>2개</strong>일 때 <strong>시작 키</strong>에 붙여넣기 → 퇴장 키도</td></tr>
             <tr><td>키 수정</td><td>키 선택 → <a href="#char-props">속성</a> 또는 기즈모 (플레이헤드 키 또는 선택 키 필요)</td></tr>
             <tr><td>트랙 이름</td><td>트랙 선택 · <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong></td></tr>
             <tr><td>트랙 삭제</td><td>트랙 선택 후 <span class="kbd">Del</span> (확인) · 또는 라벨 <strong>우클릭 → 트랙 삭제</strong> — 무대 객체 함께 제거</td></tr>
@@ -727,7 +738,7 @@
         <table>
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
-            <tr><td>키 추가/삭제/이동</td><td>Characters와 동일 (<span class="kbd">K</span> · Del · ◀ ▶ · <span class="kbd">,</span>/<span class="kbd">.</span> · 드래그 · 화살표 · M · 우클릭)</td></tr>
+            <tr><td>키 추가/삭제/이동</td><td>Characters와 동일 (<span class="kbd">K</span> · Del · ◀ ▶ · <span class="kbd">,</span>/<span class="kbd">.</span> · 드래그 · 화살표 · M · 우클릭 <strong>키 이동…</strong> · <a href="#char-track">위치 복사/붙여넣기</a>)</td></tr>
             <tr><td>키 수정</td><td><a href="#stage-props">속성</a> 또는 기즈모 — <strong>키 2개만</strong>일 때 시작 키=퇴장 키도 동시 · 퇴장 키=이 키만 · <strong>3개 이상</strong>=선택 키만 · Opacity는 선택 키만</td></tr>
             <tr><td>트랙 이름</td><td>트랙 선택 · <span class="kbd">F2</span> · 우클릭 · Properties <strong>이름</strong></td></tr>
             <tr><td>트랙 삭제</td><td>트랙 선택 · <span class="kbd">Del</span> (확인) · 또는 라벨 우클릭 → 트랙 삭제 — 무대 메시 제거</td></tr>
