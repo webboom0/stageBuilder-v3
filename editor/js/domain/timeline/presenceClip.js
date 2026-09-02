@@ -297,6 +297,18 @@ export function syncMotionExitKeyVisibility(track) {
     return;
   }
 
+  const lastBag = asMotionKeyValue(list[list.length - 1].value);
+  const hasExitKey = lastBag.visible === false || lastBag.opacity <= 0.05;
+  if (!hasExitKey) {
+    for (const kf of list) {
+      const bag = asMotionKeyValue(kf.value);
+      if (!bag.visible) {
+        kf.value = asMotionKeyValue({ ...bag, visible: true });
+      }
+    }
+    return;
+  }
+
   for (let i = 0; i < list.length; i++) {
     const shouldVisible = i < list.length - 1;
     const bag = asMotionKeyValue(list[i].value);

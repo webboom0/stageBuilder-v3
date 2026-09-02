@@ -57,6 +57,7 @@ import { isStageMotionTrack, applyStageTransform } from '../../domain/motion/sta
  *   onHistoryChange?: () => void,
  *   onSaveTrackToPatternLibrary?: (trackId: string) => void,
  *   onRenameMotionTrack?: (trackId: string, name: string) => boolean | void,
+ *   getPreferredTrackId?: () => string | null,
  * }} ctx
  */
 export function mountTimelineShell(host, ctx) {
@@ -66,6 +67,7 @@ export function mountTimelineShell(host, ctx) {
     getLightKeyValue,
     audio,
     onTrackSelect,
+    getPreferredTrackId,
     onTrackRemove,
     onStageAssetDrop,
     onCharacterAssetDrop,
@@ -414,11 +416,7 @@ export function mountTimelineShell(host, ctx) {
   el.jumps?.addEventListener('click', (e) => {
     const btn = e.target.closest?.('.sb-tl-jump');
     if (!btn) return;
-    sectionFilter = /** @type {typeof sectionFilter} */ (btn.dataset.section || 'all');
-    el.jumps.querySelectorAll('.sb-tl-jump').forEach((b) => {
-      b.classList.toggle('is-on', b === btn);
-    });
-    host.classList.toggle('tl-filtered', sectionFilter !== 'all');
+    setSectionFilter(/** @type {typeof sectionFilter} */ (btn.dataset.section || 'all'));
     render();
   });
 
@@ -687,8 +685,68 @@ export function mountTimelineShell(host, ctx) {
     return !!(track && track.kind !== 'clip' && !track.locked);
   }
 
+  /** Keys shown on the timeline row (presence body); fall back to all keys if none visible. */
+  function listNavigableKeys(track) {
+    const all = track?.keys.list() ?? [];
+    if (!track?.presenceClip) return all;
+    const visible = all.filter((kf) => isKeyInPresenceBody(track, kf.timeSec));
+    return visible.length ? visible : all;
+  }
+
+  /** @param {'all' | 'motion' | 'stage' | 'light' | 'audio'} section */
+  function setSectionFilter(section) {
+    sectionFilter = section;
+    el.jumps?.querySelectorAll('.sb-tl-jump').forEach((b) => {
+      b.classList.toggle('is-on', b.dataset.section === section);
+    });
+    host.classList.toggle('tl-filtered', section !== 'all');
+  }
+
+  /** Show track row in labels/lanes (section filter, collapsed section/folder). */
+  function ensureTrackRowVisible(trackId) {
+    const track = engine.getTrack(trackId);
+    if (!track) return false;
+    const sec = track.section
+      || (track.kind === 'audio' ? 'audio' : track.kind === 'light' ? 'light' : 'motion');
+    let changed = false;
+    if (sectionFilter !== 'all' && sectionFilter !== sec) {
+      setSectionFilter(sec);
+      changed = true;
+    }
+    if (sectionCollapsed[sec]) {
+      sectionCollapsed[sec] = false;
+      changed = true;
+    }
+    if (track.folderId) {
+      const folder = engine.folders.get(track.folderId);
+      if (folder?.collapsed) {
+        engine.setFolderCollapsed(folder.id, false);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  function scrollTrackIntoView(trackId) {
+    requestAnimationFrame(() => {
+      const label = el.labelsContent.querySelector(`.sb-tl-label[data-track="${trackId}"]`);
+      label?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
   function resolveTrackId(preferred) {
     if (preferred && isKeyableTrack(preferred)) return preferred;
+
+    if (
+      engine.selectedTrackId
+      && engine.selectedKeyframeId
+      && isKeyableTrack(engine.selectedTrackId)
+    ) {
+      return engine.selectedTrackId;
+    }
+
+    const fromViewport = getPreferredTrackId?.();
+    if (fromViewport && isKeyableTrack(fromViewport)) return fromViewport;
 
     const section = sectionFilter !== 'all' ? sectionFilter : null;
     if (section) {
@@ -887,6 +945,7 @@ export function mountTimelineShell(host, ctx) {
    */
   function selectTimelineKey(trackId, keyId, opt = {}) {
     if (!trackId || !keyId) return;
+    ensureTrackRowVisible(trackId);
     engine.selectKeyframe(trackId, keyId);
     if (opt.scrub !== false) {
       const kf = engine.getTrack(trackId)?.keys.get(keyId);
@@ -897,6 +956,7 @@ export function mountTimelineShell(host, ctx) {
       }
     }
     onTrackSelect?.(trackId, { selectKey: false });
+    scrollTrackIntoView(trackId);
     focusTimeline();
   }
 
@@ -908,7 +968,7 @@ export function mountTimelineShell(host, ctx) {
     const trackId = resolveTrackId(engine.selectedTrackId);
     if (!trackId || !isKeyableTrack(trackId)) return { ok: false };
     const track = engine.getTrack(trackId);
-    const keys = track?.keys.list() ?? [];
+    const keys = listNavigableKeys(track);
     if (!keys.length) return { ok: false };
 
     const curId = engine.selectedTrackId === trackId ? engine.selectedKeyframeId : null;

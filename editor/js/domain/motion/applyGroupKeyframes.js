@@ -19,6 +19,22 @@ export function isGroupDeployed(group, getMotionItem) {
 }
 
 /**
+ * @param {import('./MotionGroupStore.js').MotionGroup} group
+ * @param {(id: string) => import('./MotionDirector.js').MotionItem | null | undefined} getMotionItem
+ * @param {import('../timeline/TimelineEngine.js').TimelineEngine} engine
+ */
+export function countGroupMembersWithBakedKeys(group, getMotionItem, engine) {
+  let n = 0;
+  for (const mem of group.members || []) {
+    if (!mem.deployedMotionId) continue;
+    const item = getMotionItem(mem.deployedMotionId);
+    const track = item ? engine.getTrack(item.trackId) : null;
+    if (track?.keys.list()?.length) n += 1;
+  }
+  return n;
+}
+
+/**
  * Re-bake segment plan onto existing deployed members (no remove/recreate).
  *
  * @param {{
@@ -39,7 +55,7 @@ export function reapplyGroupKeyframes(opts) {
       if (!mem.deployedMotionId) continue;
       const item = getMotionItem(mem.deployedMotionId);
       if (!item?.object) continue;
-      applyGroupSegmentsToMotion({
+      const ok = applyGroupSegmentsToMotion({
         engine,
         motionItem: item,
         group,
@@ -47,7 +63,7 @@ export function reapplyGroupKeyframes(opts) {
         feetY: item.object.position.y,
         quiet: true,
       });
-      applied++;
+      if (ok) applied++;
     }
   } finally {
     engine.endKeyframeBake();

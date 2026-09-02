@@ -22,7 +22,12 @@ import { trackToMotionTemplate, canSaveTrackToPatternLibrary } from '../domain/m
 import { applyKeyframeTemplateToMotion } from '../domain/motion/applyMotionTemplate.js';
 import { applyPatternDraftToMotionTrack } from '../domain/motion/trackKeyframePattern.js';
 import { applyGroupSegmentsToMotion } from '../domain/motion/applyGroupSegments.js';
-import { isGroupDeployed, reapplyGroupKeyframes, groupBakePlayheadSec } from '../domain/motion/applyGroupKeyframes.js';
+import {
+  countGroupMembersWithBakedKeys,
+  isGroupDeployed,
+  reapplyGroupKeyframes,
+  groupBakePlayheadSec,
+} from '../domain/motion/applyGroupKeyframes.js';
 import { snapKeyframeTimeSec } from '../domain/timeline/KeyframeStore.js';
 import {
   propagatePositionPresetUpdate,
@@ -421,6 +426,11 @@ async function main(initialProjectStore) {
       getLightKeyValue: (trackId) =>
         light.keyValueForTrack(trackId) ?? fixtures.keyValueForTrack(trackId),
       audio,
+      getPreferredTrackId: () => {
+        const mid = interaction?.getSelectedMotionId?.();
+        if (!mid) return null;
+        return motion.get(mid)?.trackId ?? null;
+      },
       onTrackSelect: (trackId, opt) => {
         const m = motion.findByTrackId(trackId);
         if (m) interaction?.selectMotion(m.id, opt);
@@ -929,12 +939,14 @@ async function main(initialProjectStore) {
 
     await deployMissingGroupMembers(group);
 
+    const getMotionItem = (id) => motion.get(id);
     const count = reapplyGroupKeyframes({
       engine: timeline,
       group,
-      getMotionItem: (id) => motion.get(id),
+      getMotionItem,
     });
-    if (count === 0) {
+    const baked = countGroupMembersWithBakedKeys(group, getMotionItem, timeline);
+    if (count === 0 || baked < group.members.length) {
       await deployGroup(groupId);
       return true;
     }
