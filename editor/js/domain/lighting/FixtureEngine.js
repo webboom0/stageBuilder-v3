@@ -571,12 +571,12 @@ export class FixtureEngine {
 
   renderFixtures() {
     const playing = !!this.isPlaying;
+    void playing;
     this.fixtures.forEach((f) => {
       const out = Object.assign({}, f.home, f.attr);
 
-      const hasPanelEdit = f.prog && Object.keys(f.prog).length > 0;
-      const useTimelineLayer = f.tl && (playing || !hasPanelEdit);
-      if (useTimelineLayer) {
+      // Always layer timeline when present; prog overrides only edited channels.
+      if (f.tl) {
         out.dim = f.tl.dim ?? out.dim;
         out.pan = f.tl.pan ?? out.pan;
         out.tilt = f.tl.tilt ?? out.tilt;
@@ -601,7 +601,6 @@ export class FixtureEngine {
       const col = new THREE.Color(out.r, out.g, out.b);
 
       const { spot, beam, aim } = f.obj;
-      // v3: decay 1.1 on the SpotLight; intensity = I × max × lightScale
       if (spot.decay == null || spot.decay === 0) spot.decay = 1.1;
       spot.color.copy(col);
       spot.intensity = I * f.max * this.lightScale;
@@ -609,11 +608,21 @@ export class FixtureEngine {
       spot.angle = ang;
       spot.penumbra = 0.1 + (out.focus / 100) * 0.85;
 
+      // Restore original throw — do not shrink Spot to deck (that caused mid-air cone cut)
+      const reach = Number(spot.userData.baseDist) || 150;
+      spot.distance = reach;
+      spot.target.position.set(0, -reach, 0);
+
       const iris = out.iris != null ? Number(out.iris) / 100 : 1;
       beam.material.color.copy(col);
       beam.material.opacity = out.dim > 0.4 ? (0.015 + I * 0.085) * iris : 0;
       const bs = (Math.tan(ang) / Math.tan(BEAM_REF)) * (0.4 + iris * 0.6);
       beam.scale.x = beam.scale.z = Math.max(0.15, bs);
+      // Visual only: slightly longer than mesh baseLen (66→~99). Spot reach unchanged.
+      const baseLen = Number(beam.userData.baseLen) || 66;
+      const visualLen = baseLen * 1.5;
+      beam.scale.y = visualLen / baseLen;
+      beam.position.y = -visualLen / 2;
 
       aim.rotation.y = THREE.MathUtils.degToRad(out.pan + (f.fanOff || 0));
       aim.rotation.x = THREE.MathUtils.degToRad(out.tilt);

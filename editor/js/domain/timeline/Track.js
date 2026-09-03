@@ -65,6 +65,12 @@ export class Track {
     this.audioVolume = Number.isFinite(opts.audioVolume) ? clamp01(opts.audioVolume) : 1;
     /** Persisted motion restore hints (scene save) */
     this.motionMeta = opts.motionMeta ?? null;
+    /** Fixture AI 조명 시퀀스 — last applied prompt (edit & re-bake) */
+    this.fixtureFollowPrompt = opts.fixtureFollowPrompt != null
+      ? String(opts.fixtureFollowPrompt)
+      : null;
+    /** Track origin: 'ai-follow' for AI-generated tracks, null for manual */
+    this.source = opts.source ?? null;
   }
 
   snapshot() {
@@ -86,6 +92,8 @@ export class Track {
       locked: this.locked,
       audioVolume: this.audioVolume,
       motionMeta: this.motionMeta ?? undefined,
+      fixtureFollowPrompt: this.fixtureFollowPrompt || undefined,
+      source: this.source || undefined,
     };
   }
 
@@ -106,6 +114,8 @@ export class Track {
       locked: data.locked,
       audioVolume: data.audioVolume,
       motionMeta: data.motionMeta ?? null,
+      fixtureFollowPrompt: data.fixtureFollowPrompt ?? null,
+      source: data.source ?? null,
     });
     t.keys.restore(data.keys);
     if (data.presenceClip) {

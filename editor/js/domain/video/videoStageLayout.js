@@ -3,9 +3,20 @@ import { mapStageScaledPoint, STAGE_CAMERA_PRESETS } from '../stage/CameraPreset
 import { getClampedProfileFactors, getStagePivot } from '../stage/stageFloorLayout.js';
 import { normalizeStageType } from '../stage/StageTypes.js';
 
-/** v3 VideoBackground.js @ V3_FBX_REFERENCE 20×22.5m */
-export const PROSCENIUM_VIDEO = Object.freeze({
+/**
+ * v3 screen-bay coords @ V3_FBX_REFERENCE 20×22.5m.
+ * Decor hide / occluder XY·Z bands stay on this bay (gray panel + lamps).
+ * Restore active plane here if asked: copy into PROSCENIUM_VIDEO.position.
+ */
+export const PROSCENIUM_VIDEO_SCREEN_BAY = Object.freeze({
   position: [8.243, 65.273, -74.039],
+  scale: [374.724, 125.114, 1.0],
+});
+
+/** Active video plane — further upstage (−Z) than the FBX screen bay. */
+export const PROSCENIUM_VIDEO = Object.freeze({
+  // 이전(스크린 개구): position: [8.243, 65.273, -74.039],
+  position: [8.243, 65.273, -120],
   scale: [374.724, 125.114, 1.0],
 });
 
@@ -28,16 +39,18 @@ const _dir = new THREE.Vector3();
 const _hsl = { h: 0, s: 0, l: 0 };
 
 /**
+ * Layout for screen-bay decor hide (not the pushed-back video mesh).
  * @param {import('../stage/StageManager.js').StageManager} stageManager
  */
 function getProsceniumVideoLayout(stageManager) {
   const pivot = getStagePivot('proscenium');
   const factors = getClampedProfileFactors(stageManager.profile, 'proscenium');
-  const pos = mapStageScaledPoint(PROSCENIUM_VIDEO.position, pivot, factors);
+  const bay = PROSCENIUM_VIDEO_SCREEN_BAY;
+  const pos = mapStageScaledPoint(bay.position, pivot, factors);
   return {
     pos,
-    halfW: (PROSCENIUM_VIDEO.scale[0] * factors.widthFactor) / 2,
-    halfH: (PROSCENIUM_VIDEO.scale[1] * (factors.heightFactor ?? 1)) / 2,
+    halfW: (bay.scale[0] * factors.widthFactor) / 2,
+    halfH: (bay.scale[1] * (factors.heightFactor ?? 1)) / 2,
     factors,
   };
 }

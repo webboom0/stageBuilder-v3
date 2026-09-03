@@ -6,7 +6,9 @@
 export const FIXTURE_REACH = 70;
 export const BEAM_REF_ANGLE = 16;
 
-/** v3 fixtureTypes — max drives SpotLight intensity (× lightScale) */
+/** v3 fixtureTypes — max drives SpotLight intensity (× lightScale).
+ * reach = SpotLight.distance · beamLen = visual cone (runtime ×1.5 for a bit more length)
+ */
 export const FIXTURE_RIG_TYPES = Object.freeze({
   mh: { rig: 'mh', label: 'Moving Head', reach: 150, beamLen: 66, zoom: 13, max: 175 },
   wash: { rig: 'wash', label: 'LED Wash', reach: 150, beamLen: 66, zoom: 24, max: 135 },
@@ -90,12 +92,22 @@ export function fixtureFidFromRowCol(r, c) {
 }
 
 export function parseFixtureFidFromGroup(group) {
-  const m = String(group || '').match(/^light:fx:(\d+)$/);
+  const m = String(group || '').match(/^light:fx:(\d+)(?::ai)?$/);
   return m ? Number(m[1]) : null;
+}
+
+/** @param {string} group */
+export function isAiFollowGroup(group) {
+  return /^light:fx:\d+:ai$/.test(String(group || ''));
 }
 
 export function fixtureTrackGroup(fid) {
   return `light:fx:${fid}`;
+}
+
+/** AI follow 전용 트랙 group */
+export function fixtureAiTrackGroup(fid) {
+  return `light:fx:${fid}:ai`;
 }
 
 /**

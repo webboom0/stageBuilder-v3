@@ -316,6 +316,7 @@ export function mountEditorShell(root, ctx) {
       engine: ctx.engine,
       light: ctx.light,
       fixtures: ctx.fixtures,
+      motion: ctx.motion,
       scene: ctx.stageManager?.scene,
       onChange: () => {
         ctx.onKeyframeEdited?.();

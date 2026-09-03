@@ -15,6 +15,7 @@ import {
   endLightingGesture,
   runLightingEdit,
 } from '../domain/lighting/lightingHistory.js';
+import { mountFixtureFollowAi } from './fixtureFollowUi.js';
 
 const HOUSE_UI = Object.freeze([
   { channel: 'fill', label: 'Stage Fill', hasSize: false },
@@ -72,6 +73,16 @@ const ATTR_TABS = Object.freeze([
   { id: 'Color', fields: [] },
 ]);
 
+/** Bulk “전 키” — user picks which attrs to write (Pan/Tilt off by default). */
+const BULK_ATTR_OPTS = Object.freeze([
+  { key: 'dim', label: 'Dim' },
+  { key: 'zoom', label: 'Zoom' },
+  { key: 'focus', label: 'Focus' },
+  { key: 'color', label: 'Color' },
+  { key: 'pan', label: 'Pan' },
+  { key: 'tilt', label: 'Tilt' },
+]);
+
 /**
  * v3-style lighting panel — HOUSE + Fixture sheet / groups / attrs / +key.
  *
@@ -84,7 +95,7 @@ const ATTR_TABS = Object.freeze([
  * }} opts
  */
 export function createLightingPanelBody(opts) {
-  const { engine, light, fixtures, scene } = opts;
+  const { engine, light, fixtures, scene, motion } = opts;
   /** @type {{ sync: () => void }} */
   const panelHooks = { sync: () => {} };
   const historyCtx = createLightingHistoryContext({
@@ -147,13 +158,27 @@ export function createLightingPanelBody(opts) {
         <div class="ec-row sb-light-rgb"><label>G</label><input type="range" data-role="fx-g" min="0" max="255" value="255" disabled /><span data-role="fx-g-val">255</span></div>
         <div class="ec-row sb-light-rgb"><label>B</label><input type="range" data-role="fx-b" min="0" max="255" value="255" disabled /><span data-role="fx-b-val">255</span></div>
       </div>
+      <div class="sb-light-fx-bulk" data-role="fx-bulk">
+        <div class="sb-light-fx-bulk-label">전 키에 넣을 속성</div>
+        <div class="sb-light-fx-bulk-attrs" data-role="fx-bulk-attrs" role="group" aria-label="전 키에 적용할 속성">
+          ${BULK_ATTR_OPTS.map((o) => (
+            `<button type="button" class="sb-chip sb-light-bulk-attr" data-bulk-attr="${o.key}"`
+            + ` aria-pressed="false" title="${o.key === 'pan' || o.key === 'tilt'
+              ? 'AI 조명 시퀀스 조준을 덮어씁니다'
+              : `${o.label} 값을 모든 키에 반영`}">${o.label}</button>`
+          )).join('')}
+        </div>
+        <button type="button" class="sb-chip acc" data-act="fx-apply-all-keys"
+          title="위에서 고른 속성만 선택 Fixture의 모든 키에 반영">선택 속성 → 전 키</button>
+      </div>
       <div class="sb-light-kf-bar sb-light-kf-bar--bottom">
-        <button type="button" class="sb-chip acc sb-light-kf-btn" data-act="fx-key" title="Fixture 키 추가">+ 키</button>
+        <button type="button" class="sb-chip acc sb-light-kf-btn" data-act="fx-key" title="Fixture 키 추가 · AI 트랙이 있으면 별도 수동 트랙에 기록되고 재생 주도권이 수동으로 넘어갑니다">+ 키</button>
         <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-prev" title="이전 키">◀</button>
         <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-next" title="다음 키">▶</button>
         <button type="button" class="sb-chip del sb-light-kf-btn" data-act="fx-kf-del" title="플레이헤드 키 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
         <button type="button" class="sb-chip del sb-light-kf-btn sb-light-track-del" data-act="fx-track-del" title="선택 Fixture 트랙 삭제 (키 포함)" disabled>트랙 삭제</button>
       </div>
+      <div class="sb-fx-follow-host" data-role="fx-follow-ai"></div>
     </div>
   `;
 
@@ -785,10 +810,10 @@ export function createLightingPanelBody(opts) {
     let fxTrackCount = 0;
     let fxKeyCount = 0;
     for (const fid of selectedFids) {
-      const fx = fixtures.findByFid(fid);
-      if (!fx) continue;
-      fxTrackCount += 1;
-      fxKeyCount += engine.getTrack(fx.trackId)?.keys?.length || 0;
+      for (const id of fixtures.trackIdsForFid(fid)) {
+        fxTrackCount += 1;
+        fxKeyCount += engine.getTrack(id)?.keys?.length || 0;
+      }
     }
     if (fxTrackDelBtn) {
       fxTrackDelBtn.disabled = fxTrackCount === 0;
@@ -829,16 +854,20 @@ export function createLightingPanelBody(opts) {
       return;
     }
     let nKeys = 0;
+    let nTracks = 0;
     for (const fx of tracks) {
-      nKeys += engine.getTrack(fx.trackId)?.keys?.length || 0;
+      for (const id of fixtures.trackIdsForFid(fx.fid)) {
+        nKeys += engine.getTrack(id)?.keys?.length || 0;
+        nTracks += 1;
+      }
     }
     const msg = nKeys
-      ? `Fixture 트랙 ${tracks.length}개를 삭제할까요?\n키 ${nKeys}개도 함께 삭제됩니다.`
-      : `Fixture 트랙 ${tracks.length}개를 삭제할까요?`;
+      ? `Fixture 트랙 ${nTracks}개를 삭제할까요?\n키 ${nKeys}개도 함께 삭제됩니다.`
+      : `Fixture 트랙 ${nTracks}개를 삭제할까요?`;
     if (!window.confirm(msg)) return;
     runLightingEdit(historyCtx, 'Fixture 트랙 삭제', () => {
       for (const fx of tracks) {
-        fixtures.removeTrackById(fx.trackId, { history: false });
+        fixtures.removeAllTracksForFid(fx.fid, { history: false });
       }
       refreshSheet();
       updateFxSelInfo();
@@ -902,6 +931,118 @@ export function createLightingPanelBody(opts) {
   root.querySelector('[data-act="fx-key"]')?.addEventListener('click', () => {
     ensureReady();
     addFxKeysAtPlayhead();
+  });
+  root.querySelector('[data-role="fx-bulk-attrs"]')?.addEventListener('click', (e) => {
+    const btn = /** @type {HTMLElement | null} */ (
+      e.target instanceof Element ? e.target.closest('[data-bulk-attr]') : null
+    );
+    if (!btn || !root.contains(btn)) return;
+    const on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.classList.toggle('on', on);
+  });
+  /** 적용 후 다음 작업에 속성이 남아 있지 않도록 초기화 (포커스 링도 해제) */
+  function clearBulkAttrSelection() {
+    for (const el of root.querySelectorAll('[data-bulk-attr]')) {
+      el.setAttribute('aria-pressed', 'false');
+      el.classList.remove('on');
+      if (el === document.activeElement && el instanceof HTMLElement) el.blur();
+    }
+  }
+  root.querySelector('[data-act="fx-apply-all-keys"]')?.addEventListener('click', () => {
+    ensureReady();
+    if (!selectedFids.size) {
+      window.alert('픽스처를 먼저 선택하세요.');
+      return;
+    }
+
+    const selectedKeys = [...root.querySelectorAll('[data-bulk-attr][aria-pressed="true"]')]
+      .map((el) => el.getAttribute('data-bulk-attr'))
+      .filter(Boolean);
+    if (!selectedKeys.length) {
+      window.alert('전 키에 넣을 속성을 하나 이상 선택하세요. (Dim / Zoom / Focus / Color …)');
+      return;
+    }
+
+    /** @param {string} key */
+    const readAttr = (key) => {
+      const els = [...root.querySelectorAll(`input[data-attr="${key}"]`)];
+      const el = /** @type {HTMLInputElement | null} */ (
+        els.find((n) => n instanceof HTMLInputElement && !n.disabled)
+        || null
+      );
+      if (!el) return null;
+      const n = Number(el.value);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const fromUi = firstSelectedBag();
+    /** @type {Partial<import('../domain/lighting/fixtureKeyValue.js').FixtureKeyValue>} */
+    const patch = {};
+    /** @type {string[]} */
+    const appliedLabels = [];
+
+    if (selectedKeys.includes('dim')) {
+      const dimPct = readAttr('dim');
+      patch.dim = dimPct != null ? Math.max(0, Math.min(1, dimPct / 100)) : fromUi.dim;
+      appliedLabels.push(`Dim ${Math.round(patch.dim * 100)}%`);
+    }
+    if (selectedKeys.includes('zoom')) {
+      const zoom = readAttr('zoom');
+      patch.zoom = zoom != null ? Math.max(5, Math.min(50, zoom)) : fromUi.zoom;
+      appliedLabels.push(`Zoom ${Math.round(patch.zoom)}°`);
+    }
+    if (selectedKeys.includes('focus')) {
+      const focus = readAttr('focus');
+      patch.focus = focus != null ? Math.max(0, Math.min(100, focus)) : fromUi.focus;
+      appliedLabels.push(`Focus ${Math.round(patch.focus)}%`);
+    }
+    if (selectedKeys.includes('color')) {
+      let color = fromUi.color;
+      if (fxR && !fxR.disabled) {
+        color = rgb01ToHex(
+          Number(fxR.value) / 255,
+          Number(fxG.value) / 255,
+          Number(fxB.value) / 255,
+        );
+      }
+      patch.color = color;
+      appliedLabels.push(`Color ${patch.color}`);
+    }
+    if (selectedKeys.includes('pan')) {
+      const pan = readAttr('pan');
+      patch.pan = pan != null ? pan : fromUi.pan;
+      appliedLabels.push(`Pan ${Math.round(patch.pan)}°`);
+    }
+    if (selectedKeys.includes('tilt')) {
+      const tilt = readAttr('tilt');
+      patch.tilt = tilt != null ? tilt : fromUi.tilt;
+      appliedLabels.push(`Tilt ${Math.round(patch.tilt)}°`);
+    }
+
+    if (selectedKeys.includes('pan') || selectedKeys.includes('tilt')) {
+      const ok = window.confirm(
+        'Pan/Tilt를 전 키에 넣으면 AI 조명 시퀀스 조준이 덮어써집니다.\n계속할까요?',
+      );
+      if (!ok) return;
+    }
+
+    let n = 0;
+    runLightingEdit(historyCtx, 'Fixture 전 키에 선택 속성', () => {
+      n = fixtures.patchAllKeysForFids([...selectedFids], patch);
+    });
+    // 버튼을 누른 뒤에는 결과와 무관하게 속성 선택을 비웁니다
+    clearBulkAttrSelection();
+    if (!n) {
+      window.alert('적용할 키가 없습니다. +키 또는 AI 조명 시퀀스로 키를 만든 뒤 다시 시도하세요.');
+      return;
+    }
+    window.alert(`전 키 적용 · ${n}개\n${appliedLabels.join(' · ')}`);
+    opts.onChange?.();
+    refreshSheet();
+    refreshAttrFields();
+    syncRgbSliders();
+    sync();
   });
   root.querySelector('[data-act="fx-kf-prev"]')?.addEventListener('click', () => {
     ensureReady();
@@ -1058,14 +1199,68 @@ export function createLightingPanelBody(opts) {
       pruneOffPlayheadKeySelection();
     }
     if (['selection', 'tracks', 'keys', 'playhead'].includes(ev.type)) {
-      sync();
+      panelHooks.sync();
     }
   });
 
   setLightTab('house');
   ensureReady();
-  panelHooks.sync = sync;
-  sync();
 
-  return { root, sync, ensureReady };
+  const fxFollowHost = root.querySelector('[data-role="fx-follow-ai"]');
+  const fxFollowUi = fxFollowHost && motion
+    ? mountFixtureFollowAi(/** @type {HTMLElement} */ (fxFollowHost), {
+      engine,
+      fixtures,
+      historyCtx,
+      getSelectedFids: () => selectedFids,
+      getMotions: () => (motion.list?.() || []).filter((m) => m?.trackId && m?.name && m?.object),
+      onChange: () => opts.onChange?.(),
+      onConvertToManual: (aiTrackId) => convertAiTrackToManual(aiTrackId),
+    })
+    : null;
+
+  function syncAll() {
+    sync();
+    fxFollowUi?.sync?.();
+  }
+
+  /**
+   * AI 트랙 → 수동 트랙 전환 (경고 후). 전환하면 프롬프트 연결이 끊어집니다.
+   * @param {string} aiTrackId
+   * @returns {string | null} 전환된 트랙 id
+   */
+  function convertAiTrackToManual(aiTrackId) {
+    ensureReady();
+    const track = engine.getTrack(aiTrackId);
+    if (track?.source !== 'ai-follow') return null;
+    const ok = window.confirm(
+      `「${track.name}」을 수동 트랙으로 변경할까요?\n\n`
+      + `· AI 키 ${track.keys.length}개는 그대로 남고 편집할 수 있게 됩니다\n`
+      + '· 저장된 AI 문장이 삭제되어 「수정 후 다시 적용」을 쓸 수 없습니다\n'
+      + '· 다시 AI로 만들려면 문장을 새로 적용해야 합니다',
+    );
+    if (!ok) return null;
+
+    let converted = null;
+    runLightingEdit(historyCtx, 'AI 트랙 → 수동 트랙', () => {
+      const res = fixtures.convertAiTrackToManual(aiTrackId);
+      if (!res.ok) {
+        window.alert(res.error);
+        return;
+      }
+      converted = res.trackId;
+      selectedFids = new Set([res.fid]);
+      syncFxEngineSelection();
+      refreshSheet();
+      updateFxSelInfo();
+      refreshTrackDeleteButtons();
+    });
+    syncAll();
+    return converted;
+  }
+
+  panelHooks.sync = syncAll;
+  syncAll();
+
+  return { root, sync: syncAll, ensureReady };
 }

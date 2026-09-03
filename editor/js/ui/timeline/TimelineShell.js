@@ -737,6 +737,11 @@ export function mountTimelineShell(host, ctx) {
   function resolveTrackId(preferred) {
     if (preferred && isKeyableTrack(preferred)) return preferred;
 
+    // A locked row the user pointed at must never fall through to an unrelated track.
+    // AI rows are converted from the lighting panel, not from here.
+    const explicitId = preferred || engine.selectedTrackId;
+    if (engine.getTrack(explicitId)?.locked) return null;
+
     if (
       engine.selectedTrackId
       && engine.selectedKeyframeId
@@ -1137,7 +1142,7 @@ export function mountTimelineShell(host, ctx) {
 
   function toggleTrackLocked(trackId) {
     const track = engine.getTrack(trackId);
-    if (!track) return;
+    if (!track || track.source === 'ai-follow') return;
     track.locked = !track.locked;
     engine.emit('tracks');
     engine.emit('change');
@@ -1163,7 +1168,9 @@ export function mountTimelineShell(host, ctx) {
     const rows = tracksInFolder(folderId);
     if (!rows.length) return;
     const lockAll = !rows.every((tr) => tr.locked);
-    for (const tr of rows) tr.locked = lockAll;
+    for (const tr of rows) {
+      if (tr.source !== 'ai-follow') tr.locked = lockAll;
+    }
     engine.emit('tracks');
     engine.emit('change');
   }
@@ -2034,18 +2041,27 @@ function trackLabelHtml(tr, engine, nested, audio) {
   const eyeIcon = tr.hidden ? 'fas fa-eye-slash' : 'fas fa-eye';
   const lockIcon = tr.locked ? 'fas fa-lock' : 'fas fa-lock-open';
   const keyDisabled = tr.locked ? ' disabled' : '';
+  const isAi = tr.source === 'ai-follow';
+  const lockDisabled = isAi ? ' disabled' : '';
+  const lockTitle = isAi
+    ? 'AI 트랙 고정 · 조명 패널 「AI 조명 시퀀스 → 수동으로 변경」 후 편집하세요'
+    : '잠금';
+  const keyTitle = isAi
+    ? '조명 패널 「AI 조명 시퀀스 → 수동으로 변경」 후 키를 편집할 수 있습니다'
+    : '키프레임 추가 (K)';
   return `<div class="sb-tl-label${nest}${sel}${hid}${loc}"
     data-track="${tr.id}" data-section="${tr.section || 'motion'}"
     style="--track-accent:${escapeAttr(accent)}">
     <i class="sb-tl-swatch" style="background:${escapeAttr(accent)}"></i>
+    ${tr.source === 'ai-follow' ? '<span class="sb-tl-ai-badge" title="AI 조명 시퀀스 트랙 · 조명 패널에서 「수동으로 변경」하면 직접 편집할 수 있습니다">AI</span>' : ''}
     <span class="sb-tl-label-name">${escapeHtml(tr.name)}</span>
     <span class="sb-tl-label-ctrls" role="group" aria-label="트랙 제어">
       <button type="button" class="sb-tl-hbtn${tr.hidden ? ' is-on' : ''}" data-tl-act="vis"
         title="보이기/숨기기"><i class="${eyeIcon}"></i></button>
       <button type="button" class="sb-tl-hbtn sb-tl-hbtn-key" data-tl-act="key"${keyDisabled}
-        title="키프레임 추가 (K)"><span class="sb-tl-kf-diamond" aria-hidden="true"></span></button>
-      <button type="button" class="sb-tl-hbtn${tr.locked ? ' is-on' : ''}" data-tl-act="lock"
-        title="잠금"><i class="${lockIcon}"></i></button>
+        title="${escapeAttr(keyTitle)}"><span class="sb-tl-kf-diamond" aria-hidden="true"></span></button>
+      <button type="button" class="sb-tl-hbtn${tr.locked ? ' is-on' : ''}" data-tl-act="lock"${lockDisabled}
+        title="${escapeAttr(lockTitle)}"><i class="${lockIcon}"></i></button>
     </span>
   </div>`;
 }

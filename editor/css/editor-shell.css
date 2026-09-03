@@ -4301,10 +4301,69 @@ body.sb-picking canvas {
 .sb-seg-ai-help-swatch.is-hold { color: #d4c870; }
 .sb-seg-ai-help-swatch.is-exit { color: #f08080; }
 .sb-seg-ai-help-swatch.is-rotate { color: #6ea0ff; }
-.sb-seg-ai-defaults-hint {
-  margin: 0 0 10px;
-  font-size: 11px;
-  color: var(--ink-dim);
+.sb-light-fx-bulk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.sb-light-fx-bulk-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+}
+.sb-light-fx-bulk-attrs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+}
+.sb-light-fx-bulk .sb-chip {
+  font-size: 10px;
+}
+/* 6개(Dim·Zoom·Focus·Color·Pan·Tilt)가 좁은 패널에서도 한 줄에 들어가야 함 */
+.sb-light-bulk-attr {
+  opacity: 0.72;
+  flex: 1 1 0;
+  min-width: 0;
+  padding-left: 2px;
+  padding-right: 2px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-light-bulk-attr.on,
+.sb-light-bulk-attr[aria-pressed="true"] {
+  opacity: 1;
+  border-color: rgba(57, 211, 255, 0.55);
+  background: rgba(57, 211, 255, 0.14);
+  color: rgba(220, 245, 255, 0.95);
+}
+/* OS 강조색 기본 포커스 링이 '선택됨'처럼 보이던 문제 — 선택 상태와 구분되는 링으로 고정 */
+.sb-light-bulk-attr:focus {
+  outline: none;
+}
+.sb-light-bulk-attr:focus-visible {
+  outline: 1px dotted rgba(200, 210, 225, 0.7);
+  outline-offset: 1px;
+}
+.sb-light-fx-bulk [data-act="fx-apply-all-keys"] {
+  align-self: flex-start;
+}
+.sb-fx-follow-host {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.sb-fx-follow-ai .sb-seg-ai-title {
+  color: rgb(186, 170, 255);
+}
+.sb-light-hint.is-err {
+  color: #f08080;
 }
 .sb-seg-ai-defaults-grid {
   display: grid;

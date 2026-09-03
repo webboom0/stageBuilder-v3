@@ -600,7 +600,7 @@
         <h2>Video</h2>
         <p>Assets <strong>Video</strong> 탭 — 2열 카드 · 마우스 오버 미리 재생 · 무대 배경. 타임라인 트랙 없음.</p>
         <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Video 탭 <strong>+</strong> 재생 · 재생 중 <strong>−</strong> 제거</p>
-        <div class="note">프로시니엄: FBX의 <strong>회색 스크린 패널</strong>·스크린 구역 <strong>램프 장식</strong>은 자동으로 숨겨지고, <strong>건물 뒤 벽</strong>은 유지됩니다. 비디오는 별도 평면으로 재생됩니다.</div>
+        <div class="note">프로시니엄: FBX의 <strong>회색 스크린 패널</strong>·스크린 구역 <strong>램프 장식</strong>은 자동으로 숨겨지고, <strong>건물 뒤 벽</strong>은 유지됩니다. 비디오는 스크린 개구보다 <strong>약간 뒤(업스테이지)</strong>의 별도 평면으로 재생됩니다.</div>
         <ol>
           <li><strong>Video</strong> 탭에서 파일을 고릅니다.</li>
           <li><strong>+</strong> — 관객 정면 배경 스크린에서 재생</li>
@@ -1064,6 +1064,8 @@
             <tr><td>Dim · Pan · Tilt · Zoom · Focus · Color</td><td>Properties 또는 패널 Dimmer/Position/Beam/Color</td></tr>
             <tr><td>Fixture Bus</td><td>화면 전체 밝기만 (키 값 유지)</td></tr>
             <tr><td>트랙 표시</td><td>타일 <strong>·T</strong> / 초록 = 트랙 있음 · 회색 = +키로 생성</td></tr>
+            <tr><td><strong>선택 속성 → 전 키</strong></td><td>Dim/Zoom/Focus/Color/Pan/Tilt 중 <strong>고른 것만</strong> 모든 키에 반영 (기본 미선택 · Pan/Tilt는 AI 조준 덮어쓰기 확인)</td></tr>
+            <tr><td><strong>AI 따라가기</strong></td><td>+ 키 바 <strong>아래</strong> — <code>@캐릭터</code> 조준(pan/tilt) · 트랙에 문장 이력 저장 · 수정 후 다시 적용 · <code>@</code> ↑↓ 선택 (<code>?</code> 도움말)</td></tr>
           </tbody>
         </table>
         <figure class="tutorial-figure" data-file="images/19-light-props.png">

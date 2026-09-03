@@ -118,6 +118,7 @@ export function buildFixtureObject(options = {}) {
     }),
   );
   beam.position.y = -beamLen / 2;
+  beam.userData.baseLen = beamLen;
   tagFixture(beam, 'beam');
   aim.add(beam);
 
