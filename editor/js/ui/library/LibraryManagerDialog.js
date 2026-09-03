@@ -6,6 +6,7 @@ import {
   deleteGlobalLibraryAsset,
 } from '../../domain/assets/globalLibraryApi.js';
 import { probePropApiAvailable } from '../../domain/motion/propCatalog.js';
+import { formatUploadFailureAlert } from '../../domain/assets/uploadError.js';
 
 /**
  * 공용 assets 라이브러리(`files/`) — 목록 · 업로드 · 삭제.
@@ -179,7 +180,7 @@ export function showLibraryManagerDialog(tab, opts = {}) {
       } catch (err) {
         console.error(err);
         setStatus('업로드 실패');
-        window.alert(`업로드 실패\n\n${err?.message || err}`);
+        window.alert(formatUploadFailureAlert(err));
       }
     });
 

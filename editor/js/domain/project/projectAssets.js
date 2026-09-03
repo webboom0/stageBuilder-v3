@@ -1,4 +1,5 @@
 import { apiUrl, filesUrl } from '../../config/app-config.js';
+import { readHttpUploadError } from '../assets/uploadError.js';
 import { projectAssetsApiBase, resolveProjectAssetUrl } from './projectPaths.js';
 import { DEFAULT_MOTION_SAMPLES } from '../motion/motionCatalog.js';
 import { DEFAULT_STAGE_MESH_SAMPLES } from '../motion/stageMeshPrimitives.js';
@@ -96,12 +97,7 @@ export async function uploadProjectAsset(projectId, tab, file) {
     credentials: 'include',
   });
   if (!res.ok) {
-    let msg = '업로드 실패';
-    try {
-      const data = await res.json();
-      msg = data.error || msg;
-    } catch { /* ignore */ }
-    throw new Error(msg);
+    throw new Error(await readHttpUploadError(res));
   }
   return res.json();
 }

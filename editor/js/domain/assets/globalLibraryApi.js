@@ -1,5 +1,6 @@
 import { API, apiUrl } from '../../config/app-config.js';
 import { probePropApiAvailable } from '../motion/propCatalog.js';
+import { readHttpUploadError } from './uploadError.js';
 
 /** Must match server/server.js MEDIA_EXTS + limits */
 export const LIBRARY_UPLOAD_RULES = Object.freeze({
@@ -49,6 +50,9 @@ function fileExt(name) {
 export function validateLibraryUpload(file, kind, opts = {}) {
   const rules = LIBRARY_UPLOAD_RULES[kind];
   const ext = fileExt(file.name);
+  if (!file.size) {
+    return `빈 파일은 업로드할 수 없습니다.\n선택한 파일: ${file.name}`;
+  }
   if (kind === 'stage' && ext === '.obj' && opts.propApiAvailable === false) {
     return [
       'PIVOT 서버에는 Stage(OBJ) API가 없습니다.',
@@ -75,23 +79,6 @@ export function validateLibraryUpload(file, kind, opts = {}) {
     ].join('\n');
   }
   return null;
-}
-
-/** @param {Response} res */
-async function readUploadError(res) {
-  const raw = await res.text().catch(() => '');
-  if (raw) {
-    try {
-      const data = JSON.parse(raw);
-      if (data?.error) return String(data.error);
-    } catch {
-      /* plain text */
-    }
-    if (raw.length <= 240) return raw;
-    return raw.slice(0, 240);
-  }
-  if (res.status === 413) return '파일 크기가 제한을 초과했습니다.';
-  return `서버 오류 (HTTP ${res.status})`;
 }
 
 /**
@@ -134,10 +121,10 @@ export async function uploadGlobalLibraryAsset(tab, file, opts = {}) {
         body: fd2,
         credentials: 'include',
       });
-      if (!res2.ok) throw new Error(await readUploadError(res2));
+      if (!res2.ok) throw new Error(await readHttpUploadError(res2));
       return;
     }
-    throw new Error(await readUploadError(res));
+    throw new Error(await readHttpUploadError(res));
   }
 }
 

@@ -908,7 +908,7 @@ export function createKeyframePropertiesPanel(opts) {
   });
   sync();
 
-  return { root, sync, destroy: () => unsub() };
+  return { root, sync, setTab, destroy: () => unsub() };
 }
 
 function mountXyzSliders(groupEl, prefix, bounds) {

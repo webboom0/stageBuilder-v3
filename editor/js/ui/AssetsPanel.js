@@ -20,6 +20,7 @@ import {
   serializeAssetDeleteDrag,
 } from '../domain/assets/stageAssetDrag.js';
 import { ASSETS_TOOLBAR_ICONS } from './assetsToolbarIcons.js';
+import { formatUploadFailureAlert, readHttpUploadError } from '../domain/assets/uploadError.js';
 
 /** Must match server/server.js MEDIA_EXTS + limits */
 const UPLOAD_RULES = Object.freeze({
@@ -994,9 +995,9 @@ export function createAssetsPanelBody(opts = {}) {
             body: fd2,
             credentials: 'include',
           });
-          if (!res2.ok) throw new Error(await readUploadError(res2));
+          if (!res2.ok) throw new Error(await readHttpUploadError(res2));
         } else {
-          throw new Error(await readUploadError(res));
+          throw new Error(await readHttpUploadError(res));
         }
       } else if (tab === 'stage' && endpoint === API.uploadProp) {
         propApiAvailable = true;
@@ -1007,7 +1008,7 @@ export function createAssetsPanelBody(opts = {}) {
     } catch (err) {
       statusEl.textContent = '업로드 실패';
       console.error(err);
-      window.alert(`업로드 실패\n\n${err?.message || err}`);
+      window.alert(formatUploadFailureAlert(err));
       return { ok: false };
     }
   }
@@ -1169,6 +1170,9 @@ function fileExt(name) {
 function validateUploadFile(file, kind, opts = {}) {
   const rules = UPLOAD_RULES[kind];
   const ext = fileExt(file.name);
+  if (!file.size) {
+    return `빈 파일은 업로드할 수 없습니다.\n선택한 파일: ${file.name}`;
+  }
   if (kind === 'stage' && ext === '.obj' && opts.propApiAvailable === false) {
     return [
       'PIVOT 서버에는 Stage(OBJ) API가 없습니다.',
@@ -1197,19 +1201,3 @@ function validateUploadFile(file, kind, opts = {}) {
   return null;
 }
 
-/** @param {Response} res */
-async function readUploadError(res) {
-  const raw = await res.text().catch(() => '');
-  if (raw) {
-    try {
-      const data = JSON.parse(raw);
-      if (data?.error) return String(data.error);
-    } catch {
-      /* plain text */
-    }
-    if (raw.length <= 240) return raw;
-    return raw.slice(0, 240);
-  }
-  if (res.status === 413) return '파일 크기가 제한을 초과했습니다.';
-  return `서버 오류 (HTTP ${res.status})`;
-}

@@ -438,6 +438,7 @@ async function main(initialProjectStore) {
           shellRef.current?.syncKeyframeProps?.();
           shellRef.current?.syncLightingPanel?.();
         }
+        shellRef.current?.focusPanelsForTimelineTrack?.(trackId);
       },
       onTrackRemove: (trackId) => {
         const tr = timeline.getTrack(trackId);

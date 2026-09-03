@@ -448,6 +448,60 @@ export function mountEditorShell(root, ctx) {
   });
   toolbarApi?.setStageFocusActive(isStageFocusActive());
 
+  /** @param {'segments' | 'props'} [tab] */
+  function openPropertiesPanel(tab = 'segments') {
+    rightRail.openPanel('properties');
+    propsUi?.setTab?.(tab);
+  }
+
+  /** @param {string} [groupId] */
+  function openGroupsPanel(groupId) {
+    if (groupId && ctx.groupStore?.get(groupId)) {
+      ctx.groupStore.setActive(groupId);
+      groupsUi?.render({ reloadCatalog: false });
+    }
+    rightRail.openPanel('sc-groups');
+  }
+
+  function openLightingPanel() {
+    rightRail.openPanel('sc-lighting');
+    lightingUi?.sync();
+  }
+
+  /**
+   * 타임라인 트랙 종류에 맞는 오른쪽 패널을 펼칩니다.
+   * @param {string | null | undefined} trackId
+   */
+  function focusPanelsForTimelineTrack(trackId) {
+    if (!trackId || !ctx.engine) return;
+    const track = ctx.engine.getTrack(trackId);
+    if (!track) return;
+
+    if (track.kind === 'light') {
+      openLightingPanel();
+      return;
+    }
+    if (track.kind !== 'motion') return;
+
+    if (track.section === 'stage') {
+      openPropertiesPanel('segments');
+      propsUi?.sync();
+      return;
+    }
+
+    const folderId = track.folderId;
+    if (folderId && ctx.groupStore) {
+      const group = ctx.groupStore.list().find((g) => g.deployedFolderId === folderId);
+      if (group) {
+        openGroupsPanel(group.id);
+        return;
+      }
+    }
+
+    openPropertiesPanel('segments');
+    propsUi?.sync();
+  }
+
   return {
     syncStagePanel: () => stageUi.syncFromManager(),
     setStageBusy: (busy) => stageUi.setBusy(busy),
@@ -474,6 +528,10 @@ export function mountEditorShell(root, ctx) {
     selectPatternLibraryEntry: (id) => motionTemplatesUi?.selectPattern?.(id),
     openPatternLibraryPanel: () => rightRail.openPanel('keyframe-macros'),
     openPositionPresetsPanel: () => rightRail.openPanel('position-presets'),
+    openPropertiesPanel,
+    openGroupsPanel,
+    openLightingPanel,
+    focusPanelsForTimelineTrack,
     refreshPositionPresets: () => positionPresetsUi?.render(),
     refreshGroupsCatalog: () => groupsUi?.refreshCatalog?.(),
     refreshProjectPanel: () => projectPanelUi?.render(),

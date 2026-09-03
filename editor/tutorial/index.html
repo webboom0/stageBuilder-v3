@@ -177,7 +177,7 @@
             <tr><td>비디오…</td><td><code>files/video</code></td></tr>
           </tbody>
         </table>
-        <p id="library-dialog">열리는 창: <strong>새로고침 · 업로드 · 삭제</strong> (Assets 툴바와 같은 아이콘) · 목록 선택 · <strong>닫기</strong>. 변경 후 Assets 패널 목록도 갱신됩니다.</p>
+        <p id="library-dialog">열리는 창: <strong>새로고침 · 업로드 · 삭제</strong> (Assets 툴바와 같은 아이콘) · 목록 선택 · <strong>닫기</strong>. 변경 후 Assets 패널 목록도 갱신됩니다. 허용 형식·용량이 아니면 업로드 전에 경고가 뜹니다 (캐릭터·스테이지 100MB · 오디오 50MB · 비디오 500MB).</p>
 
         <h3 id="menubar-view">보기</h3>
         <table>
@@ -518,7 +518,7 @@
         <div class="note">
           Characters·Stage는 <strong>+</strong> 할 때 <strong>현재 플레이헤드</strong>에 첫 키가 생깁니다.
           Audio는 <strong>+</strong> 할 때마다 새 트랙·클립이 생깁니다. 서버 <code>/files/music/</code> 경로만 사용합니다.
-          첫 키 <strong>이전</strong>(Characters·Stage)은 비표시. 형식·용량이 맞지 않으면 경고창이 뜹니다.
+          첫 키 <strong>이전</strong>(Characters·Stage)은 비표시. 형식·용량이 맞지 않으면 업로드 전에 경고창이 뜹니다 (Characters·Stage 100MB · Audio 50MB · Video 500MB).
         </div>
         <figure class="tutorial-figure" data-file="images/07-assets-common.png">
           <img class="tutorial-shot" src="./images/07-assets-common.png" alt="Assets — 탭 · SVG 툴바 · 카드 그리드" width="1280" height="720" loading="lazy" decoding="async" />

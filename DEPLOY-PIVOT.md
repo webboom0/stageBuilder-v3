@@ -100,6 +100,13 @@ node server.js
 - http://localhost:3000/files/stage/background.fbx → 200
 - http://localhost:3000/build/three.module.js → 200
 
+### 2-4. nginx 업로드 한도 (`conf/nginx.conf`)
+
+nginx 기본 한도는 **1MB**. 없으면 FBX·영상 업로드가 `413 Request Entity Too Large` HTML로 실패합니다.
+
+- `http` / `location /` 에 `client_max_body_size 500m;` (비디오 500MB · FBX 100MB · 오디오 50MB는 Node multer)
+- 배포 후 **nginx reload** 필수 (`server.js` 재시작만으로는 안 됨)
+
 ---
 
 ## 3. `server.js` v4 변경 요약 (이미 `nginx_v4` 반영)
@@ -274,6 +281,7 @@ New-Item -ItemType Junction -Path "runtime" -Target "E:\SynologyDrive\pivot\ngin
 | Stage shell missing | `html/stageBuilder/files/stage/background.fbx` |
 | Three.js 404 | `build/`, `examples/` 복사 여부 |
 | Assets 401 | pivot 로그인·쿠키 |
+| 업로드 413 / HTML alert | `nginx.conf` `client_max_body_size 500m` · nginx reload |
 | 캐릭터 목록 비음 | FBX가 `characters/`에 있는지 (`fbx/` 아님) |
 | 프로젝트 저장 실패 | `projectsRoutes.js` 배포·Node 재시작 |
 | 예전 프로젝트 FBX 404 | JSON 경로 `/files/fbx/` → `/files/characters/` 수정 |
