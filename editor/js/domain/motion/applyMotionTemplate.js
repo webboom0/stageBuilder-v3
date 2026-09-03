@@ -7,6 +7,7 @@ import {
   normalizeRotYDeg,
   unwrapRotYDeg,
   newSegmentId,
+  normalizeSegmentKind,
   SEGMENT_KIND,
 } from './groupSegments.js';
 import { asMotionKeyValue } from './motionKeyValue.js';
@@ -251,13 +252,15 @@ function syncAnimPresetLinksFromTemplate(motionItem, template, ctx) {
     const prev = keys[i - 1];
     const abs = resolved[i];
     const dur = Math.max(0.1, (Number(kf.timeOffset) || 0) - (Number(prev.timeOffset) || 0));
-    const isExit = kf.visible === false;
+    const isExit = kf.visible === false || kf.kind === SEGMENT_KIND.exit;
     const prevAbs = resolved[i - 1];
     const samePos = Math.abs(abs.x - prevAbs.x) < 0.01 && Math.abs(abs.z - prevAbs.z) < 0.01;
     const sameRot = Math.abs(normalizeRotYDeg(abs.rotY - prevAbs.rotY)) < 0.5;
     let kind = SEGMENT_KIND.move;
     if (isExit) kind = SEGMENT_KIND.exit;
-    else if (samePos && sameRot) kind = SEGMENT_KIND.hold;
+    else if (kf.kind === 'move' || kf.kind === 'hold' || kf.kind === 'exit') {
+      kind = normalizeSegmentKind(kf.kind);
+    } else if (samePos && sameRot) kind = SEGMENT_KIND.hold;
 
     segments.push({
       id: newSegmentId(),

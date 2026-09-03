@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { INTERPOLATION } from '../timeline/types.js';
 import { snapKeyframeTimeSec } from '../timeline/KeyframeStore.js';
 import { cmdAddKeyframe } from '../timeline/KeyframeCommands.js';
-import { normalizeRotYDeg } from './groupSegments.js';
+import { normalizeRotYDeg, normalizeSegmentKind } from './groupSegments.js';
 import { asMotionKeyValue } from './motionKeyValue.js';
 import { syncPresenceClipFromKeys } from '../timeline/presenceClip.js';
 
@@ -112,10 +112,19 @@ export function trackKeyframesToPatternDraft(track, motionItem, fallbackStartSec
     const sameRot = Math.abs(normalizeRotYDeg(rotY - prevRotY)) < 0.5;
     const isLast = i === collapsed.length - 1;
     const isExit = isLast && (bag.visible === false || clamp01(bag.opacity ?? 1) <= 0.05);
+    /** Prefer Properties/그룹에 저장된 구간 kind — 같은 좌표라도 의도한 «이동»을 유지 */
+    const segs = motionItem?.anim?.segments;
+    const segKind = Array.isArray(segs)
+      && segs.length === collapsed.length - 1
+      && segs[i - 1]
+      ? normalizeSegmentKind(segs[i - 1].kind)
+      : null;
     /** @type {'move'|'hold'|'exit'} */
     let kind = 'move';
     if (isExit) {
       kind = 'exit';
+    } else if (segKind) {
+      kind = segKind === 'exit' && !isLast ? 'move' : segKind;
     } else if (samePos && sameRot) {
       kind = 'hold';
     }

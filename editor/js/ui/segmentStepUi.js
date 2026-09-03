@@ -1668,7 +1668,7 @@ function escapeAttr(s) {
 
 /**
  * AI 구간 키워드 — 하이라이트·자동 태그·키 예정 미리보기용
- * (긴 패턴 우선)
+ * (긴 패턴 우선). 회전은 별도 키가 아니라 이동(제자리 회전)으로 표시.
  */
 const AI_ACTION_DEFS = [
   {
@@ -1688,13 +1688,7 @@ const AI_ACTION_DEFS = [
     kind: 'move',
     label: '이동',
     autoTagRe: /(걸어(?:가다|와서|가|와|서)?|walk)(?!\[이동\])$/iu,
-    matchRe: /걸어(?:가다|와서|가|와|서)?\[이동\]|\[이동\]|이동|걸어(?:가다|와서|가|와|서)?|walk|move/giu,
-  },
-  {
-    kind: 'rotate',
-    label: '회전',
-    autoTagRe: /(돌아(?:가다|서|다|고)?|돌려(?:서|다)?)(?!\[회전\])$/u,
-    matchRe: /돌아(?:가다|서|다|고)?\[회전\]|돌려(?:서|다)?\[회전\]|\[회전\]|회전|돌아(?:가다|서|다|고)?|돌려(?:서|다)?|rotate|turn/giu,
+    matchRe: /걸어(?:가다|와서|가|와|서)?\[이동\]|\[이동\]|이동|걸어(?:가다|와서|가|와|서)?|walk|move|돌아(?:가다|서|다|고)?\[이동\]|돌려(?:서|다)?\[이동\]|\[회전\]|회전|돌아(?:가다|서|다|고)?|돌려(?:서|다)?|rotate|turn/giu,
   },
 ];
 
@@ -1769,65 +1763,147 @@ function syncAiKeyPreview(el, text) {
     return;
   }
   el.hidden = false;
-  const labels = { move: '이동', hold: '대기', rotate: '회전', exit: '퇴장' };
+  const labels = { move: '이동', hold: '대기', exit: '퇴장' };
   el.innerHTML = `<span class="sb-seg-ai-key-preview-label">키 예정</span>${
     kinds.map((k) => `<span class="sb-seg-ai-key-chip is-${k}">${labels[k] || k}</span>`).join('')
   }`;
 }
 
-/** @param {string} text @returns {Array<'move'|'hold'|'rotate'|'exit'>} */
+/** @param {string} text @returns {Array<'move'|'hold'|'exit'>} */
 function collectAiActionKindsInOrder(text) {
-  /** @type {{ start: number, kind: string }[]} */
+  /** @type {{ start: number, end: number, kind: string }[]} */
   const hits = [];
   for (const def of AI_ACTION_DEFS) {
     const re = new RegExp(def.matchRe.source, def.matchRe.flags);
     let m;
     while ((m = re.exec(text))) {
-      hits.push({ start: m.index, kind: def.kind });
+      hits.push({ start: m.index, end: m.index + m[0].length, kind: def.kind });
     }
   }
-  hits.sort((a, b) => a.start - b.start);
-  /** @type {Array<'move'|'hold'|'rotate'|'exit'>} */
-  const out = [];
+  hits.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  /** Overlapping keyword hits — keep earliest/longest only */
+  /** @type {{ start: number, end: number, kind: string }[]} */
+  const picked = [];
   for (const h of hits) {
-    const k = /** @type {'move'|'hold'|'rotate'|'exit'} */ (h.kind);
-    if (!out.includes(k)) out.push(k);
+    if (picked.some((p) => !(h.end <= p.start || h.start >= p.end))) continue;
+    picked.push(h);
   }
-  // 등장만 있고 이동 키워드 없어도 @…으로 이동이 생기면 move는 파서가 넣을 수 있음 — 미리보기는 명시 키워드만
-  return out;
+  // 키 예정 = 실제로 생길 키 순서 (이동·회전·이동이면 이동이 여러 번)
+  return picked.map((h) => /** @type {'move'|'hold'|'exit'} */ (h.kind));
+}
+
+/**
+ * `@라벨` 매칭 — 색칠은 라벨만, 조사(에서/으로)는 건너뛰기만.
+ * @param {string} afterAt text after '@'
+ * @param {string} label
+ * @returns {{ labelEnd: number, skipEnd: number } | null}
+ */
+function matchPresetLabelSpan(afterAt, label) {
+  const target = String(label || '');
+  if (!target) return null;
+  let ti = 0;
+  let li = 0;
+  while (li < target.length && ti < afterAt.length) {
+    if (/\s/.test(afterAt[ti])) {
+      ti += 1;
+      continue;
+    }
+    if (afterAt[ti] !== target[li]) return null;
+    ti += 1;
+    li += 1;
+  }
+  if (li < target.length) return null;
+  const labelEnd = ti;
+  let skip = ti;
+  while (skip < afterAt.length && /\s/.test(afterAt[skip])) skip += 1;
+  const part = afterAt.slice(skip).match(/^(에서|으로|까지|부터|에게|에|로)/u);
+  if (part) skip += part[0].length;
+  return { labelEnd, skipEnd: skip };
+}
+
+/**
+ * @param {string} text
+ * @param {import('../domain/motion/positionPresets.js').PositionPreset[]} presets
+ * @returns {{ start: number, end: number, html: string }[]}
+ */
+function collectAiMentionRanges(text, presets) {
+  /** @type {{ start: number, end: number, html: string }[]} */
+  const ranges = [];
+  const list = (presets || []).filter((p) => p?.label);
+  const byLen = [...list].sort((a, b) => String(b.label).length - String(a.label).length);
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '@') continue;
+    const after = text.slice(i + 1);
+    let labelEnd = -1;
+    let skipEnd = -1;
+    /** @type {import('../domain/motion/positionPresets.js').PositionPreset | null} */
+    let best = null;
+
+    for (const p of byLen) {
+      const span = matchPresetLabelSpan(after, p.label);
+      if (span && span.labelEnd > labelEnd) {
+        labelEnd = span.labelEnd;
+        skipEnd = span.skipEnd;
+        best = p;
+      }
+    }
+
+    if (!best || labelEnd <= 0) {
+      const m = after.match(/^([^\s@.,]+)/u);
+      if (!m) continue;
+      const token = m[1];
+      best = matchPresetByLabel(list, token);
+      if (best) {
+        const span = matchPresetLabelSpan(after, best.label);
+        if (span) {
+          labelEnd = span.labelEnd;
+          skipEnd = span.skipEnd;
+        } else {
+          labelEnd = token.length;
+          skipEnd = token.length;
+        }
+      } else {
+        // 미연결 — 조사는 색칠하지 않음
+        const stripped = token
+          .replace(/(에서|으로|까지|부터|에게)$/u, '')
+          .replace(/(에|로)$/u, '');
+        labelEnd = stripped && stripped !== token ? stripped.length : token.length;
+        skipEnd = token.length;
+      }
+    }
+
+    const raw = text.slice(i, i + 1 + labelEnd);
+    const cls = best ? 'sb-ai-mention-token is-linked' : 'sb-ai-mention-token is-unknown';
+    const title = best
+      ? `연결됨 · ${best.label} · X ${best.x.toFixed(1)} · Z ${best.z.toFixed(1)}`
+      : '저장된 위치 프리셋 없음';
+    ranges.push({
+      start: i,
+      end: i + 1 + labelEnd,
+      html: `<span class="${cls}" title="${escapeAttr(title)}">${escapeHtml(raw)}</span>`,
+    });
+    i += Math.max(labelEnd, skipEnd);
+  }
+  return ranges;
 }
 
 /** @param {string} text @param {import('../domain/motion/positionPresets.js').PositionPreset[]} presets */
 function buildAiMentionHighlightHtml(text, presets) {
   if (!text) return '<br>';
 
+  const mentionRanges = collectAiMentionRanges(text, presets);
   /** @type {{ start: number, end: number, html: string }[]} */
-  const ranges = [];
-
-  const atRe = /@([^\s@.,]+)/g;
-  let m;
-  while ((m = atRe.exec(text))) {
-    const label = m[1];
-    const linked = matchPresetByLabel(presets, label);
-    const cls = linked ? 'sb-ai-mention-token is-linked' : 'sb-ai-mention-token is-unknown';
-    const title = linked
-      ? `X ${linked.x.toFixed(1)} · Z ${linked.z.toFixed(1)}`
-      : '저장된 위치 프리셋 없음';
-    ranges.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      html: `<span class="${cls}" title="${escapeAttr(title)}">${escapeHtml(m[0])}</span>`,
-    });
-  }
+  const actionRanges = [];
 
   for (const def of AI_ACTION_DEFS) {
     const re = new RegExp(def.matchRe.source, def.matchRe.flags);
+    let m;
     while ((m = re.exec(text))) {
       const raw = m[0];
-      // 「퇴장위치」는 위치 프리셋 맥락 — 구간 키워드로만 표시하되 퇴장 색
       const title = `${def.label} 키 구간으로 인식`;
       const inner = formatAiActionHighlightInner(raw, def);
-      ranges.push({
+      actionRanges.push({
         start: m.index,
         end: m.index + raw.length,
         html: `<span class="sb-ai-action-token is-${def.kind}" title="${escapeAttr(title)}">${inner}</span>`,
@@ -1835,11 +1911,16 @@ function buildAiMentionHighlightHtml(text, presets) {
     }
   }
 
-  ranges.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  /** Mentions win over action keywords when ranges overlap. */
   /** @type {{ start: number, end: number, html: string }[]} */
   const picked = [];
-  for (const r of ranges) {
-    if (picked.some((p) => !(r.end <= p.start || r.start >= p.end))) continue;
+  const overlaps = (r) => picked.some((p) => !(r.end <= p.start || r.start >= p.end));
+  for (const r of mentionRanges.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start))) {
+    if (overlaps(r)) continue;
+    picked.push(r);
+  }
+  for (const r of actionRanges.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start))) {
+    if (overlaps(r)) continue;
     picked.push(r);
   }
   picked.sort((a, b) => a.start - b.start);
@@ -1871,6 +1952,15 @@ function formatAiActionHighlightInner(raw, def) {
   return escapeHtml(raw);
 }
 
+function closeAiPatternHelp() {
+  document.querySelectorAll('[data-role="ai-help-pop"]').forEach((el) => {
+    el.hidden = true;
+  });
+  document.querySelectorAll('[data-act="ai-help"]').forEach((el) => {
+    el.classList.remove('is-on');
+  });
+}
+
 /** @param {HTMLElement} anchor */
 function toggleAiPatternHelp(anchor) {
   let pop = document.querySelector('[data-role="ai-help-pop"]');
@@ -1878,15 +1968,25 @@ function toggleAiPatternHelp(anchor) {
     pop = document.createElement('div');
     pop.className = 'sb-seg-ai-help-pop';
     pop.dataset.role = 'ai-help-pop';
+    pop.hidden = true;
     document.body.appendChild(pop);
+  }
+  // 열려 있으면 닫기 (버튼 토글)
+  if (!pop.hidden) {
+    closeAiPatternHelp();
+    return;
   }
   // 규칙 갱신 시 매번 최신 설명 반영
   pop.innerHTML = `
+      <div class="sb-seg-ai-help-head">
+        <span class="sb-seg-ai-help-title">AI 패턴 사용법</span>
+        <button type="button" class="sb-seg-ai-help-close" data-act="ai-help-close" title="닫기" aria-label="닫기">×</button>
+      </div>
       <p class="sb-seg-ai-help-lead">자연어 + <strong>@위치프리셋</strong>으로 이동·대기·퇴장 초안을 만듭니다.</p>
 
       <p class="sb-seg-ai-help-h">1. @ 위치</p>
       <ul class="sb-seg-ai-help-list">
-        <li><code>@</code> 입력 → 저장된 위치 목록 · 보라색 = 연결됨</li>
+        <li><code>@</code> 입력 → 저장된 위치 목록 · <strong>보라색 글자</strong> = 연결됨 (이름만, 조사 제외)</li>
         <li>예: <code>@등장</code> <code>@중앙</code> <code>@퇴장</code> <code>@왼쪽</code></li>
         <li>연결되면 키프레임에도 저장위치가 연결됩니다</li>
       </ul>
@@ -1896,8 +1996,7 @@ function toggleAiPatternHelp(anchor) {
         <li><span class="sb-seg-ai-help-swatch is-move">이동</span>
           <span class="sb-seg-ai-help-swatch is-hold">대기</span>
           <span class="sb-seg-ai-help-swatch is-exit">퇴장</span>
-          <span class="sb-seg-ai-help-swatch is-rotate">회전</span>
-          → 해당 키가 생긴다는 표시</li>
+          → 글자색으로 표시 · <strong>키 예정</strong>은 생길 키를 <strong>순서대로</strong> (이동·회전이면 이동 2개)</li>
         <li>동의어: <code>머무르다</code>/<code>기다리다</code> → 자동 <code>[대기]</code> ·
           <code>걸어가다</code> → <code>[이동]</code> · <code>나가다</code> → <code>[퇴장]</code></li>
         <li>아래 <strong>키 예정</strong> 칩으로도 확인</li>
@@ -1957,34 +2056,35 @@ function toggleAiPatternHelp(anchor) {
 
       <p class="sb-seg-ai-help-note">초안 만들기 → 구간·저장위치 연결 확인 ·
         초안 만들고 적용 → 타임라인 키 반영 (솔로 Character 패턴 탭)</p>`;
-  const open = pop.hidden;
-  document.querySelectorAll('[data-role="ai-help-pop"]').forEach((el) => { el.hidden = true; });
-  document.querySelectorAll('[data-act="ai-help"]').forEach((el) => {
-    el.classList.toggle('is-on', false);
+  pop.querySelector('[data-act="ai-help-close"]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeAiPatternHelp();
   });
-  if (!open) {
-    pop.hidden = false;
-    anchor.classList.add('is-on');
-    const r = anchor.getBoundingClientRect();
-    const w = Math.min(420, window.innerWidth - 16);
-    pop.style.width = `${w}px`;
-    let top = r.bottom + 6;
-    let left = Math.min(r.left, window.innerWidth - w - 8);
-    pop.style.top = `${top}px`;
-    pop.style.left = `${left}px`;
-    requestAnimationFrame(() => {
-      if (top + pop.offsetHeight > window.innerHeight - 8) {
-        top = Math.max(8, r.top - pop.offsetHeight - 6);
-        pop.style.top = `${top}px`;
-      }
-      const maxH = window.innerHeight - 16;
-      if (pop.offsetHeight > maxH) {
-        pop.style.maxHeight = `${maxH}px`;
-        pop.style.overflowY = 'auto';
-        pop.style.top = '8px';
-      }
-    });
-  }
+  closeAiPatternHelp();
+  pop.hidden = false;
+  anchor.classList.add('is-on');
+  const r = anchor.getBoundingClientRect();
+  const w = Math.min(420, window.innerWidth - 16);
+  pop.style.width = `${w}px`;
+  pop.style.maxHeight = '';
+  pop.style.overflowY = '';
+  let top = r.bottom + 6;
+  let left = Math.min(r.left, window.innerWidth - w - 8);
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+  requestAnimationFrame(() => {
+    if (pop.hidden) return;
+    if (top + pop.offsetHeight > window.innerHeight - 8) {
+      top = Math.max(8, r.top - pop.offsetHeight - 6);
+      pop.style.top = `${top}px`;
+    }
+    const maxH = window.innerHeight - 16;
+    if (pop.offsetHeight > maxH) {
+      pop.style.maxHeight = `${maxH}px`;
+      pop.style.overflowY = 'auto';
+      pop.style.top = '8px';
+    }
+  });
 }
 
 function openAiPatternDefaultsDialog() {
@@ -2122,8 +2222,7 @@ function wireAiPresetMentions(textarea, getPresetStore, host, onChange) {
     if (helpPop && !helpPop.hidden
       && !helpPop.contains(/** @type {Node} */ (e.target))
       && !helpBtn?.contains(/** @type {Node} */ (e.target))) {
-      helpPop.hidden = true;
-      helpBtn?.classList.remove('is-on');
+      closeAiPatternHelp();
     }
   });
 }

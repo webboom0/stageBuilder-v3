@@ -17,6 +17,7 @@ export function newMotionTemplateId() {
  *   visible: boolean,
  *   interpolation?: number,
  *   presetId?: string | null,
+ *   kind?: 'move' | 'hold' | 'exit',
  * }} RelativeKeyframe
  */
 
@@ -64,7 +65,8 @@ export function normalizeMotionTemplate(raw) {
 
 /** @param {Partial<RelativeKeyframe>} kf */
 function normalizeRelativeKeyframe(kf) {
-  return {
+  /** @type {RelativeKeyframe} */
+  const out = {
     timeOffset: Math.max(0, Number(kf?.timeOffset) || 0),
     offsetX: Number.isFinite(Number(kf?.offsetX)) ? Number(kf.offsetX) : 0,
     offsetZ: Number.isFinite(Number(kf?.offsetZ)) ? Number(kf.offsetZ) : 0,
@@ -74,6 +76,10 @@ function normalizeRelativeKeyframe(kf) {
     interpolation: Number.isFinite(Number(kf?.interpolation)) ? Number(kf.interpolation) : undefined,
     presetId: typeof kf?.presetId === 'string' && kf.presetId ? kf.presetId : null,
   };
+  if (kf?.kind === 'move' || kf?.kind === 'hold' || kf?.kind === 'exit') {
+    out.kind = kf.kind;
+  }
+  return out;
 }
 
 /** @param {MotionTemplate} tpl */

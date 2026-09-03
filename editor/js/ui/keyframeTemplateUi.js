@@ -64,10 +64,17 @@ export function templateToDraft(tpl) {
     const prev = keys[i - 1];
     const dx = i > 0 ? Math.abs((Number(kf.offsetX) || 0) - (Number(prev?.offsetX) || 0)) : 0;
     const dz = i > 0 ? Math.abs((Number(kf.offsetZ) || 0) - (Number(prev?.offsetZ) || 0)) : 0;
-    let kind = /** @type {'move'|'hold'|'exit'} */ ('move');
-    if (i === 0) kind = 'move';
-    else if (kf.visible === false) kind = 'exit';
-    else if (dx < 0.01 && dz < 0.01) kind = 'hold';
+    /** @type {'move'|'hold'|'exit'} */
+    let kind = 'move';
+    if (i === 0) {
+      kind = 'move';
+    } else if (kf.kind === 'move' || kf.kind === 'hold' || kf.kind === 'exit') {
+      kind = kf.kind;
+    } else if (kf.visible === false) {
+      kind = 'exit';
+    } else if (dx < 0.01 && dz < 0.01) {
+      kind = 'hold';
+    }
     return {
       id: newDraftKeyframeId(),
       kind,
@@ -76,7 +83,7 @@ export function templateToDraft(tpl) {
       offsetZ: Number(kf.offsetZ) || 0,
       deltaRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
       opacity: Number.isFinite(Number(kf.opacity)) ? Number(kf.opacity) : 1,
-      visible: kf.visible !== false,
+      visible: kind === 'exit' ? false : kf.visible !== false,
       presetId: kf.presetId ?? null,
     };
   });
@@ -158,15 +165,19 @@ export function draftToMotionTemplate(draft) {
   if (!label) return null;
   if (!draft.keyframes?.length) return null;
 
-  const keyframes = draft.keyframes.map((kf, i) => ({
-    timeOffset: i === 0 ? 0 : Math.max(0.1, Number(kf.timeOffset) || 0),
-    offsetX: Number(kf.offsetX) || 0,
-    offsetZ: Number(kf.offsetZ) || 0,
-    deltaRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
-    opacity: Number.isFinite(Number(kf.opacity)) ? Number(kf.opacity) : 1,
-    visible: kf.kind === 'exit' ? false : true,
-    presetId: kf.presetId ?? null,
-  }));
+  const keyframes = draft.keyframes.map((kf, i) => {
+    const kind = i === 0 ? undefined : (kf.kind || 'move');
+    return {
+      timeOffset: i === 0 ? 0 : Math.max(0.1, Number(kf.timeOffset) || 0),
+      offsetX: Number(kf.offsetX) || 0,
+      offsetZ: Number(kf.offsetZ) || 0,
+      deltaRotY: normalizeRotYDeg(kf.deltaRotY ?? 0),
+      opacity: Number.isFinite(Number(kf.opacity)) ? Number(kf.opacity) : 1,
+      visible: kind === 'exit' ? false : true,
+      presetId: kf.presetId ?? null,
+      ...(kind ? { kind } : {}),
+    };
+  });
 
   let cumulative = 0;
   const normalized = keyframes.map((kf, i) => {

@@ -4211,6 +4211,37 @@ body.sb-picking canvas {
   max-height: min(70vh, 560px);
   overflow-y: auto;
 }
+.sb-seg-ai-help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.sb-seg-ai-help-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgb(186, 170, 255);
+  letter-spacing: 0.02em;
+}
+.sb-seg-ai-help-close {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sb-seg-ai-help-close:hover {
+  color: var(--ink);
+  border-color: rgba(154, 134, 255, 0.45);
+}
 .sb-seg-ai-help-lead {
   margin: 0 0 8px;
   color: var(--ink);
@@ -4264,13 +4295,12 @@ body.sb-picking canvas {
   display: inline-block;
   margin-right: 4px;
   font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
-.sb-seg-ai-help-swatch.is-move { color: #6ea0ff; text-decoration-color: #508cff; }
-.sb-seg-ai-help-swatch.is-hold { color: #d4c870; text-decoration-color: #c8b43c; }
-.sb-seg-ai-help-swatch.is-exit { color: #f08080; text-decoration-color: #dc5050; }
-.sb-seg-ai-help-swatch.is-rotate { color: #c9a0ff; text-decoration-color: #9a86ff; }
+.sb-seg-ai-help-swatch.is-move { color: #6ea0ff; }
+.sb-seg-ai-help-swatch.is-hold { color: #d4c870; }
+.sb-seg-ai-help-swatch.is-exit { color: #f08080; }
+.sb-seg-ai-help-swatch.is-rotate { color: #6ea0ff; }
 .sb-seg-ai-defaults-hint {
   margin: 0 0 10px;
   font-size: 11px;
@@ -4278,7 +4308,7 @@ body.sb-picking canvas {
 }
 .sb-seg-ai-defaults-grid {
   display: grid;
-  grid-template-columns: repeat(2, max-content);
+  grid-template-columns: repeat(3, max-content);
   gap: 8px 16px;
   justify-content: start;
 }
@@ -4332,45 +4362,44 @@ body.sb-picking canvas {
   border: 1px solid transparent;
   border-radius: 4px;
   scrollbar-gutter: stable;
+  z-index: 0;
 }
-.sb-seg-ai-input--overlay {
-  position: relative;
-  z-index: 1;
-  background: transparent !important;
-  color: transparent;
-  caret-color: var(--ink);
-}
-.sb-ai-mention-token.is-linked {
-  color: rgb(186, 170, 255);
+/* @위치 — 이동(#6ea0ff)과 구분되는 보라. 부모 .sb-ai-mention-highlight color보다 우선 */
+.sb-ai-mention-highlight .sb-ai-mention-token.is-linked {
+  color: #c9a0ff;
+  -webkit-text-fill-color: #c9a0ff;
   /* font-weight 금지 — bold면 폭이 달라져 줄바꿈이 어긋남 */
   font-weight: inherit;
+  text-decoration: none;
 }
-.sb-ai-mention-token.is-unknown {
+.sb-ai-mention-highlight .sb-ai-mention-token.is-unknown {
   color: #e8a060;
+  -webkit-text-fill-color: #e8a060;
   font-weight: inherit;
+  text-decoration: none;
 }
-.sb-ai-action-token {
+/* 키워드 — 키 예정 칩과 동일 색 + 밑줄 (@와 구분) */
+.sb-ai-mention-highlight .sb-ai-action-token {
   font-weight: inherit;
   font-size: inherit;
   text-decoration: underline;
-  text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
-.sb-ai-action-token.is-move {
+.sb-ai-mention-highlight .sb-ai-action-token.is-move {
   color: #6ea0ff;
-  text-decoration-color: #508cff;
+  -webkit-text-fill-color: #6ea0ff;
 }
-.sb-ai-action-token.is-hold {
+.sb-ai-mention-highlight .sb-ai-action-token.is-hold {
   color: #d4c870;
-  text-decoration-color: #c8b43c;
+  -webkit-text-fill-color: #d4c870;
 }
-.sb-ai-action-token.is-exit {
+.sb-ai-mention-highlight .sb-ai-action-token.is-exit {
   color: #f08080;
-  text-decoration-color: #dc5050;
+  -webkit-text-fill-color: #f08080;
 }
-.sb-ai-action-token.is-rotate {
-  color: #c9a0ff;
-  text-decoration-color: #9a86ff;
+.sb-ai-mention-highlight .sb-ai-action-token.is-rotate {
+  color: #6ea0ff;
+  -webkit-text-fill-color: #6ea0ff;
 }
 .sb-ai-action-tag {
   font-size: inherit;
@@ -4453,6 +4482,19 @@ body.sb-picking canvas {
 .sb-seg-ai-input:focus {
   outline: none;
   border-color: rgba(154, 134, 255, 0.55);
+}
+/*
+ * overlay는 반드시 .sb-seg-ai-input 뒤에.
+ * 같은 특이도(1클래스)면 뒤 규칙이 이김 → 예전엔 color:transparent가 ink에 덮여
+ * 하이라이트 색이 안 보이거나 ClearType 이중상(빨강/파랑 테두리)만 남았음.
+ */
+.sb-seg-ai-input.sb-seg-ai-input--overlay {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--ink);
 }
 .sb-ai-mention-menu {
   position: absolute;

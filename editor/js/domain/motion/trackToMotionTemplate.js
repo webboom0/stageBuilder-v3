@@ -36,6 +36,7 @@ export function trackToMotionTemplate(track, motionItem, label = '', opts = {}) 
       opacity: clamp01(kf.opacity ?? 1),
       visible: kind === 'exit' ? false : kf.visible !== false,
       presetId: presetIds[i] ?? null,
+      ...(i > 0 ? { kind } : {}),
     };
   });
 
