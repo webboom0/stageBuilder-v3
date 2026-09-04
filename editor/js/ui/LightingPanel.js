@@ -15,7 +15,8 @@ import {
   endLightingGesture,
   runLightingEdit,
 } from '../domain/lighting/lightingHistory.js';
-import { mountFixtureFollowAi } from './fixtureFollowUi.js';
+import { mountFixtureLinkPanel } from './fixtureLinkUi.js';
+import { TRACK_SOURCE_LINKED } from '../domain/timeline/Track.js';
 
 const HOUSE_UI = Object.freeze([
   { channel: 'fill', label: 'Stage Fill', hasSize: false },
@@ -164,7 +165,7 @@ export function createLightingPanelBody(opts) {
           ${BULK_ATTR_OPTS.map((o) => (
             `<button type="button" class="sb-chip sb-light-bulk-attr" data-bulk-attr="${o.key}"`
             + ` aria-pressed="false" title="${o.key === 'pan' || o.key === 'tilt'
-              ? 'AI 조명 시퀀스 조준을 덮어씁니다'
+              ? '트랙 연결로 계산된 조준을 덮어씁니다'
               : `${o.label} 값을 모든 키에 반영`}">${o.label}</button>`
           )).join('')}
         </div>
@@ -172,13 +173,13 @@ export function createLightingPanelBody(opts) {
           title="위에서 고른 속성만 선택 Fixture의 모든 키에 반영">선택 속성 → 전 키</button>
       </div>
       <div class="sb-light-kf-bar sb-light-kf-bar--bottom">
-        <button type="button" class="sb-chip acc sb-light-kf-btn" data-act="fx-key" title="Fixture 키 추가 · AI 트랙이 있으면 별도 수동 트랙에 기록되고 재생 주도권이 수동으로 넘어갑니다">+ 키</button>
+        <button type="button" class="sb-chip acc sb-light-kf-btn" data-act="fx-key" title="Fixture 키 추가 · 연결된 트랙은 먼저 「연결 끊기」를 해야 직접 편집할 수 있습니다">+ 키</button>
         <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-prev" title="이전 키">◀</button>
         <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-next" title="다음 키">▶</button>
         <button type="button" class="sb-chip del sb-light-kf-btn" data-act="fx-kf-del" title="플레이헤드 키 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
         <button type="button" class="sb-chip del sb-light-kf-btn sb-light-track-del" data-act="fx-track-del" title="선택 Fixture 트랙 삭제 (키 포함)" disabled>트랙 삭제</button>
       </div>
-      <div class="sb-fx-follow-host" data-role="fx-follow-ai"></div>
+      <div class="sb-fx-link-host" data-role="fx-link"></div>
     </div>
   `;
 
@@ -1022,7 +1023,7 @@ export function createLightingPanelBody(opts) {
 
     if (selectedKeys.includes('pan') || selectedKeys.includes('tilt')) {
       const ok = window.confirm(
-        'Pan/Tilt를 전 키에 넣으면 AI 조명 시퀀스 조준이 덮어써집니다.\n계속할까요?',
+        'Pan/Tilt를 전 키에 넣으면 트랙 연결로 계산된 조준이 덮어써집니다.\n계속할까요?',
       );
       if (!ok) return;
     }
@@ -1034,7 +1035,7 @@ export function createLightingPanelBody(opts) {
     // 버튼을 누른 뒤에는 결과와 무관하게 속성 선택을 비웁니다
     clearBulkAttrSelection();
     if (!n) {
-      window.alert('적용할 키가 없습니다. +키 또는 AI 조명 시퀀스로 키를 만든 뒤 다시 시도하세요.');
+      window.alert('적용할 키가 없습니다. +키 또는 트랙 연결로 키를 만든 뒤 다시 시도하세요.');
       return;
     }
     window.alert(`전 키 적용 · ${n}개\n${appliedLabels.join(' · ')}`);
@@ -1198,6 +1199,10 @@ export function createLightingPanelBody(opts) {
     if (ev.type === 'playhead') {
       pruneOffPlayheadKeySelection();
     }
+    // Character edits arrive in bursts; the debounce keeps the fingerprint scan off the drag path
+    if (ev.type === 'keys' || ev.type === 'tracks') {
+      fixtures.scheduleLinkStaleCheck?.();
+    }
     if (['selection', 'tracks', 'keys', 'playhead'].includes(ev.type)) {
       panelHooks.sync();
     }
@@ -1206,44 +1211,44 @@ export function createLightingPanelBody(opts) {
   setLightTab('house');
   ensureReady();
 
-  const fxFollowHost = root.querySelector('[data-role="fx-follow-ai"]');
-  const fxFollowUi = fxFollowHost && motion
-    ? mountFixtureFollowAi(/** @type {HTMLElement} */ (fxFollowHost), {
+  const fxLinkHost = root.querySelector('[data-role="fx-link"]');
+  const fxLinkUi = fxLinkHost && motion
+    ? mountFixtureLinkPanel(/** @type {HTMLElement} */ (fxLinkHost), {
       engine,
       fixtures,
       historyCtx,
       getSelectedFids: () => selectedFids,
       getMotions: () => (motion.list?.() || []).filter((m) => m?.trackId && m?.name && m?.object),
       onChange: () => opts.onChange?.(),
-      onConvertToManual: (aiTrackId) => convertAiTrackToManual(aiTrackId),
+      onUnlink: (linkTrackId) => unlinkFixtureTrack(linkTrackId),
     })
     : null;
 
   function syncAll() {
     sync();
-    fxFollowUi?.sync?.();
+    fxLinkUi?.sync?.();
   }
 
   /**
-   * AI 트랙 → 수동 트랙 전환 (경고 후). 전환하면 프롬프트 연결이 끊어집니다.
-   * @param {string} aiTrackId
+   * 캐릭터 연결 해제 (경고 후). 키는 남고 트랙만 수동으로 바뀝니다.
+   * @param {string} linkTrackId
    * @returns {string | null} 전환된 트랙 id
    */
-  function convertAiTrackToManual(aiTrackId) {
+  function unlinkFixtureTrack(linkTrackId) {
     ensureReady();
-    const track = engine.getTrack(aiTrackId);
-    if (track?.source !== 'ai-follow') return null;
+    const track = engine.getTrack(linkTrackId);
+    if (track?.source !== TRACK_SOURCE_LINKED) return null;
     const ok = window.confirm(
-      `「${track.name}」을 수동 트랙으로 변경할까요?\n\n`
-      + `· AI 키 ${track.keys.length}개는 그대로 남고 편집할 수 있게 됩니다\n`
-      + '· 저장된 AI 문장이 삭제되어 「수정 후 다시 적용」을 쓸 수 없습니다\n'
-      + '· 다시 AI로 만들려면 문장을 새로 적용해야 합니다',
+      `「${track.name}」의 캐릭터 연결을 끊을까요?\n\n`
+      + `· 키 ${track.keys.length}개는 그대로 남고 편집할 수 있게 됩니다\n`
+      + '· 캐릭터 동선을 고쳐도 조명이 더 이상 따라가지 않습니다\n'
+      + '· 다시 연결하려면 문장을 새로 적용해야 합니다',
     );
     if (!ok) return null;
 
     let converted = null;
-    runLightingEdit(historyCtx, 'AI 트랙 → 수동 트랙', () => {
-      const res = fixtures.convertAiTrackToManual(aiTrackId);
+    runLightingEdit(historyCtx, '트랙 연결 끊기', () => {
+      const res = fixtures.unlinkTrack(linkTrackId);
       if (!res.ok) {
         window.alert(res.error);
         return;

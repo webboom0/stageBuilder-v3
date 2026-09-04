@@ -4,6 +4,16 @@ import { normalizePresenceClip } from './presenceClip.js';
 
 let _trackSeq = 1;
 
+/** Track driven by a link to another track (fixture → character aim). */
+export const TRACK_SOURCE_LINKED = 'linked';
+
+/** Pre-rename saves used 'ai-follow' for the same thing. */
+export function normalizeTrackSource(source) {
+  const s = source ? String(source) : '';
+  if (s === TRACK_SOURCE_LINKED || s === 'ai-follow') return TRACK_SOURCE_LINKED;
+  return s || null;
+}
+
 /**
  * After loading scene snapshots, bump auto-id counter so addTrack() won't reuse restored ids.
  * @param {Array<{ id?: string }>} snapshots
@@ -65,12 +75,18 @@ export class Track {
     this.audioVolume = Number.isFinite(opts.audioVolume) ? clamp01(opts.audioVolume) : 1;
     /** Persisted motion restore hints (scene save) */
     this.motionMeta = opts.motionMeta ?? null;
-    /** Fixture AI 조명 시퀀스 — last applied prompt (edit & re-bake) */
+    /** @deprecated pre-picker link target as an `@이름` sentence — read only for migration */
     this.fixtureFollowPrompt = opts.fixtureFollowPrompt != null
       ? String(opts.fixtureFollowPrompt)
       : null;
-    /** Track origin: 'ai-follow' for AI-generated tracks, null for manual */
-    this.source = opts.source ?? null;
+    /** Track origin: 'linked' when keys are derived from another track, null for manual */
+    this.source = normalizeTrackSource(opts.source);
+    /** Track this one is linked to (source of the derived keys) */
+    this.linkMotionTrackId = opts.linkMotionTrackId ?? null;
+    /** Fingerprint of the linked track at bake time — drives the "needs refresh" badge */
+    this.linkSourceHash = opts.linkSourceHash ?? null;
+    /** Runtime only: linked track changed since the last bake (recomputed, never saved) */
+    this.linkStale = false;
   }
 
   snapshot() {
@@ -94,6 +110,8 @@ export class Track {
       motionMeta: this.motionMeta ?? undefined,
       fixtureFollowPrompt: this.fixtureFollowPrompt || undefined,
       source: this.source || undefined,
+      linkMotionTrackId: this.linkMotionTrackId || undefined,
+      linkSourceHash: this.linkSourceHash || undefined,
     };
   }
 
@@ -116,6 +134,8 @@ export class Track {
       motionMeta: data.motionMeta ?? null,
       fixtureFollowPrompt: data.fixtureFollowPrompt ?? null,
       source: data.source ?? null,
+      linkMotionTrackId: data.linkMotionTrackId ?? null,
+      linkSourceHash: data.linkSourceHash ?? null,
     });
     t.keys.restore(data.keys);
     if (data.presenceClip) {

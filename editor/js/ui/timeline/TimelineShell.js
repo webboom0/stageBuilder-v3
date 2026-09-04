@@ -28,6 +28,7 @@ import {
 } from '../../domain/assets/stageAssetDrag.js';
 import { asMotionKeyValue } from '../../domain/motion/motionKeyValue.js';
 import { isStageMotionTrack, applyStageTransform } from '../../domain/motion/stageTransformSync.js';
+import { TRACK_SOURCE_LINKED } from '../../domain/timeline/Track.js';
 
 /**
  * Phase 2–3 TimelineShell — ruler, playhead, tracks, keys (no clip resize).
@@ -1142,7 +1143,7 @@ export function mountTimelineShell(host, ctx) {
 
   function toggleTrackLocked(trackId) {
     const track = engine.getTrack(trackId);
-    if (!track || track.source === 'ai-follow') return;
+    if (!track || track.source === TRACK_SOURCE_LINKED) return;
     track.locked = !track.locked;
     engine.emit('tracks');
     engine.emit('change');
@@ -1169,7 +1170,7 @@ export function mountTimelineShell(host, ctx) {
     if (!rows.length) return;
     const lockAll = !rows.every((tr) => tr.locked);
     for (const tr of rows) {
-      if (tr.source !== 'ai-follow') tr.locked = lockAll;
+      if (tr.source !== TRACK_SOURCE_LINKED) tr.locked = lockAll;
     }
     engine.emit('tracks');
     engine.emit('change');
@@ -2041,19 +2042,19 @@ function trackLabelHtml(tr, engine, nested, audio) {
   const eyeIcon = tr.hidden ? 'fas fa-eye-slash' : 'fas fa-eye';
   const lockIcon = tr.locked ? 'fas fa-lock' : 'fas fa-lock-open';
   const keyDisabled = tr.locked ? ' disabled' : '';
-  const isAi = tr.source === 'ai-follow';
-  const lockDisabled = isAi ? ' disabled' : '';
-  const lockTitle = isAi
-    ? 'AI 트랙 고정 · 조명 패널 「AI 조명 시퀀스 → 수동으로 변경」 후 편집하세요'
+  const isLinked = tr.source === TRACK_SOURCE_LINKED;
+  const lockDisabled = isLinked ? ' disabled' : '';
+  const lockTitle = isLinked
+    ? '연결된 트랙 고정 · 조명 패널 「트랙 연결 → 연결 끊기」 후 편집하세요'
     : '잠금';
-  const keyTitle = isAi
-    ? '조명 패널 「AI 조명 시퀀스 → 수동으로 변경」 후 키를 편집할 수 있습니다'
+  const keyTitle = isLinked
+    ? '조명 패널 「트랙 연결 → 연결 끊기」 후 키를 편집할 수 있습니다'
     : '키프레임 추가 (K)';
   return `<div class="sb-tl-label${nest}${sel}${hid}${loc}"
     data-track="${tr.id}" data-section="${tr.section || 'motion'}"
     style="--track-accent:${escapeAttr(accent)}">
     <i class="sb-tl-swatch" style="background:${escapeAttr(accent)}"></i>
-    ${tr.source === 'ai-follow' ? '<span class="sb-tl-ai-badge" title="AI 조명 시퀀스 트랙 · 조명 패널에서 「수동으로 변경」하면 직접 편집할 수 있습니다">AI</span>' : ''}
+    ${isLinked ? linkBadgeHtml(tr) : ''}
     <span class="sb-tl-label-name">${escapeHtml(tr.name)}</span>
     <span class="sb-tl-label-ctrls" role="group" aria-label="트랙 제어">
       <button type="button" class="sb-tl-hbtn${tr.hidden ? ' is-on' : ''}" data-tl-act="vis"
@@ -2064,6 +2065,20 @@ function trackLabelHtml(tr, engine, nested, audio) {
         title="${escapeAttr(lockTitle)}"><i class="${lockIcon}"></i></button>
     </span>
   </div>`;
+}
+
+/**
+ * Link chip on a fixture track head — turns amber once the linked character moved.
+ * @param {import('../../domain/timeline/Track.js').Track} tr
+ */
+function linkBadgeHtml(tr) {
+  const stale = tr.linkStale === true;
+  const title = stale
+    ? '연결된 캐릭터가 바뀌었습니다 · 조명 패널 「트랙 연결 → 연결 갱신」을 누르세요'
+    : '캐릭터 트랙에 연결됨 · 조명 패널에서 「연결 끊기」하면 직접 편집할 수 있습니다';
+  return `<span class="sb-tl-link-badge${stale ? ' is-stale' : ''}" title="${escapeAttr(title)}">
+    <i class="fas fa-link" aria-hidden="true"></i>${stale ? '<i class="fas fa-rotate sb-tl-link-badge-refresh" aria-hidden="true"></i>' : ''}
+  </span>`;
 }
 
 /** @param {import('../../domain/timeline/Track.js').Track} tr @param {'clip' | 'keys'} presenceEditMode */

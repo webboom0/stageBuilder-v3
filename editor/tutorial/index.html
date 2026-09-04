@@ -755,7 +755,7 @@
         <p>타임라인 <strong>Light</strong> 섹션 — HOUSE(Fill·FOH)와 Fixture 18대. 트랙은 <strong>+ 키</strong>로 필요할 때만 생성.</p>
         <p class="flow-hint"><strong>흐름</strong> <a href="#light-props">조명 패널</a> 라이브 조절 · <strong>+ 키</strong> → <strong>트랙</strong></p>
         <ul class="section-toc">
-          <li><a href="#light-track">트랙</a> — HOUSE/Fixture · 키 · 덮어쓰기 · 삭제</li>
+          <li><a href="#light-track">트랙</a> — HOUSE/Fixture · 키 · 덮어쓰기 · 삭제 · <a href="#light-props">트랙 연결</a></li>
         </ul>
       </section>
 
@@ -769,7 +769,8 @@
           <thead><tr><th>종류</th><th>추가 방법</th><th>트랙 이름 예</th></tr></thead>
           <tbody>
             <tr><td>HOUSE</td><td>조명 패널 <strong>HOUSE</strong> 탭 · Fill/FOH 선택 → <strong>+ 키</strong></td><td>Fill · FOH L/C/R</td></tr>
-            <tr><td>Fixture</td><td><strong>Fixture</strong> 탭 · 픽스처 선택 → <strong>+ 키</strong> (다중 선택 가능)</td><td>fx_11 … fx_36</td></tr>
+            <tr><td>Fixture</td><td><strong>Fixture</strong> 탭 · 픽스처 선택 → <strong>+ 키</strong> (다중 선택 가능)</td><td>FX 11 · MH</td></tr>
+            <tr><td>Fixture · 트랙 연결</td><td>픽스처 선택 → <strong>캐릭터 검색</strong> → <strong>연결하고 키 만들기</strong></td><td>같은 이름 + <strong>링크 아이콘</strong> · 잠김</td></tr>
           </tbody>
         </table>
         <p>오른쪽 레일 <strong>조명</strong> 패널에서 HOUSE·Fixture 채널을 선택하고 <strong>+ 키</strong>로 트랙을 만듭니다.</p>
@@ -778,9 +779,10 @@
         <table>
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
-            <tr><td>키 추가/갱신</td><td>패널 <strong>+ 키</strong> — 같은 시간 키 있으면 <strong>덮어쓰기</strong> (기본 Smooth)</td></tr>
+            <tr><td>키 추가/갱신</td><td>패널 <strong>+ 키</strong> — 같은 시간 키 있으면 <strong>덮어쓰기</strong> (기본 Smooth). 연결된 트랙은 잠겨 있어 <strong>연결 끊기</strong> 후에만 직접 편집</td></tr>
             <tr><td>키 이동</td><td>◀ ▶ · 타임라인 다이아몬드 드래그</td></tr>
             <tr><td>키 삭제</td><td>휴지통 · <span class="kbd">Del</span></td></tr>
+            <tr><td>잠긴 트랙 + <span class="kbd">K</span></td><td>동작 없음 — 다른 트랙에 키가 들어가지 않음</td></tr>
             <tr><td>트랙 삭제</td><td>패널 <strong>트랙 삭제</strong> · 라벨 <strong>우클릭 → 트랙 삭제</strong> — HOUSE는 스테이지 조명 꺼짐</td></tr>
             <tr><td>Undo</td><td>WORK·슬라이더·키·트랙 — <span class="kbd">Ctrl+Z</span> / <span class="kbd">Y</span></td></tr>
           </tbody>
@@ -1064,11 +1066,28 @@
             <tr><td>Dim · Pan · Tilt · Zoom · Focus · Color</td><td>Properties 또는 패널 Dimmer/Position/Beam/Color</td></tr>
             <tr><td>Fixture Bus</td><td>화면 전체 밝기만 (키 값 유지)</td></tr>
             <tr><td>트랙 표시</td><td>타일 <strong>·T</strong> / 초록 = 트랙 있음 · 회색 = +키로 생성</td></tr>
-            <tr><td><strong>선택 속성 → 전 키</strong></td><td>Dim/Zoom/Focus/Color/Pan/Tilt 중 <strong>고른 것만</strong> 모든 키에 반영 (기본 미선택 · Pan/Tilt는 AI 조준 덮어쓰기 확인)</td></tr>
-            <tr><td><strong>AI 조명 시퀀스</strong></td><td>+ 키 바 <strong>아래</strong> — <code>@캐릭터</code> 조준(pan/tilt) · <strong>따라가기 → 머물기 → 사라지기</strong>를 한 문장으로 이어붙임 · 트랙에 문장 저장 후 수정해 다시 적용 · <code>@</code> ↑↓ 선택 (<code>?</code> 도움말)</td></tr>
-            <tr><td><strong>AI 트랙 · 수동으로 변경</strong></td><td>AI 트랙은 <strong>AI</strong> 뱃지가 붙고 잠깁니다. 키를 직접 고치려면 Fixture 선택 후 AI 조명 시퀀스 박스의 <strong>수동으로 변경</strong> — 키는 그대로 남고 편집 가능해지며, 저장된 AI 문장은 삭제됩니다</td></tr>
+            <tr><td><strong>선택 속성 → 전 키</strong></td><td>Dim/Zoom/Focus/Color/Pan/Tilt 중 <strong>고른 것만</strong> 모든 키에 반영 (기본 미선택 · Pan/Tilt는 연결 조준 덮어쓰기 확인)</td></tr>
           </tbody>
         </table>
+
+        <h3>트랙 연결 — Fixture가 캐릭터를 따라가기</h3>
+        <p>+ 키 바 <strong>아래</strong> 박스. 제목 옆 <code>?</code> · 안내 문구는 <strong>캐릭터 조준 · 퇴장 소등</strong>.</p>
+        <table>
+          <thead><tr><th>단계</th><th>하는 일</th></tr></thead>
+          <tbody>
+            <tr><td>1. Fixture 선택</td><td>타일 클릭 · Shift/Ctrl로 여러 대를 한 캐릭터에 묶을 수 있습니다</td></tr>
+            <tr><td>2. 캐릭터 검색</td><td><strong>캐릭터 검색…</strong>을 누르면 팝업이 열립니다. 이름을 치면 목록이 걸러집니다 · <span class="kbd">↑</span> <span class="kbd">↓</span> 이동 · <span class="kbd">Enter</span> 확정 · <span class="kbd">Esc</span> 또는 바깥 클릭으로 닫기</td></tr>
+            <tr><td>3. 연결하고 키 만들기</td><td>선택한 캐릭터를 <strong>등장부터 퇴장까지</strong> 조준하는 pan/tilt·dim 키가 만들어집니다. 구간을 따로 적을 필요는 없습니다</td></tr>
+            <tr><td>4. 트랙 표시</td><td>헤드에 <strong>링크 아이콘</strong>이 붙고 <strong>잠깁니다</strong>. 자물쇠를 직접 열 수 없습니다</td></tr>
+            <tr><td>퇴장 자동 소등</td><td>캐릭터가 <strong>퇴장으로 끝나면</strong> 조명도 퇴장 구간을 따라가며 <strong>서서히 꺼집니다</strong>. 퇴장이 없으면 마지막 위치를 계속 비춥니다</td></tr>
+            <tr><td>연결 갱신</td><td>캐릭터 동선을 고치면 링크 아이콘이 <strong>주황색</strong>으로 바뀝니다 → <strong>연결 갱신</strong>을 누르면 조명 키가 새 동선으로 다시 계산됩니다</td></tr>
+            <tr><td>연결 끊기</td><td>키를 손으로 고치려면 Fixture 선택 후 <strong>연결 끊기</strong> — 키는 그대로 남고 잠금이 풀립니다. 대신 캐릭터를 옮겨도 조명이 더 이상 따라가지 않습니다</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          연결된 트랙에서 <span class="kbd">K</span>를 눌러도 다른 트랙에 키가 들어가지 않습니다.
+          Dim·Zoom·Focus·Color는 <strong>선택 속성 → 전 키</strong>로 맞추세요.
+        </div>
         <figure class="tutorial-figure" data-file="images/19-light-props.png">
           <img class="tutorial-shot" src="./images/19-light-props.png" alt="조명 패널 · Properties HOUSE/Fixture" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>조명 패널 · Properties HOUSE/Fixture</figcaption>

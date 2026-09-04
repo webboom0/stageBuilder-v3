@@ -4,11 +4,13 @@ import { FixtureEngine } from './FixtureEngine.js';
 import { ensureHouseStageLights } from './houseStageLights.js';
 import {
   fixtureTrackGroup,
-  fixtureAiTrackGroup,
-  isAiFollowGroup,
+  fixtureLinkTrackGroup,
+  isLinkedFixtureGroup,
   parseFixtureFidFromGroup,
   ROW_DEFS,
 } from './fixtureTypes.js';
+import { TRACK_SOURCE_LINKED } from '../timeline/Track.js';
+import { motionLinkFingerprint } from './fixtureLinkState.js';
 import {
   asFixtureKeyValue,
   emptyFixtureKeyValue,
@@ -44,9 +46,10 @@ export class FixtureDirector {
       scene: opts.scene,
       stageManager: opts.stageManager,
     });
-    /** @type {Map<number, { fid: number, trackId: string, name: string, grp: string, aiTrackId?: string|null }>} */
+    /** @type {Map<number, { fid: number, trackId: string, name: string, grp: string, linkTrackId?: string|null }>} */
     this.channels = new Map();
     this.suspendApply = false;
+    this._linkStaleTimer = 0;
   }
 
   /** Build / refit rig only — no auto timeline tracks (v3-style on demand). */
@@ -71,22 +74,22 @@ export class FixtureDirector {
       if (fid == null) continue;
       const f = this.fxEngine.getFixture(fid);
       if (!f) continue;
-      const isAi = isAiFollowGroup(track.group);
+      const isLink = isLinkedFixtureGroup(track.group);
       let ch = this.channels.get(fid);
       if (!ch) {
-        ch = { fid, trackId: '', name: '', grp: f.grp, aiTrackId: null };
+        ch = { fid, trackId: '', name: '', grp: f.grp, linkTrackId: null };
         this.channels.set(fid, ch);
       }
-      if (isAi) {
-        ch.aiTrackId = track.id;
+      if (isLink) {
+        ch.linkTrackId = track.id;
       } else {
         ch.trackId = track.id;
         ch.name = track.name;
       }
     }
-    // Remove entries that have neither manual nor AI track
+    // Remove entries that have neither manual nor linked track
     for (const [fid, ch] of this.channels) {
-      if (!ch.trackId && !ch.aiTrackId) this.channels.delete(fid);
+      if (!ch.trackId && !ch.linkTrackId) this.channels.delete(fid);
     }
   }
 
@@ -125,7 +128,7 @@ export class FixtureDirector {
       this.engine.emit('tracks');
     }
     if (!ch) {
-      ch = { fid: n, trackId: track.id, name: track.name || trackName, grp: f.grp, aiTrackId: null };
+      ch = { fid: n, trackId: track.id, name: track.name || trackName, grp: f.grp, linkTrackId: null };
     } else {
       ch.trackId = track.id;
       ch.name = track.name || trackName;
@@ -135,68 +138,72 @@ export class FixtureDirector {
   }
 
   /**
-   * Create or get the AI follow track for a fixture.
+   * Create or get the linked (character-driven) track for a fixture.
    * @param {number} fid
    */
-  ensureAiTrackForFid(fid) {
+  ensureLinkTrackForFid(fid) {
     this.ensureRig();
     const n = Number(fid);
     const f = this.fxEngine.getFixture(n);
     if (!f) return null;
 
     let ch = this.channels.get(n);
-    if (ch?.aiTrackId && this.engine.getTrack(ch.aiTrackId)) return ch;
+    if (ch?.linkTrackId && this.engine.getTrack(ch.linkTrackId)) return ch;
 
-    const group = fixtureAiTrackGroup(n);
-    let track = this.engine.listTracks().find((t) => t.group === group && t.kind === 'light');
+    // Match `:link` and the pre-rename `:ai` suffix so old saves re-bake in place
+    let track = this.engine.listTracks().find((t) => (
+      t.kind === 'light'
+      && isLinkedFixtureGroup(t.group)
+      && parseFixtureFidFromGroup(t.group) === n
+    ));
     const trackName = `FX ${n} · ${f.short || f.grp}`;
     if (!track) {
       track = this.engine.addTrack({
         name: trackName,
         kind: 'light',
-        group,
+        group: fixtureLinkTrackGroup(n),
         section: 'light',
         color: TRACK_COLORS[f.grp] || '#8899aa',
-        source: 'ai-follow',
+        source: TRACK_SOURCE_LINKED,
         locked: true,
       });
       this.engine.emit('tracks');
     }
     if (!ch) {
-      ch = { fid: n, trackId: '', name: '', grp: f.grp, aiTrackId: track.id };
+      ch = { fid: n, trackId: '', name: '', grp: f.grp, linkTrackId: track.id };
     } else {
-      ch.aiTrackId = track.id;
+      ch.linkTrackId = track.id;
     }
     this.channels.set(n, ch);
     return ch;
   }
 
-  /** Get the AI track for a fid (if exists). */
-  getAiTrackForFid(fid) {
+  /** Get the linked track for a fid (if exists). */
+  getLinkTrackForFid(fid) {
     const ch = this.channels.get(Number(fid));
-    if (!ch?.aiTrackId) return null;
-    return this.engine.getTrack(ch.aiTrackId) || null;
+    if (!ch?.linkTrackId) return null;
+    return this.engine.getTrack(ch.linkTrackId) || null;
   }
 
   /**
-   * True when the fixture is driven only by an AI track (no manual track yet).
+   * True when the fixture is driven only by a linked track (no manual track yet).
    * @param {number} fid
    */
-  isAiOnly(fid) {
+  isLinkedOnly(fid) {
     const ch = this.channels.get(Number(fid));
-    return !!(ch?.aiTrackId && !ch.trackId);
+    return !!(ch?.linkTrackId && !ch.trackId);
   }
 
   /**
-   * Turn an AI track into a plain manual track in place — keys stay, the prompt
-   * link is dropped and the row unlocks. One fixture keeps one track.
-   * @param {string} aiTrackId
+   * Break the link in place — keys stay, the track unlocks and stops following
+   * the character. One fixture keeps one track.
+   * @param {string} linkTrackId
    * @returns {{ ok: true, trackId: string, fid: number } | { ok: false, error: string }}
    */
-  convertAiTrackToManual(aiTrackId) {
-    const track = this.engine.getTrack(aiTrackId);
-    if (!track || track.source !== 'ai-follow') {
-      return { ok: false, error: 'AI 트랙이 아닙니다.' };
+  unlinkTrack(linkTrackId) {
+    const track = this.engine.getTrack(linkTrackId);
+    if (!track || track.source !== TRACK_SOURCE_LINKED) {
+      return { ok: false, error: '연결된 트랙이 아닙니다.' };
     }
     const fid = parseFixtureFidFromGroup(track.group);
     if (fid == null) return { ok: false, error: 'Fixture를 찾을 수 없습니다.' };
@@ -213,6 +220,9 @@ export class FixtureDirector {
     track.group = fixtureTrackGroup(fid);
     track.source = null;
     track.fixtureFollowPrompt = null;
+    track.linkMotionTrackId = null;
+    track.linkSourceHash = null;
+    track.linkStale = false;
     track.locked = false;
     track.name = `FX ${fid} · ${f?.short || f?.grp || ''}`.trim();
 
@@ -221,12 +231,77 @@ export class FixtureDirector {
       trackId: track.id,
       name: track.name,
       grp: f?.grp || 'mh',
-      aiTrackId: null,
+      linkTrackId: null,
     });
 
     this.engine.emit('tracks');
     this.apply(this.engine.playheadSec);
     return { ok: true, trackId: track.id, fid };
+  }
+
+  /**
+   * Recompute the "linked track changed since bake" flag for every linked track.
+   * Cheap enough to run on a debounce; only emits when something actually flipped.
+   * @returns {number} stale track count
+   */
+  refreshLinkStaleFlags() {
+    let stale = 0;
+    let changed = false;
+    for (const ch of this.channels.values()) {
+      const track = ch.linkTrackId ? this.engine.getTrack(ch.linkTrackId) : null;
+      if (!track) continue;
+      const next = this.isLinkOutOfDate(track);
+      if (track.linkStale !== next) {
+        track.linkStale = next;
+        changed = true;
+      }
+      if (next) stale += 1;
+    }
+    if (changed) this.engine.emit('tracks');
+    return stale;
+  }
+
+  /** Debounced wrapper — timeline key edits fire in bursts. */
+  scheduleLinkStaleCheck(delayMs = 200) {
+    if (this._linkStaleTimer) clearTimeout(this._linkStaleTimer);
+    this._linkStaleTimer = setTimeout(() => {
+      this._linkStaleTimer = 0;
+      this.refreshLinkStaleFlags();
+    }, delayMs);
+  }
+
+  /**
+   * @param {import('../timeline/Track.js').Track} track linked fixture track
+   * @returns {boolean} linked character (or the fixture itself) moved since bake
+   */
+  isLinkOutOfDate(track) {
+    if (!track?.linkSourceHash || !track.linkMotionTrackId) return false;
+    return this.linkFingerprintFor(track) !== track.linkSourceHash;
+  }
+
+  /**
+   * @param {import('../timeline/Track.js').Track} track linked fixture track
+   * @returns {string} fingerprint of everything the bake reads
+   */
+  linkFingerprintFor(track) {
+    const fid = parseFixtureFidFromGroup(track.group);
+    const fixture = fid == null ? null : this.fxEngine.getFixture(fid);
+    return motionLinkFingerprint(
+      this.engine.getTrack(track.linkMotionTrackId),
+      fixture?.obj?.grp || null,
+    );
+  }
+
+  /**
+   * Stamp the link metadata after a bake so later edits can be detected.
+   * @param {import('../timeline/Track.js').Track} track
+   * @param {string} motionTrackId
+   */
+  stampLinkSource(track, motionTrackId) {
+    if (!track) return;
+    track.linkMotionTrackId = motionTrackId || null;
+    track.linkSourceHash = motionTrackId ? this.linkFingerprintFor(track) : null;
+    track.linkStale = false;
   }
 
   /** @param {Iterable<number>} fids */
@@ -248,14 +323,13 @@ export class FixtureDirector {
     if (!ch) return false;
     const chData = this.channels.get(ch.fid);
     if (chData) {
-      const isAi = chData.aiTrackId === trackId;
-      if (isAi) {
-        chData.aiTrackId = null;
+      if (chData.linkTrackId === trackId) {
+        chData.linkTrackId = null;
       } else {
         chData.trackId = '';
       }
       // Remove channel entry only if both tracks gone
-      if (!chData.trackId && !chData.aiTrackId) {
+      if (!chData.trackId && !chData.linkTrackId) {
         this.channels.delete(ch.fid);
       }
     }
@@ -278,10 +352,10 @@ export class FixtureDirector {
     return {
       kind: 'fixture',
       fid: ch.fid,
-      // Effective track for reads/selection — AI layer when no manual layer exists yet
-      trackId: ch.trackId || ch.aiTrackId || '',
+      // Effective track for reads/selection — linked track when no manual one exists yet
+      trackId: ch.trackId || ch.linkTrackId || '',
       manualTrackId: ch.trackId || null,
-      aiTrackId: ch.aiTrackId || null,
+      linkTrackId: ch.linkTrackId || null,
       hasManual: !!ch.trackId,
       name: ch.name,
       grp: ch.grp,
@@ -289,14 +363,14 @@ export class FixtureDirector {
     };
   }
 
-  /** Track ids for a fixture, AI layer first. */
+  /** Track ids for a fixture, linked track first. */
   trackIdsForFid(fid) {
     const ch = this.channels.get(Number(fid));
     if (!ch) return [];
-    return [ch.aiTrackId, ch.trackId].filter(Boolean);
+    return [ch.linkTrackId, ch.trackId].filter(Boolean);
   }
 
-  /** Remove every layer (AI + manual) for a fixture. */
+  /** Remove every layer (linked + manual) for a fixture. */
   removeAllTracksForFid(fid, opt = {}) {
     let n = 0;
     for (const id of this.trackIdsForFid(fid)) {
@@ -321,8 +395,8 @@ export class FixtureDirector {
         grp: f.grp,
         short: f.short,
         trackId: ch?.trackId || null,
-        aiTrackId: ch?.aiTrackId || null,
-        hasTrack: !!(ch?.trackId || ch?.aiTrackId),
+        linkTrackId: ch?.linkTrackId || null,
+        hasTrack: !!(ch?.trackId || ch?.linkTrackId),
       };
     });
   }
@@ -330,15 +404,15 @@ export class FixtureDirector {
   /** @param {string} trackId */
   findByTrackId(trackId) {
     for (const ch of this.channels.values()) {
-      if (ch.trackId === trackId || ch.aiTrackId === trackId) {
+      if (ch.trackId === trackId || ch.linkTrackId === trackId) {
         return {
           kind: 'fixture',
           fid: ch.fid,
-          trackId: ch.trackId || ch.aiTrackId,
+          trackId: ch.trackId || ch.linkTrackId,
           name: ch.name,
           grp: ch.grp,
           channel: `fx_${ch.fid}`,
-          isAiTrack: ch.aiTrackId === trackId,
+          isLinkTrack: ch.linkTrackId === trackId,
         };
       }
     }
@@ -352,7 +426,7 @@ export class FixtureDirector {
         name: track.name,
         grp: this.fxEngine.getFixture(fid)?.grp || 'mh',
         channel: `fx_${fid}`,
-        isAiTrack: isAiFollowGroup(track.group),
+        isLinkTrack: isLinkedFixtureGroup(track.group),
       };
     }
     return null;
@@ -389,7 +463,7 @@ export class FixtureDirector {
     const ch = this.findByTrackId(trackId);
     if (!ch) return false;
 
-    // Manual edits never touch the AI layer — they land on the manual override track.
+    // Manual edits never touch a linked track — they land on the manual track.
     // Without one yet, a slider move stays live (programmer) until the user commits a key.
     let targetId = this.channels.get(ch.fid)?.trackId || '';
     if (!targetId || targetId !== trackId) {
@@ -488,8 +562,8 @@ export class FixtureDirector {
   }
 
   /**
-   * Patch every key on selected fixture tracks (e.g. Dim/Zoom/Focus/Color after AI bake).
-   * Callers should omit pan/tilt so AI follow aims stay intact.
+   * Patch every key on selected fixture tracks (e.g. Dim/Zoom/Focus/Color after a bake).
+   * Callers should omit pan/tilt so linked aims stay intact.
    * @param {Iterable<number>} fids
    * @param {Partial<import('./fixtureKeyValue.js').FixtureKeyValue>} patch
    * @returns {number} keys updated
@@ -501,20 +575,20 @@ export class FixtureDirector {
       const chData = this.channels.get(Number(fid));
       if (!chData && !this.ensureTrackForFid(fid)) continue;
       const ch = this.channels.get(Number(fid));
-      // Both layers get the attribute patch — AI aim (pan/tilt) is left to the caller
-      for (const id of [ch.aiTrackId, ch.trackId]) {
+      // Both layers get the attribute patch — linked aim (pan/tilt) is left to the caller
+      for (const id of [ch.linkTrackId, ch.trackId]) {
         const track = id ? this.engine.getTrack(id) : null;
         if (!track) continue;
-        const isAi = track.source === 'ai-follow';
-        if (track.locked && !isAi) continue;
-        if (isAi) track.locked = false;
+        const isLinked = track.source === TRACK_SOURCE_LINKED;
+        if (track.locked && !isLinked) continue;
+        if (isLinked) track.locked = false;
         for (const kf of track.keys.list()) {
           const base = asFixtureKeyValue(kf.value, emptyFixtureKeyValue());
           const bag = asFixtureKeyValue({ ...base, ...patch }, base);
           this.engine.editKeyframe(id, kf.id, { value: bag });
           n += 1;
         }
-        if (isAi) track.locked = true;
+        if (isLinked) track.locked = true;
       }
       const f = this.fxEngine.getFixture(Number(fid));
       if (f) {
@@ -602,7 +676,7 @@ export class FixtureDirector {
     }
     let n = 0;
     for (const fid of fids) {
-      // AI keys are not deletable here — re-bake or delete the AI track instead
+      // Linked keys are not deletable here — refresh the link or unlink first
       const manualId = this.channels.get(Number(fid))?.trackId;
       const track = manualId ? this.engine.getTrack(manualId) : null;
       if (!track) continue;
@@ -622,23 +696,23 @@ export class FixtureDirector {
     this.fxEngine.clearAllTimelineBags();
     for (const ch of this.channels.values()) {
       const manualTrack = ch.trackId ? this.engine.getTrack(ch.trackId) : null;
-      const aiTrack = ch.aiTrackId ? this.engine.getTrack(ch.aiTrackId) : null;
-      if (!manualTrack && !aiTrack) {
+      const linkTrack = ch.linkTrackId ? this.engine.getTrack(ch.linkTrackId) : null;
+      if (!manualTrack && !linkTrack) {
         this.channels.delete(ch.fid);
         continue;
       }
       // Every existing layer hidden → blackout
       const manualLive = manualTrack && !manualTrack.hidden;
-      const aiLive = aiTrack && !aiTrack.hidden;
-      if (!manualLive && !aiLive) {
+      const linkLive = linkTrack && !linkTrack.hidden;
+      if (!manualLive && !linkLive) {
         this.fxEngine.setTimelineBag(ch.fid, { dim: 0 });
         continue;
       }
       const fallback = engineAttrToFixtureBag(this.fxEngine.captureAttr(ch.fid));
-      // Manual layer wins outright once it holds any key; the AI layer is the base
-      // until then. Hiding a layer (eye) switches between the two versions.
+      // A fixture normally holds one track; old saves may still carry both, in which
+      // case the manual keys win. Hiding a layer (eye) switches between the two.
       const driver = manualLive && manualTrack.keys.length ? manualTrack
-        : (aiLive && aiTrack.keys.length ? aiTrack : null);
+        : (linkLive && linkTrack.keys.length ? linkTrack : null);
       if (!driver) continue;
       const bag = sampleFixtureBag(driver.keys, timeSec, fallback);
       if (!bag) continue;

@@ -4,7 +4,6 @@ import { sampleMotionBag } from '../motion/sampleTracks.js';
 import { motionKeyFromObject, asMotionKeyValue } from '../motion/motionKeyValue.js';
 import {
   presenceEndSec,
-  presenceInSec,
   presenceOutSec,
   samplePresenceMotion,
   supportsPresenceClip,
@@ -18,64 +17,67 @@ const AIM_Y_OFFSET = 1.15;
 const FOLLOW_MAX_GAP_SEC = 1.0;
 const DEFAULT_FOLLOW_DIM = 0.85;
 const MAX_FOLLOW_KEYS = 40;
-
-const TIME_TOK = '([0-9]+(?:\\.[0-9]+)?\\s*분(?:\\s*[0-9]+(?:\\.[0-9]+)?\\s*초)?|[0-9]+(?:\\.[0-9]+)?\\s*초)';
+/** A last key this dim (or invisible) means the character walked off. */
+const EXIT_OPACITY = 0.05;
 
 /**
- * @typedef {{ id: string, name: string, trackId: string, object: import('three').Object3D }} FollowMotionRef
- * @typedef {{ kind: 'follow' | 'hold' | 'off', fromSec: number, toSec: number }} FollowPhase
+ * @typedef {{ id: string, name: string, trackId: string, object: import('three').Object3D }} LinkMotionRef
+ * @typedef {{ kind: 'follow' | 'exit', fromSec: number, toSec: number }} LinkPhase
  * @typedef {{
  *   ok: true,
- *   motion: FollowMotionRef,
- *   phases: FollowPhase[],
+ *   motion: LinkMotionRef,
+ *   phases: LinkPhase[],
  *   summary: string,
  *   windowStart: number,
  *   windowEnd: number,
- * } | { ok: false, error: string }} FollowParseResult
+ * } | { ok: false, error: string }} LinkDraftResult
  */
 
 /**
- * @param {string} prompt
+ * Build the follow plan for one fixture ↔ character link. The plan is derived
+ * entirely from the character's own timing: follow while on stage, fade out
+ * over the exit.
+ * @param {string} motionTrackId
  * @param {{
  *   engine: import('../timeline/TimelineEngine.js').TimelineEngine,
- *   motions: FollowMotionRef[],
+ *   motions: LinkMotionRef[],
  * }} ctx
- * @returns {FollowParseResult}
+ * @returns {LinkDraftResult}
  */
-export function buildFixtureFollowDraft(prompt, ctx) {
-  const text = String(prompt || '').trim();
-  if (!text) return { ok: false, error: '문장을 입력하세요.' };
+export function buildFixtureLinkDraft(motionTrackId, ctx) {
+  const id = String(motionTrackId || '');
+  if (!id) return { ok: false, error: '연결할 캐릭터 트랙을 고르세요.' };
 
-  const motions = (ctx.motions || []).filter((m) => m?.name && m?.trackId);
-  if (!motions.length) return { ok: false, error: '캐릭터/스테이지 트랙이 없습니다.' };
+  const motion = (ctx.motions || []).find((m) => m?.trackId === id);
+  if (!motion) return { ok: false, error: '캐릭터 트랙을 찾을 수 없습니다.' };
 
-  const motion = resolveMotionMention(text, motions);
-  if (!motion) {
+  const track = ctx.engine?.getTrack?.(id);
+  if (!track) return { ok: false, error: '캐릭터 트랙을 찾을 수 없습니다.' };
+  if (!track.keys?.list?.().length) {
     return {
       ok: false,
-      error: '@캐릭터이름 으로 트랙을 지정하세요. (예: @주인공 따라가줘)',
+      error: `${motion.name} 트랙에 모션 키가 없습니다. 캐릭터 패턴/키를 먼저 만드세요.`,
     };
   }
 
-  const range = motionTimeRange(ctx.engine, motion, text);
-  const phases = parseFollowPhases(text, range);
-  if (!phases.length) {
-    return {
-      ok: false,
-      error: '「따라가」「머무르다」「사라져」 등 동작을 넣어 주세요.',
-    };
+  const range = motionTimeRange(track, ctx.engine);
+  /** @type {LinkPhase[]} */
+  const phases = [{ kind: 'follow', fromSec: range.startSec, toSec: range.bodyOut }];
+  if (range.exit) {
+    phases.push({ kind: 'exit', fromSec: range.exit.fromSec, toSec: range.exit.toSec });
   }
 
-  const labels = { follow: '따라가기', hold: '머물기', off: '끄기' };
+  const last = phases[phases.length - 1];
   return {
     ok: true,
     motion,
     phases,
     windowStart: phases[0].fromSec,
-    windowEnd: phases[phases.length - 1].toSec,
+    windowEnd: last.toSec,
     summary: [
-      `@${motion.name}`,
-      ...phases.map((p) => `${labels[p.kind]} ${fmtSec(p.fromSec)}→${fmtSec(p.toSec)}`),
+      motion.name,
+      `따라가기 ${fmtSec(phases[0].fromSec)}→${fmtSec(phases[0].toSec)}`,
+      ...(range.exit ? [`퇴장 소등 ${fmtSec(last.fromSec)}→${fmtSec(last.toSec)}`] : []),
     ].join(' · '),
   };
 }
@@ -84,18 +86,15 @@ export function buildFixtureFollowDraft(prompt, ctx) {
  * @param {{
  *   engine: import('../timeline/TimelineEngine.js').TimelineEngine,
  *   fixtures: import('./FixtureDirector.js').FixtureDirector,
- *   draft: Extract<FollowParseResult, { ok: true }>,
+ *   draft: Extract<LinkDraftResult, { ok: true }>,
  *   fids: number[],
- *   clearExisting?: boolean,
- *   prompt?: string,
  * }} opts
  */
-export function bakeFixtureFollowDraft(opts) {
+export function bakeFixtureLinkDraft(opts) {
   const { engine, fixtures, draft, fids } = opts;
-  const promptText = String(opts.prompt || '').trim() || null;
   const list = [...new Set((fids || []).map(Number).filter((n) => Number.isFinite(n)))];
   if (!list.length) return { ok: false, error: 'Fixture를 먼저 선택하세요.' };
-  if (!draft?.ok) return { ok: false, error: draft?.error || '초안이 없습니다.' };
+  if (!draft?.ok) return { ok: false, error: draft?.error || '연결 계획이 없습니다.' };
 
   fixtures.ensureRig();
   const root = fixtures.fxEngine.root;
@@ -103,13 +102,13 @@ export function bakeFixtureFollowDraft(opts) {
   root.updateWorldMatrix(true, true);
 
   const motionTrack = engine.getTrack(draft.motion.trackId);
-  if (!motionTrack) return { ok: false, error: '대상 모션 트랙을 찾을 수 없습니다.' };
+  if (!motionTrack) return { ok: false, error: '대상 캐릭터 트랙을 찾을 수 없습니다.' };
 
   const motionKeys = motionTrack.keys?.list?.() || [];
   if (!motionKeys.length) {
     return {
       ok: false,
-      error: `@${draft.motion.name} 트랙에 모션 키가 없습니다. 캐릭터 패턴/키를 먼저 만든 뒤 다시 적용하세요.`,
+      error: `${draft.motion.name} 트랙에 모션 키가 없습니다. 캐릭터 패턴/키를 먼저 만드세요.`,
     };
   }
 
@@ -133,11 +132,44 @@ export function bakeFixtureFollowDraft(opts) {
   let keyCount = 0;
   let trackCount = 0;
 
+  // Each add/removeKeyframe emits 'keys' on its own; a 40-key bake would otherwise
+  // redraw the timeline ~88 times per fixture.
+  engine.beginKeyframeBake();
+  try {
+    ({ keyCount, trackCount } = bakeIntoLinkTracks({
+      engine,
+      fixtures,
+      draft,
+      list,
+      sampleMot,
+      motionKeys,
+      motionObject,
+      fallback,
+      root,
+    }));
+  } finally {
+    engine.endKeyframeBake();
+  }
+
+  if (!trackCount) return { ok: false, error: '기록할 Fixture 트랙을 만들지 못했습니다.' };
+  if (!keyCount) return { ok: false, error: '키가 생성되지 않았습니다.' };
+  fixtures.apply(engine.playheadSec);
+  return { ok: true, keyCount, trackCount };
+}
+
+/** Inner bake loop — caller owns the begin/endKeyframeBake pair. */
+function bakeIntoLinkTracks(ctx) {
+  const {
+    engine, fixtures, draft, list, sampleMot, motionKeys, motionObject, fallback, root,
+  } = ctx;
+  let keyCount = 0;
+  let trackCount = 0;
+
   for (const fid of list) {
-    const ch = fixtures.ensureAiTrackForFid(fid);
+    const ch = fixtures.ensureLinkTrackForFid(fid);
     if (!ch) continue;
-    const aiTrackId = ch.aiTrackId;
-    const fxTrack = engine.getTrack(aiTrackId);
+    const linkTrackId = ch.linkTrackId;
+    const fxTrack = engine.getTrack(linkTrackId);
     if (!fxTrack) continue;
     const f = fixtures.fxEngine.getFixture(fid);
     if (!f?.obj?.grp) continue;
@@ -151,14 +183,13 @@ export function bakeFixtureFollowDraft(opts) {
       zoom: live.zoom >= 5 ? live.zoom : 16,
     });
 
-    // AI track stays locked for the user; bake is the only writer
+    // Linked track stays locked for the user; bake is the only writer
     fxTrack.locked = false;
 
-    // AI track: always clear existing keys before re-bake
+    // Linked track: always clear existing keys before re-bake
     for (const kf of [...fxTrack.keys.list()]) {
-      engine.removeKeyframe(aiTrackId, kf.id);
+      engine.removeKeyframe(linkTrackId, kf.id);
     }
-    if (promptText) fxTrack.fixtureFollowPrompt = promptText;
 
     const fromLocal = [
       f.obj.grp.position.x,
@@ -169,259 +200,101 @@ export function bakeFixtureFollowDraft(opts) {
     let lastAim = null;
     let lastPan = base.pan;
 
+    /** Aim at where the character stands at `t`, holding the last aim off stage. */
+    const aimAt = (t) => {
+      const bagM = sampleMot(t);
+      const hasPos = Array.isArray(bagM.position) && bagM.position.length >= 3;
+      const offStage = bagM.visible === false && (bagM.opacity ?? 0) <= 0.001;
+      let target = null;
+
+      if (hasPos && !offStage) {
+        target = bagM.position;
+      } else if (!lastAim) {
+        target = seedMotionBag(motionKeys, fallback, t)?.position || null;
+      }
+      if (target) {
+        const targetLocal = motionPosToRigLocal(root, motionObject, target, AIM_Y_OFFSET);
+        const aim = aimPanTilt(fromLocal, targetLocal);
+        lastPan = unwrapPan(lastPan, aim.pan);
+        lastAim = { pan: lastPan, tilt: clampTilt(aim.tilt) };
+      }
+      return lastAim || { pan: base.pan, tilt: base.tilt };
+    };
+
     for (const phase of draft.phases) {
-      if (phase.kind === 'follow') {
-        const times = followSampleTimes(
-          phase.fromSec,
-          phase.toSec,
-          motionKeys,
-          engine.fps || 30,
+      const times = followSampleTimes(
+        phase.fromSec,
+        phase.toSec,
+        motionKeys,
+        engine.fps || 30,
+      );
+      const span = Math.max(1e-6, phase.toSec - phase.fromSec);
+      for (const t of times) {
+        const { pan, tilt } = aimAt(t);
+        // Exit: keep following the walk-off while dimming to black
+        const dim = phase.kind === 'exit'
+          ? followDim * Math.max(0, 1 - (t - phase.fromSec) / span)
+          : followDim;
+        engine.addKeyframe(
+          linkTrackId,
+          t,
+          asFixtureKeyValue({ ...base, pan, tilt, dim }),
+          INTERPOLATION.SMOOTH,
         );
-        for (const t of times) {
-          const bagM = sampleMot(t);
-          const hasPos = Array.isArray(bagM.position) && bagM.position.length >= 3;
-          const outside = bagM.visible === false && (bagM.opacity ?? 0) <= 0.001;
-          let pan = lastAim?.pan ?? base.pan;
-          let tilt = lastAim?.tilt ?? base.tilt;
-          const dim = followDim;
-
-          if (hasPos && !outside) {
-            const targetLocal = motionPosToRigLocal(
-              root,
-              motionObject,
-              bagM.position,
-              AIM_Y_OFFSET,
-            );
-            const aim = aimPanTilt(fromLocal, targetLocal);
-            pan = unwrapPan(lastPan, aim.pan);
-            tilt = clampTilt(aim.tilt);
-            lastAim = { pan, tilt };
-            lastPan = pan;
-          } else if (!lastAim) {
-            const seed = seedMotionBag(motionKeys, fallback, t);
-            if (seed) {
-              const targetLocal = motionPosToRigLocal(
-                root,
-                motionObject,
-                seed.position,
-                AIM_Y_OFFSET,
-              );
-              const aim = aimPanTilt(fromLocal, targetLocal);
-              pan = unwrapPan(lastPan, aim.pan);
-              tilt = clampTilt(aim.tilt);
-              lastAim = { pan, tilt };
-              lastPan = pan;
-            }
-          }
-
-          engine.addKeyframe(
-            aiTrackId,
-            t,
-            asFixtureKeyValue({ ...base, pan, tilt, dim }),
-            INTERPOLATION.SMOOTH,
-          );
-          keyCount += 1;
-        }
-      } else if (phase.kind === 'hold') {
-        if (!lastAim) continue;
-        const pan = lastAim.pan;
-        const tilt = lastAim.tilt;
-        for (const t of uniqueTimes([phase.fromSec, phase.toSec], engine.fps || 30)) {
-          engine.addKeyframe(
-            aiTrackId,
-            t,
-            asFixtureKeyValue({ ...base, pan, tilt, dim: followDim }),
-            INTERPOLATION.SMOOTH,
-          );
-          keyCount += 1;
-        }
-        lastPan = pan;
-      } else if (phase.kind === 'off') {
-        const pan = lastAim?.pan ?? base.pan;
-        const tilt = lastAim?.tilt ?? base.tilt;
-        for (const [t, dim] of [
-          [phase.fromSec, lastAim ? followDim : 0],
-          [phase.toSec, 0],
-        ]) {
-          engine.addKeyframe(
-            aiTrackId,
-            t,
-            asFixtureKeyValue({ ...base, pan, tilt, dim }),
-            INTERPOLATION.SMOOTH,
-          );
-          keyCount += 1;
-        }
+        keyCount += 1;
       }
     }
 
+    // Remember what we baked from, so a later character edit shows "needs refresh"
+    fixtures.stampLinkSource(fxTrack, draft.motion.trackId);
     fxTrack.locked = true;
   }
 
-  if (!trackCount) return { ok: false, error: '기록할 Fixture 트랙을 만들지 못했습니다.' };
-  if (!keyCount) return { ok: false, error: '키가 생성되지 않았습니다.' };
-  fixtures.apply(engine.playheadSec);
-  return { ok: true, keyCount, trackCount };
+  return { keyCount, trackCount };
 }
 
 /**
+ * Stage window of a character track, plus the exit span when the character
+ * walks off at the end.
+ * @param {import('../timeline/Track.js').Track} track
  * @param {import('../timeline/TimelineEngine.js').TimelineEngine} engine
- * @param {FollowMotionRef} motion
- * @param {string} prompt
+ * @returns {{
+ *   startSec: number,
+ *   bodyOut: number,
+ *   exit: { fromSec: number, toSec: number } | null,
+ * }}
  */
-function motionTimeRange(engine, motion, prompt) {
+function motionTimeRange(track, engine) {
+  const keys = track.keys?.list?.() || [];
   const durationSec = Math.max(1, Number(engine?.durationSec) || 180);
-  const track = engine?.getTrack?.(motion.trackId);
-  let bodyIn = 0;
-  let bodyOut = durationSec;
-  let startSec = 0;
-  let endSec = durationSec;
 
-  if (track?.presenceClip && supportsPresenceClip(track)) {
-    startSec = track.presenceClip.startSec;
-    bodyIn = presenceInSec(track.presenceClip);
-    bodyOut = Math.max(bodyIn + 0.1, presenceOutSec(track.presenceClip));
-    endSec = presenceEndSec(track.presenceClip);
-  } else if (track?.keys?.length) {
-    const keys = track.keys.list();
-    bodyIn = keys[0].timeSec;
-    bodyOut = Math.max(bodyIn + 0.1, keys[keys.length - 1].timeSec);
-    startSec = bodyIn;
-    endSec = bodyOut;
+  if (track.presenceClip && supportsPresenceClip(track)) {
+    const out = Math.max(track.presenceClip.startSec, presenceOutSec(track.presenceClip));
+    const end = presenceEndSec(track.presenceClip);
+    return {
+      startSec: track.presenceClip.startSec,
+      bodyOut: out,
+      // The lead-out is the walk-off; a zero-length one means the character just stops
+      exit: end > out + 1e-3 ? { fromSec: out, toSec: end } : null,
+    };
   }
 
-  // 「시작부터 퇴장까지」→ presence 전체(등장~퇴장 리드 포함)
-  if (/(시작|등장)\s*부터/.test(prompt) && /(퇴장|끝)\s*까지/.test(prompt)) {
-    return { bodyIn: startSec, bodyOut: endSec, startSec, endSec, durationSec };
-  }
-  return { bodyIn, bodyOut, startSec, endSec, durationSec };
-}
+  if (!keys.length) return { startSec: 0, bodyOut: durationSec, exit: null };
 
-/**
- * @param {string} text
- * @param {{ bodyIn: number, bodyOut: number, startSec: number, endSec: number, durationSec: number }} range
- * @returns {FollowPhase[]}
- */
-function parseFollowPhases(text, range) {
-  /** @type {FollowPhase[]} */
-  const follows = [];
-  const t = text;
+  const first = keys[0].timeSec;
+  const last = keys[keys.length - 1];
+  const lastBag = asMotionKeyValue(last.value);
+  const isExitKey = lastBag.visible === false || lastBag.opacity <= EXIT_OPACITY;
 
-  const followWinRe = new RegExp(
-    `${TIME_TOK}\\s*부터\\s*${TIME_TOK}\\s*까지\\s*(?:따라|비추|추적)`,
-    'giu',
-  );
-  let m;
-  while ((m = followWinRe.exec(t))) {
-    const a = parseKoreanTimeSpan(m[1]);
-    const b = parseKoreanTimeSpan(m[2]);
-    if (a >= 0 && b > a) follows.push({ kind: 'follow', fromSec: a, toSec: b });
+  if (isExitKey && keys.length >= 2) {
+    const prev = keys[keys.length - 2];
+    return {
+      startSec: first,
+      bodyOut: prev.timeSec,
+      exit: { fromSec: prev.timeSec, toSec: last.timeSec },
+    };
   }
-
-  if (/(시작|등장)\s*부터\s*(퇴장|끝)\s*까지\s*(?:따라|비추|추적)/u.test(t)) {
-    follows.push({ kind: 'follow', fromSec: range.bodyIn, toSec: range.bodyOut });
-  }
-
-  const followFromRe = new RegExp(`${TIME_TOK}\\s*부터\\s*(?:따라|비추|추적)`, 'giu');
-  while ((m = followFromRe.exec(t))) {
-    const window = t.slice(m.index, m.index + m[0].length + 12);
-    if (new RegExp(`${TIME_TOK}\\s*부터\\s*${TIME_TOK}\\s*까지`).test(window)) continue;
-    const a = parseKoreanTimeSpan(m[1]);
-    if (a >= 0) {
-      follows.push({
-        kind: 'follow',
-        fromSec: a,
-        toSec: Math.max(a + 0.5, range.bodyOut),
-      });
-    }
-  }
-
-  if (!follows.length && /따라(?:가|다녀|다)|비춰|추적|follow/i.test(t)) {
-    // 등장 리드(start)부터 퇴장 끝까지 — body만 쓰면 초반에 키가 없어 조명이 늦게 켜짐
-    follows.push({ kind: 'follow', fromSec: range.startSec, toSec: range.endSec });
-  }
-
-  follows.sort((a, b) => a.fromSec - b.fromSec);
-  /** @type {FollowPhase[]} */
-  const out = [];
-  for (const p of follows) {
-    if (out.some((q) => !(p.toSec <= q.fromSec || p.fromSec >= q.toSec))) continue;
-    out.push({ ...p });
-  }
-
-  let cursor = out.length ? out[out.length - 1].toSec : range.bodyIn;
-
-  const holdRe = new RegExp(
-    `${TIME_TOK}\\s*까지\\s*(?:머물|머무르|대기|홀드|hold)`,
-    'giu',
-  );
-  while ((m = holdRe.exec(t))) {
-    // skip 「T까지 따라」 absolute end mistaken as hold — require 머물/대기 keyword (already in re)
-    const until = parseKoreanTimeSpan(m[1]);
-    if (until > cursor + 1e-3) {
-      out.push({ kind: 'hold', fromSec: cursor, toSec: until });
-      cursor = until;
-    }
-  }
-
-  if (/사라(?:져|지)|꺼져|오프|꺼\s*줘|소등/i.test(t)) {
-    out.push({ kind: 'off', fromSec: cursor, toSec: cursor + 0.5 });
-  }
-
-  return out;
-}
-
-/**
- * @param {string} text
- * @param {FollowMotionRef[]} motions
- */
-function resolveMotionMention(text, motions) {
-  const byLen = [...motions].sort((a, b) => String(b.name).length - String(a.name).length);
-  let best = null;
-  let bestLen = -1;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] !== '@') continue;
-    const after = text.slice(i + 1);
-    for (const mot of byLen) {
-      const label = String(mot.name);
-      if (!label) continue;
-      if (after.startsWith(label) && label.length > bestLen) {
-        best = mot;
-        bestLen = label.length;
-        continue;
-      }
-      const mTok = after.match(/^([^\s@.,，]+)/u);
-      if (!mTok) continue;
-      let tok = mTok[1].replace(/(에서|으로|까지|부터|에게|을|를|이|가|은|는)$/u, '');
-      if (tok === label && label.length > bestLen) {
-        best = mot;
-        bestLen = label.length;
-      }
-    }
-  }
-  return best;
-}
-
-/** @param {string} span */
-function parseKoreanTimeSpan(span) {
-  const s = String(span || '').trim();
-  if (!s) return -1;
-  const minSec = s.match(/([0-9]+(?:\.[0-9]+)?)\s*분\s*([0-9]+(?:\.[0-9]+)?)\s*초/);
-  if (minSec) {
-    const min = Number(minSec[1]);
-    const sec = Number(minSec[2]);
-    if (Number.isFinite(min) && Number.isFinite(sec)) return min * 60 + sec;
-  }
-  const onlyMin = s.match(/([0-9]+(?:\.[0-9]+)?)\s*분/);
-  if (onlyMin) {
-    const min = Number(onlyMin[1]);
-    if (Number.isFinite(min)) return min * 60;
-  }
-  const onlySec = s.match(/([0-9]+(?:\.[0-9]+)?)\s*초/);
-  if (onlySec) {
-    const sec = Number(onlySec[1]);
-    if (Number.isFinite(sec)) return sec;
-  }
-  return -1;
+  return { startSec: first, bodyOut: Math.max(first + 0.1, last.timeSec), exit: null };
 }
 
 /**
@@ -441,12 +314,6 @@ function seedMotionBag(motionKeys, fallback, t) {
     best = kf;
   }
   return asMotionKeyValue(best.value, fallback);
-}
-
-/** @param {number[]} times @param {number} fps */
-function uniqueTimes(times, fps) {
-  const snap = (t) => Math.round(Math.max(0, t) * fps) / fps;
-  return [...new Set(times.map(snap))].sort((a, b) => a - b);
 }
 
 /**

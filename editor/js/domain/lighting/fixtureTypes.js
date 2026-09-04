@@ -92,22 +92,22 @@ export function fixtureFidFromRowCol(r, c) {
 }
 
 export function parseFixtureFidFromGroup(group) {
-  const m = String(group || '').match(/^light:fx:(\d+)(?::ai)?$/);
+  const m = String(group || '').match(/^light:fx:(\d+)(?::(?:ai|link))?$/);
   return m ? Number(m[1]) : null;
 }
 
-/** @param {string} group */
-export function isAiFollowGroup(group) {
-  return /^light:fx:\d+:ai$/.test(String(group || ''));
+/** Linked (character-driven) fixture track. `:ai` is the pre-rename suffix. */
+export function isLinkedFixtureGroup(group) {
+  return /^light:fx:\d+:(?:ai|link)$/.test(String(group || ''));
 }
 
 export function fixtureTrackGroup(fid) {
   return `light:fx:${fid}`;
 }
 
-/** AI follow 전용 트랙 group */
-export function fixtureAiTrackGroup(fid) {
-  return `light:fx:${fid}:ai`;
+/** Track group for a fixture linked to a character track */
+export function fixtureLinkTrackGroup(fid) {
+  return `light:fx:${fid}:link`;
 }
 
 /**
