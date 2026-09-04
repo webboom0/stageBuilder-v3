@@ -159,6 +159,13 @@ export function createLightingPanelBody(opts) {
         <div class="ec-row sb-light-rgb"><label>G</label><input type="range" data-role="fx-g" min="0" max="255" value="255" disabled /><span data-role="fx-g-val">255</span></div>
         <div class="ec-row sb-light-rgb"><label>B</label><input type="range" data-role="fx-b" min="0" max="255" value="255" disabled /><span data-role="fx-b-val">255</span></div>
       </div>
+      <div class="sb-light-kf-bar sb-light-kf-bar--bottom">
+        <button type="button" class="sb-chip acc sb-light-kf-btn" data-act="fx-key" title="Fixture 키 추가 · 연결된 트랙은 먼저 「연결 끊기」를 해야 직접 편집할 수 있습니다">+ 키</button>
+        <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-prev" title="이전 키">◀</button>
+        <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-next" title="다음 키">▶</button>
+        <button type="button" class="sb-chip del sb-light-kf-btn" data-act="fx-kf-del" title="플레이헤드 키 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
+        <button type="button" class="sb-chip del sb-light-kf-btn sb-light-track-del" data-act="fx-track-del" title="선택 Fixture 트랙 삭제 (키 포함)" disabled>트랙 삭제</button>
+      </div>
       <div class="sb-light-fx-bulk" data-role="fx-bulk">
         <div class="sb-light-fx-bulk-label">전 키에 넣을 속성</div>
         <div class="sb-light-fx-bulk-attrs" data-role="fx-bulk-attrs" role="group" aria-label="전 키에 적용할 속성">
@@ -170,14 +177,7 @@ export function createLightingPanelBody(opts) {
           )).join('')}
         </div>
         <button type="button" class="sb-chip acc" data-act="fx-apply-all-keys"
-          title="위에서 고른 속성만 선택 Fixture의 모든 키에 반영">선택 속성 → 전 키</button>
-      </div>
-      <div class="sb-light-kf-bar sb-light-kf-bar--bottom">
-        <button type="button" class="sb-chip acc sb-light-kf-btn" data-act="fx-key" title="Fixture 키 추가 · 연결된 트랙은 먼저 「연결 끊기」를 해야 직접 편집할 수 있습니다">+ 키</button>
-        <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-prev" title="이전 키">◀</button>
-        <button type="button" class="sb-chip sb-light-kf-btn" data-act="fx-kf-next" title="다음 키">▶</button>
-        <button type="button" class="sb-chip del sb-light-kf-btn" data-act="fx-kf-del" title="플레이헤드 키 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
-        <button type="button" class="sb-chip del sb-light-kf-btn sb-light-track-del" data-act="fx-track-del" title="선택 Fixture 트랙 삭제 (키 포함)" disabled>트랙 삭제</button>
+          title="고른 속성만 선택 Fixture의 모든 키에 반영">선택속성 모든키 적용</button>
       </div>
       <div class="sb-fx-link-host" data-role="fx-link"></div>
     </div>

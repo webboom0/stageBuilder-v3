@@ -3582,9 +3582,7 @@ body.sb-picking canvas {
   margin: 6px 0 4px;
 }
 .sb-light-kf-bar--bottom {
-  margin: 10px 0 2px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 8px 0 2px;
 }
 .sb-light-kf-btn {
   box-sizing: border-box;
