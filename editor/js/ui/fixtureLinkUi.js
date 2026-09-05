@@ -471,7 +471,7 @@ function toggleFxLinkHelp(anchor) {
       <li><strong>캐릭터 동선을 고치면</strong> 아이콘이 <strong>주황색</strong>으로 바뀝니다 → <strong>연결 갱신</strong>을 눌러 조명 키를 다시 계산하세요</li>
       <li>키를 손으로 고치려면 <strong>연결 끊기</strong> — 키는 그대로 남고 트랙만 수동으로 바뀝니다</li>
     </ul>
-    <p class="sb-seg-ai-help-note">Fixture를 여러 개 골라 한 번에 같은 캐릭터로 연결할 수 있습니다. Dim·Zoom·Focus·Color는 <strong>선택속성 모든키 적용</strong>으로 맞추세요.</p>`;
+    <p class="sb-seg-ai-help-note">Fixture를 여러 개 골라 한 번에 같은 캐릭터로 연결할 수 있습니다. Dim·Zoom·Focus·Color는 <strong>선택속성 모든키 적용</strong>에서 속성을 눌러 미리보기한 뒤 적용하세요.</p>`;
   pop.querySelector('[data-act="close"]')?.addEventListener('click', () => {
     pop.hidden = true;
     anchor.classList.remove('is-on');

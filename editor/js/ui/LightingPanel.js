@@ -74,14 +74,14 @@ const ATTR_TABS = Object.freeze([
   { id: 'Color', fields: [] },
 ]);
 
-/** Bulk “전 키” — user picks which attrs to write (Pan/Tilt off by default). */
+/** Chip → form → all keys on the selected fixture track(s). */
 const BULK_ATTR_OPTS = Object.freeze([
-  { key: 'dim', label: 'Dim' },
-  { key: 'zoom', label: 'Zoom' },
-  { key: 'focus', label: 'Focus' },
+  { key: 'dim', label: 'Dim', min: 0, max: 100, unit: '%' },
+  { key: 'zoom', label: 'Zoom', min: 5, max: 50, unit: '°' },
+  { key: 'focus', label: 'Focus', min: 0, max: 100, unit: '%' },
   { key: 'color', label: 'Color' },
-  { key: 'pan', label: 'Pan' },
-  { key: 'tilt', label: 'Tilt' },
+  { key: 'pan', label: 'Pan', min: -270, max: 270, unit: '°' },
+  { key: 'tilt', label: 'Tilt', min: -120, max: 120, unit: '°' },
 ]);
 
 /**
@@ -166,18 +166,18 @@ export function createLightingPanelBody(opts) {
         <button type="button" class="sb-chip del sb-light-kf-btn" data-act="fx-kf-del" title="플레이헤드 키 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
         <button type="button" class="sb-chip del sb-light-kf-btn sb-light-track-del" data-act="fx-track-del" title="선택 Fixture 트랙 삭제 (키 포함)" disabled>트랙 삭제</button>
       </div>
+      <p class="sb-light-hint" data-role="fx-hint">키를 고르면 위 슬라이더가 그 키만 바꿉니다.</p>
       <div class="sb-light-fx-bulk" data-role="fx-bulk">
-        <div class="sb-light-fx-bulk-label">전 키에 넣을 속성</div>
-        <div class="sb-light-fx-bulk-attrs" data-role="fx-bulk-attrs" role="group" aria-label="전 키에 적용할 속성">
+        <div class="sb-light-fx-bulk-label">선택속성 모든키 적용</div>
+        <div class="sb-light-fx-bulk-attrs" data-role="fx-bulk-attrs" role="group" aria-label="트랙의 모든 키에 적용할 속성">
           ${BULK_ATTR_OPTS.map((o) => (
             `<button type="button" class="sb-chip sb-light-bulk-attr" data-bulk-attr="${o.key}"`
             + ` aria-pressed="false" title="${o.key === 'pan' || o.key === 'tilt'
-              ? '트랙 연결로 계산된 조준을 덮어씁니다'
-              : `${o.label} 값을 모든 키에 반영`}">${o.label}</button>`
+              ? '이 트랙의 모든 키 조준을 덮어씁니다'
+              : `${o.label} 값을 이 트랙의 모든 키에 반영`}">${o.label}</button>`
           )).join('')}
         </div>
-        <button type="button" class="sb-chip acc" data-act="fx-apply-all-keys"
-          title="고른 속성만 선택 Fixture의 모든 키에 반영">선택속성 모든키 적용</button>
+        <div class="sb-light-fx-bulk-form" data-role="fx-bulk-form" hidden></div>
       </div>
       <div class="sb-fx-link-host" data-role="fx-link"></div>
     </div>
@@ -224,6 +224,13 @@ export function createLightingPanelBody(opts) {
   let ensuring = false;
   /** @type {ReturnType<typeof buildDefaultFixtureGroups>} */
   let groups = {};
+  /** @type {string | null} */
+  let bulkFormAttr = null;
+  let bulkScrubbing = false;
+  /** @type {number[]} */
+  let bulkPreviewFids = [];
+  /** @type {string[]} */
+  let bulkPreviewKeys = [];
 
   function setLightTab(tab) {
     lightTab = tab === 'fixture' ? 'fixture' : 'house';
@@ -311,6 +318,9 @@ export function createLightingPanelBody(opts) {
     updateFxSelInfo();
     refreshAttrFields();
     syncRgbSliders();
+    clearBulkPreview();
+    updateFxEditHint();
+    if (bulkFormAttr && !bulkScrubbing) renderBulkForm(bulkFormAttr);
     syncTimelineFromFixtureSelection();
     queueMicrotask(() => { panelOwnsSelection = false; });
   }
@@ -613,7 +623,7 @@ export function createLightingPanelBody(opts) {
       b.className = 'sb-ma-swatch';
       b.style.background = `rgb(${Math.round(sw.r * 255)},${Math.round(sw.g * 255)},${Math.round(sw.b * 255)})`;
       b.onclick = () => {
-        if (!selectedFids.size) return;
+        if (!selectedFids.size || !selectionCanWriteSlider()) return;
         runLightingEdit(historyCtx, '컬러 팔레트', () => {
           writeFxPatch({ color: rgb01ToHex(sw.r, sw.g, sw.b) });
         });
@@ -629,6 +639,50 @@ export function createLightingPanelBody(opts) {
     return displayFixtureBag(fid, fx?.trackId || null);
   }
 
+  function selectionCanWriteSlider() {
+    if (!selectedFids.size) return false;
+    return [...selectedFids].some((fid) => fixtures.canWriteSliderForFid(fid));
+  }
+
+  function selectionHasTimelineKeys() {
+    for (const fid of selectedFids) {
+      for (const id of fixtures.trackIdsForFid(fid)) {
+        if (engine.getTrack(id)?.keys?.length) return true;
+      }
+    }
+    return false;
+  }
+
+  function selectionIsLinkedOnly() {
+    if (!selectedFids.size) return false;
+    return [...selectedFids].every((fid) => {
+      const fx = fixtures.findByFid(fid);
+      return !!(fx?.linkTrackId && !fx.hasManual);
+    });
+  }
+
+  function updateFxEditHint() {
+    const hint = root.querySelector('[data-role="fx-hint"]');
+    if (!hint) return;
+    if (!selectedFids.size) {
+      hint.textContent = '픽스처를 선택하세요.';
+      return;
+    }
+    if (selectionCanWriteSlider()) {
+      hint.textContent = '슬라이더는 선택된 키만 바꿉니다. 아래 속성으로 트랙의 모든 키에 적용할 수 있습니다.';
+      return;
+    }
+    if (selectionIsLinkedOnly()) {
+      hint.textContent = '연결 트랙은 슬라이더로 한 키만 바꿀 수 없습니다. 아래 속성을 누르면 모든 키에 적용됩니다.';
+      return;
+    }
+    if (selectionHasTimelineKeys()) {
+      hint.textContent = '트랙만 선택된 상태입니다. 키를 고르거나, 아래 속성으로 모든 키에 적용하세요.';
+      return;
+    }
+    hint.textContent = '키가 없습니다. +키 또는 트랙 연결로 키를 만든 뒤 편집하세요.';
+  }
+
   function refreshAttrFields() {
     const tab = ATTR_TABS.find((t) => t.id === attrPage) || ATTR_TABS[0];
     const isColor = attrPage === 'Color';
@@ -641,6 +695,7 @@ export function createLightingPanelBody(opts) {
     }
     const bag = firstSelectedBag();
     const hasSel = selectedFids.size > 0;
+    const sliderOn = hasSel && selectionCanWriteSlider();
     for (const field of tab.fields) {
       let val = Number(bag[field.key]);
       if (field.key === 'dim') val = Math.round(bag.dim * 100);
@@ -649,13 +704,18 @@ export function createLightingPanelBody(opts) {
       row.className = 'ec-row sb-light-attr-row';
       row.innerHTML = `
         <label>${field.label}</label>
-        <input type="range" data-attr="${field.key}" min="${field.min}" max="${field.max}" step="1" value="${val}" ${hasSel ? '' : 'disabled'} />
+        <input type="range" data-attr="${field.key}" min="${field.min}" max="${field.max}" step="1" value="${val}" ${sliderOn ? '' : 'disabled'} />
         <span class="sb-light-dim-val" data-attr-val="${field.key}">${Math.round(val)}${field.unit}</span>
       `;
       const range = /** @type {HTMLInputElement} */ (row.querySelector('input'));
       const valEl = row.querySelector(`[data-attr-val="${field.key}"]`);
+      if (!sliderOn) {
+        range.title = selectionHasTimelineKeys()
+          ? '키를 선택하면 그 키만 바꿉니다. 모든 키는 아래 속성을 사용하세요.'
+          : '키가 없습니다. +키 또는 트랙 연결로 키를 만드세요.';
+      }
       range.addEventListener('pointerdown', () => {
-        if (!hasSel) return;
+        if (!sliderOn) return;
         scrubbingUi = true;
         beginLightingGesture(historyCtx);
       });
@@ -669,7 +729,7 @@ export function createLightingPanelBody(opts) {
       range.addEventListener('pointerup', endAttrScrub);
       range.addEventListener('pointercancel', endAttrScrub);
       range.addEventListener('input', () => {
-        if (syncing || !selectedFids.size) return;
+        if (syncing || !selectedFids.size || !selectionCanWriteSlider()) return;
         const n = Number(range.value);
         if (valEl) valEl.textContent = `${Math.round(n)}${field.unit}`;
         const patch = {};
@@ -685,7 +745,8 @@ export function createLightingPanelBody(opts) {
 
   function syncRgbSliders() {
     const hasSel = selectedFids.size > 0;
-    [fxR, fxG, fxB].forEach((el) => { el.disabled = !hasSel; });
+    const sliderOn = hasSel && selectionCanWriteSlider();
+    [fxR, fxG, fxB].forEach((el) => { el.disabled = !sliderOn; });
     if (!hasSel) return;
     const bag = firstSelectedBag();
     const rgb = hexToRgb01(bag.color || '#ffffff');
@@ -719,6 +780,7 @@ export function createLightingPanelBody(opts) {
       refreshAttrFields();
       syncRgbSliders();
     }
+    updateFxEditHint();
   }
 
   function addFxKeysAtPlayhead() {
@@ -797,6 +859,8 @@ export function createLightingPanelBody(opts) {
     updateFxSelInfo();
     refreshAttrFields();
     syncRgbSliders();
+    updateFxEditHint();
+    if (bulkFormAttr && !bulkScrubbing) renderBulkForm(bulkFormAttr);
     refreshTrackDeleteButtons();
   }
 
@@ -933,117 +997,212 @@ export function createLightingPanelBody(opts) {
     ensureReady();
     addFxKeysAtPlayhead();
   });
-  root.querySelector('[data-role="fx-bulk-attrs"]')?.addEventListener('click', (e) => {
-    const btn = /** @type {HTMLElement | null} */ (
-      e.target instanceof Element ? e.target.closest('[data-bulk-attr]') : null
-    );
-    if (!btn || !root.contains(btn)) return;
-    const on = btn.getAttribute('aria-pressed') !== 'true';
-    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    btn.classList.toggle('on', on);
-  });
-  /** 적용 후 다음 작업에 속성이 남아 있지 않도록 초기화 (포커스 링도 해제) */
-  function clearBulkAttrSelection() {
-    for (const el of root.querySelectorAll('[data-bulk-attr]')) {
-      el.setAttribute('aria-pressed', 'false');
-      el.classList.remove('on');
-      if (el === document.activeElement && el instanceof HTMLElement) el.blur();
+  /**
+   * @param {string | null} key
+   */
+  function clearBulkPreview() {
+    if (!bulkPreviewFids.length || !bulkPreviewKeys.length) {
+      bulkPreviewFids = [];
+      bulkPreviewKeys = [];
+      return;
     }
+    fixtures.clearPreviewOnFids(bulkPreviewFids, bulkPreviewKeys);
+    bulkPreviewFids = [];
+    bulkPreviewKeys = [];
   }
-  root.querySelector('[data-act="fx-apply-all-keys"]')?.addEventListener('click', () => {
+
+  function previewBulkForm() {
+    const read = readBulkFormPatch();
+    if (!read || !selectedFids.size) return;
+    const fids = [...selectedFids];
+    const keys = fixtures.engineKeysForPatch(read.patch);
+    if (bulkPreviewKeys.length && bulkPreviewKeys.join() !== keys.join()) {
+      fixtures.clearPreviewOnFids(bulkPreviewFids, bulkPreviewKeys);
+    }
+    fixtures.previewPatchOnFids(fids, read.patch);
+    bulkPreviewFids = fids;
+    bulkPreviewKeys = keys;
+    refreshSheet();
+  }
+
+  function setBulkFormAttr(key) {
+    clearBulkPreview();
+    bulkFormAttr = key;
+    for (const el of root.querySelectorAll('[data-bulk-attr]')) {
+      const on = !!key && el.getAttribute('data-bulk-attr') === key;
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      el.classList.toggle('on', on);
+    }
+    renderBulkForm(key);
+  }
+
+  /**
+   * @param {string | null} attrKey
+   */
+  function renderBulkForm(attrKey) {
+    const host = /** @type {HTMLElement | null} */ (root.querySelector('[data-role="fx-bulk-form"]'));
+    if (!host) return;
+    const spec = BULK_ATTR_OPTS.find((o) => o.key === attrKey);
+    if (!spec) {
+      host.hidden = true;
+      host.innerHTML = '';
+      return;
+    }
+    host.hidden = false;
+    const bag = firstSelectedBag();
+    if (spec.key === 'color') {
+      const rgb = hexToRgb01(bag.color || '#ffffff');
+      host.innerHTML = `
+        <div class="sb-light-color-grid" data-role="fx-bulk-swatches"></div>
+        <div class="ec-row sb-light-rgb"><label>R</label><input type="range" data-role="fx-bulk-r" min="0" max="255" value="${Math.round(rgb.r * 255)}" /><span data-role="fx-bulk-r-val">${Math.round(rgb.r * 255)}</span></div>
+        <div class="ec-row sb-light-rgb"><label>G</label><input type="range" data-role="fx-bulk-g" min="0" max="255" value="${Math.round(rgb.g * 255)}" /><span data-role="fx-bulk-g-val">${Math.round(rgb.g * 255)}</span></div>
+        <div class="ec-row sb-light-rgb"><label>B</label><input type="range" data-role="fx-bulk-b" min="0" max="255" value="${Math.round(rgb.b * 255)}" /><span data-role="fx-bulk-b-val">${Math.round(rgb.b * 255)}</span></div>
+        <p class="sb-light-hint sb-light-bulk-form-hint">무대에서 미리보기 · 적용해야 모든 키에 저장됩니다</p>
+        <div class="sb-light-bulk-form-acts">
+          <button type="button" class="sb-chip acc" data-act="fx-bulk-apply">적용</button>
+          <button type="button" class="sb-chip" data-act="fx-bulk-close">취소</button>
+        </div>`;
+      const swHost = host.querySelector('[data-role="fx-bulk-swatches"]');
+      FX_COLOR_SWATCHES.forEach((sw) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'sb-ma-swatch';
+        b.style.background = `rgb(${Math.round(sw.r * 255)},${Math.round(sw.g * 255)},${Math.round(sw.b * 255)})`;
+        b.addEventListener('click', () => {
+          const rEl = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-r"]'));
+          const gEl = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-g"]'));
+          const bEl = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-b"]'));
+          if (rEl) rEl.value = String(Math.round(sw.r * 255));
+          if (gEl) gEl.value = String(Math.round(sw.g * 255));
+          if (bEl) bEl.value = String(Math.round(sw.b * 255));
+          const rv = host.querySelector('[data-role="fx-bulk-r-val"]');
+          const gv = host.querySelector('[data-role="fx-bulk-g-val"]');
+          const bv = host.querySelector('[data-role="fx-bulk-b-val"]');
+          if (rv) rv.textContent = rEl?.value || '';
+          if (gv) gv.textContent = gEl?.value || '';
+          if (bv) bv.textContent = bEl?.value || '';
+          previewBulkForm();
+        });
+        swHost?.appendChild(b);
+      });
+      for (const ch of ['r', 'g', 'b']) {
+        const input = /** @type {HTMLInputElement | null} */ (host.querySelector(`[data-role="fx-bulk-${ch}"]`));
+        const valEl = host.querySelector(`[data-role="fx-bulk-${ch}-val"]`);
+        input?.addEventListener('input', () => {
+          if (valEl) valEl.textContent = input.value;
+          previewBulkForm();
+        });
+      }
+      return;
+    }
+    let val = Number(bag[spec.key]);
+    if (spec.key === 'dim') val = Math.round(bag.dim * 100);
+    if (!Number.isFinite(val)) val = spec.min ?? 0;
+    host.innerHTML = `
+      <div class="ec-row sb-light-attr-row">
+        <label>${spec.label}</label>
+        <input type="range" data-role="fx-bulk-range" min="${spec.min}" max="${spec.max}" step="1" value="${val}" />
+        <span class="sb-light-dim-val" data-role="fx-bulk-val">${Math.round(val)}${spec.unit || ''}</span>
+      </div>
+      <p class="sb-light-hint sb-light-bulk-form-hint">무대에서 미리보기 · 적용해야 모든 키에 저장됩니다</p>
+      <div class="sb-light-bulk-form-acts">
+        <button type="button" class="sb-chip acc" data-act="fx-bulk-apply">적용</button>
+        <button type="button" class="sb-chip" data-act="fx-bulk-close">취소</button>
+      </div>`;
+    const range = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-range"]'));
+    const valEl = host.querySelector('[data-role="fx-bulk-val"]');
+    range?.addEventListener('pointerdown', () => { bulkScrubbing = true; });
+    const endBulkScrub = () => { bulkScrubbing = false; };
+    range?.addEventListener('pointerup', endBulkScrub);
+    range?.addEventListener('pointercancel', endBulkScrub);
+    range?.addEventListener('input', () => {
+      if (valEl) valEl.textContent = `${Math.round(Number(range.value))}${spec.unit || ''}`;
+      previewBulkForm();
+    });
+  }
+
+  function readBulkFormPatch() {
+    const host = root.querySelector('[data-role="fx-bulk-form"]');
+    const key = bulkFormAttr;
+    if (!host || !key) return null;
+    /** @type {Partial<import('../domain/lighting/fixtureKeyValue.js').FixtureKeyValue>} */
+    const patch = {};
+    let label = '';
+    if (key === 'color') {
+      const rEl = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-r"]'));
+      const gEl = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-g"]'));
+      const bEl = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-b"]'));
+      if (!rEl || !gEl || !bEl) return null;
+      patch.color = rgb01ToHex(Number(rEl.value) / 255, Number(gEl.value) / 255, Number(bEl.value) / 255);
+      label = `Color ${patch.color}`;
+    } else {
+      const range = /** @type {HTMLInputElement | null} */ (host.querySelector('[data-role="fx-bulk-range"]'));
+      const n = Number(range?.value);
+      if (!Number.isFinite(n)) return null;
+      const spec = BULK_ATTR_OPTS.find((o) => o.key === key);
+      if (key === 'dim') {
+        patch.dim = Math.max(0, Math.min(1, n / 100));
+        label = `Dim ${Math.round(patch.dim * 100)}%`;
+      } else {
+        patch[key] = n;
+        label = `${spec?.label || key} ${Math.round(n)}${spec?.unit || ''}`;
+      }
+    }
+    return { patch, label };
+  }
+
+  function applyBulkForm() {
     ensureReady();
     if (!selectedFids.size) {
       window.alert('픽스처를 먼저 선택하세요.');
       return;
     }
-
-    const selectedKeys = [...root.querySelectorAll('[data-bulk-attr][aria-pressed="true"]')]
-      .map((el) => el.getAttribute('data-bulk-attr'))
-      .filter(Boolean);
-    if (!selectedKeys.length) {
-      window.alert('전 키에 넣을 속성을 하나 이상 선택하세요. (Dim / Zoom / Focus / Color …)');
-      return;
-    }
-
-    /** @param {string} key */
-    const readAttr = (key) => {
-      const els = [...root.querySelectorAll(`input[data-attr="${key}"]`)];
-      const el = /** @type {HTMLInputElement | null} */ (
-        els.find((n) => n instanceof HTMLInputElement && !n.disabled)
-        || null
-      );
-      if (!el) return null;
-      const n = Number(el.value);
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const fromUi = firstSelectedBag();
-    /** @type {Partial<import('../domain/lighting/fixtureKeyValue.js').FixtureKeyValue>} */
-    const patch = {};
-    /** @type {string[]} */
-    const appliedLabels = [];
-
-    if (selectedKeys.includes('dim')) {
-      const dimPct = readAttr('dim');
-      patch.dim = dimPct != null ? Math.max(0, Math.min(1, dimPct / 100)) : fromUi.dim;
-      appliedLabels.push(`Dim ${Math.round(patch.dim * 100)}%`);
-    }
-    if (selectedKeys.includes('zoom')) {
-      const zoom = readAttr('zoom');
-      patch.zoom = zoom != null ? Math.max(5, Math.min(50, zoom)) : fromUi.zoom;
-      appliedLabels.push(`Zoom ${Math.round(patch.zoom)}°`);
-    }
-    if (selectedKeys.includes('focus')) {
-      const focus = readAttr('focus');
-      patch.focus = focus != null ? Math.max(0, Math.min(100, focus)) : fromUi.focus;
-      appliedLabels.push(`Focus ${Math.round(patch.focus)}%`);
-    }
-    if (selectedKeys.includes('color')) {
-      let color = fromUi.color;
-      if (fxR && !fxR.disabled) {
-        color = rgb01ToHex(
-          Number(fxR.value) / 255,
-          Number(fxG.value) / 255,
-          Number(fxB.value) / 255,
-        );
-      }
-      patch.color = color;
-      appliedLabels.push(`Color ${patch.color}`);
-    }
-    if (selectedKeys.includes('pan')) {
-      const pan = readAttr('pan');
-      patch.pan = pan != null ? pan : fromUi.pan;
-      appliedLabels.push(`Pan ${Math.round(patch.pan)}°`);
-    }
-    if (selectedKeys.includes('tilt')) {
-      const tilt = readAttr('tilt');
-      patch.tilt = tilt != null ? tilt : fromUi.tilt;
-      appliedLabels.push(`Tilt ${Math.round(patch.tilt)}°`);
-    }
-
-    if (selectedKeys.includes('pan') || selectedKeys.includes('tilt')) {
+    const read = readBulkFormPatch();
+    if (!read) return;
+    if (bulkFormAttr === 'pan' || bulkFormAttr === 'tilt') {
       const ok = window.confirm(
-        'Pan/Tilt를 전 키에 넣으면 트랙 연결로 계산된 조준이 덮어써집니다.\n계속할까요?',
+        'Pan/Tilt를 모든 키에 넣으면 트랙 연결로 계산된 조준이 덮어써집니다.\n계속할까요?',
       );
       if (!ok) return;
     }
-
     let n = 0;
-    runLightingEdit(historyCtx, 'Fixture 전 키에 선택 속성', () => {
-      n = fixtures.patchAllKeysForFids([...selectedFids], patch);
+    runLightingEdit(historyCtx, `Fixture 모든 키 · ${read.label}`, () => {
+      n = fixtures.patchAllKeysForFids([...selectedFids], read.patch);
     });
-    // 버튼을 누른 뒤에는 결과와 무관하게 속성 선택을 비웁니다
-    clearBulkAttrSelection();
+    const hint = root.querySelector('[data-role="fx-hint"]');
     if (!n) {
       window.alert('적용할 키가 없습니다. +키 또는 트랙 연결로 키를 만든 뒤 다시 시도하세요.');
       return;
     }
-    window.alert(`전 키 적용 · ${n}개\n${appliedLabels.join(' · ')}`);
+    bulkPreviewFids = [];
+    bulkPreviewKeys = [];
+    setBulkFormAttr(null);
+    if (hint) hint.textContent = `${read.label} · ${n}개 키에 적용`;
     opts.onChange?.();
     refreshSheet();
     refreshAttrFields();
     syncRgbSliders();
-    sync();
+  }
+
+  root.querySelector('[data-role="fx-bulk-attrs"]')?.addEventListener('click', (e) => {
+    const btn = /** @type {HTMLElement | null} */ (
+      e.target instanceof Element ? e.target.closest('[data-bulk-attr]') : null
+    );
+    if (!btn || !root.contains(btn)) return;
+    const key = btn.getAttribute('data-bulk-attr');
+    if (!key) return;
+    setBulkFormAttr(bulkFormAttr === key ? null : key);
+  });
+  root.querySelector('[data-role="fx-bulk-form"]')?.addEventListener('click', (e) => {
+    const t = e.target instanceof Element ? e.target : null;
+    if (!t) return;
+    if (t.closest('[data-act="fx-bulk-close"]')) {
+      setBulkFormAttr(null);
+      return;
+    }
+    if (t.closest('[data-act="fx-bulk-apply"]')) {
+      applyBulkForm();
+    }
   });
   root.querySelector('[data-act="fx-kf-prev"]')?.addEventListener('click', () => {
     ensureReady();
@@ -1141,7 +1300,7 @@ export function createLightingPanelBody(opts) {
   houseHost.addEventListener('pointercancel', endHouseScrub);
 
   function onRgbInput() {
-    if (syncing || !selectedFids.size) return;
+    if (syncing || !selectedFids.size || !selectionCanWriteSlider()) return;
     fxRVal.textContent = fxR.value;
     fxGVal.textContent = fxG.value;
     fxBVal.textContent = fxB.value;

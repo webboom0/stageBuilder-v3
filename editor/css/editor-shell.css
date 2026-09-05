@@ -4299,6 +4299,9 @@ body.sb-picking canvas {
 .sb-seg-ai-help-swatch.is-hold { color: #d4c870; }
 .sb-seg-ai-help-swatch.is-exit { color: #f08080; }
 .sb-seg-ai-help-swatch.is-rotate { color: #6ea0ff; }
+.sb-light-pane [data-role="fx-hint"] {
+  margin: 6px 0 2px;
+}
 .sb-light-fx-bulk {
   display: flex;
   flex-direction: column;
@@ -4349,8 +4352,24 @@ body.sb-picking canvas {
   outline: 1px dotted rgba(200, 210, 225, 0.7);
   outline-offset: 1px;
 }
-.sb-light-fx-bulk [data-act="fx-apply-all-keys"] {
-  align-self: flex-start;
+.sb-light-fx-bulk-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+.sb-light-fx-bulk-form[hidden] {
+  display: none;
+}
+.sb-light-bulk-form-acts {
+  display: flex;
+  gap: 6px;
+}
+.sb-light-bulk-form-hint {
+  margin: 0;
+}
+.sb-light-fx-bulk-form .sb-light-color-grid {
+  margin-bottom: 2px;
 }
 .sb-fx-link-host {
   margin: 10px 0 0;

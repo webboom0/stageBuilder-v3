@@ -564,6 +564,35 @@ export class FixtureEngine {
     this.update();
   }
 
+  /**
+   * Overlay only — prog wins over timeline, attr stays so cancel restores the curve.
+   * @param {number} fid
+   * @param {Record<string, number>} engAttr
+   */
+  applyPreviewBag(fid, engAttr) {
+    const f = this.fmap[fid];
+    if (!f || !engAttr) return;
+    if (!f.prog) f.prog = {};
+    for (const k of ['dim', 'pan', 'tilt', 'zoom', 'focus', 'r', 'g', 'b']) {
+      if (engAttr[k] == null) continue;
+      f.prog[k] = engAttr[k];
+    }
+    f.enabled = true;
+    this.update();
+  }
+
+  /**
+   * Drop preview channels from programmer. Timeline shows through again.
+   * @param {number} fid
+   * @param {Iterable<string>} keys
+   */
+  clearProgFields(fid, keys) {
+    const f = this.fmap[fid];
+    if (!f?.prog) return;
+    for (const k of keys) delete f.prog[k];
+    this.update();
+  }
+
   update() {
     if (!this.built || !this.fixtures.length) return;
     this.renderFixtures();

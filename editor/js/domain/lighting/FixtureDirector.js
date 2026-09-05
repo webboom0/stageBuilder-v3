@@ -455,6 +455,43 @@ export class FixtureDirector {
   }
 
   /**
+   * True when panel sliders may write this fixture: a key on the playhead,
+   * or live preview if there is no timeline curve yet.
+   * Linked tracks (and track-only selection between keys) return false —
+   * those edits go through patchAllKeysForFids / unlink, not programmer.
+   * @param {number} fid
+   */
+  canWriteSliderForFid(fid) {
+    const ch = this.channels.get(Number(fid));
+    if (!ch) return true;
+    const manual = ch.trackId ? this.engine.getTrack(ch.trackId) : null;
+    const link = ch.linkTrackId ? this.engine.getTrack(ch.linkTrackId) : null;
+    if (!manual || !manual.keys.length) {
+      if (link && link.keys.length) return false;
+      return true;
+    }
+    if (manual.locked) return false;
+    return !!this._writableKeyOnTrack(manual);
+  }
+
+  /**
+   * @param {import('../timeline/Track.js').Track} track
+   * @returns {{ id: string, timeSec: number, value: unknown } | null}
+   */
+  _writableKeyOnTrack(track) {
+    const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
+    const eps = keyframeTimeEps(this.engine.fps);
+    const nearPh = (kf) => kf && Math.abs(kf.timeSec - ph) <= eps;
+    const multi = (this.engine.listSelectedKeys?.() || [])
+      .filter((r) => r.trackId === track.id);
+    const selId = multi[0]?.keyId
+      || (this.engine.selectedTrackId === track.id ? this.engine.selectedKeyframeId : null);
+    const selKf = selId ? track.keys.get(selId) : null;
+    if (nearPh(selKf)) return selKf;
+    return track.keys.findAtTime(ph, { eps }) || null;
+  }
+
+  /**
    * @param {string} trackId
    * @param {Partial<import('./fixtureKeyValue.js').FixtureKeyValue>} patch
    * @param {{ forceKey?: boolean, interpolation?: number }} [opt]
@@ -463,11 +500,23 @@ export class FixtureDirector {
     const ch = this.findByTrackId(trackId);
     if (!ch) return false;
 
-    // Manual edits never touch a linked track — they land on the manual track.
-    // Without one yet, a slider move stays live (programmer) until the user commits a key.
-    let targetId = this.channels.get(ch.fid)?.trackId || '';
-    if (!targetId || targetId !== trackId) {
+    const incoming = this.engine.getTrack(trackId);
+    const incomingLinked = !!(incoming && (
+      incoming.source === TRACK_SOURCE_LINKED
+      || isLinkedFixtureGroup(incoming.group)
+    ));
+
+    const chData = this.channels.get(ch.fid);
+    let targetId = chData?.trackId || '';
+
+    // Sliders never write a locked link. Don't fall through to live/prog —
+    // that stamps a full bag (often dim 0 / home aim) over the timeline.
+    if (incomingLinked && !opt.forceKey) {
+      if (!targetId || !this.engine.getTrack(targetId)) return false;
+    } else if (!targetId || targetId !== trackId) {
       if (!targetId && !opt.forceKey) {
+        const link = chData?.linkTrackId ? this.engine.getTrack(chData.linkTrackId) : null;
+        if (link?.keys?.length) return false;
         return this.writeLiveForFid(ch.fid, patch);
       }
       targetId = this.ensureTrackForFid(ch.fid)?.trackId || '';
@@ -479,17 +528,8 @@ export class FixtureDirector {
     if (!track || track.locked) return false;
 
     const ph = snapKeyframeTimeSec(this.engine.playheadSec, this.engine.fps);
-    const eps = keyframeTimeEps(this.engine.fps);
-    const nearPh = (kf) => kf && Math.abs(kf.timeSec - ph) <= eps;
-
-    const multi = (this.engine.listSelectedKeys?.() || [])
-      .filter((r) => r.trackId === trackId);
-    const selId = multi[0]?.keyId
-      || (this.engine.selectedTrackId === trackId ? this.engine.selectedKeyframeId : null);
-    const selKfRaw = selId ? track.keys.get(selId) : null;
-    // Only edit a selected key if it sits on the playhead (moving time must not overwrite old keys)
-    const selKf = nearPh(selKfRaw) ? selKfRaw : null;
-    const atPh = track.keys.findAtTime(ph, { eps });
+    const atPh = this._writableKeyOnTrack(track);
+    const selKf = atPh; // already restricted to playhead
 
     const liveBase = this.liveBagForTrack(trackId) || emptyFixtureKeyValue();
     let bag;
@@ -501,12 +541,11 @@ export class FixtureDirector {
       const base = keyRaw ? asFixtureKeyValue(keyRaw, liveBase) : liveBase;
       bag = asFixtureKeyValue({ ...base, ...patch }, base);
     }
-    const engAttr = fixtureBagToEngineAttr(bag);
 
     if (opt.forceKey) {
-      // +키 always targets playhead — never the previously selected off-time key
-      if (atPh) {
-        this.engine.editKeyframe(trackId, atPh.id, { value: bag });
+      const forceAt = track.keys.findAtTime(ph, { eps: keyframeTimeEps(this.engine.fps) });
+      if (forceAt) {
+        this.engine.editKeyframe(trackId, forceAt.id, { value: bag });
       } else {
         this.engine.addKeyframe(
           trackId,
@@ -518,11 +557,13 @@ export class FixtureDirector {
       }
     } else if (selKf) {
       this.engine.editKeyframe(trackId, selKf.id, { value: bag });
-    } else if (atPh) {
-      this.engine.editKeyframe(trackId, atPh.id, { value: bag });
+    } else if (track.keys.length) {
+      // Keys exist but none on the playhead — do not stamp programmer over the curve
+      return false;
     } else {
-      this.fxEngine.applyLiveBag(ch.fid, engAttr);
-      return true;
+      const link = chData?.linkTrackId ? this.engine.getTrack(chData.linkTrackId) : null;
+      if (link?.keys?.length) return false;
+      return this.writeLiveForFid(ch.fid, patch);
     }
     const fxRow = this.fxEngine.getFixture(ch.fid);
     if (fxRow) fxRow.prog = {};
@@ -530,12 +571,84 @@ export class FixtureDirector {
     return true;
   }
 
-  /** Write live patch by fid (no track required). */
+  /**
+   * Engine channels touched by a fixture bag patch (for programmer overlay / clear).
+   * @param {Partial<import('./fixtureKeyValue.js').FixtureKeyValue>} patch
+   * @returns {string[]}
+   */
+  engineKeysForPatch(patch) {
+    if (!patch) return [];
+    /** @type {string[]} */
+    const keys = [];
+    if (patch.dim != null) keys.push('dim');
+    if (patch.pan != null) keys.push('pan');
+    if (patch.tilt != null) keys.push('tilt');
+    if (patch.zoom != null) keys.push('zoom');
+    if (patch.focus != null) keys.push('focus');
+    if (patch.color != null) keys.push('r', 'g', 'b');
+    return keys;
+  }
+
+  /**
+   * @param {Partial<import('./fixtureKeyValue.js').FixtureKeyValue>} patch
+   * @returns {Record<string, number> | null}
+   */
+  _enginePartialFromPatch(patch) {
+    if (!patch || !Object.keys(patch).length) return null;
+    const bag = asFixtureKeyValue({ ...emptyFixtureKeyValue(), ...patch });
+    const full = fixtureBagToEngineAttr(bag);
+    /** @type {Record<string, number>} */
+    const partial = {};
+    if (patch.dim != null) partial.dim = full.dim;
+    if (patch.pan != null) partial.pan = full.pan;
+    if (patch.tilt != null) partial.tilt = full.tilt;
+    if (patch.zoom != null) partial.zoom = full.zoom;
+    if (patch.focus != null) partial.focus = full.focus;
+    if (patch.color != null) {
+      partial.r = full.r;
+      partial.g = full.g;
+      partial.b = full.b;
+    }
+    return Object.keys(partial).length ? partial : null;
+  }
+
+  /**
+   * Live programmer write — only the fields in `patch`.
+   * A full bag here used to freeze linked follow (home pan/tilt + dim 0 in prog).
+   */
   writeLiveForFid(fid, patch) {
-    const live = this.liveBagForFid(fid) || emptyFixtureKeyValue();
-    const bag = asFixtureKeyValue({ ...live, ...patch }, live);
-    this.fxEngine.applyLiveBag(Number(fid), fixtureBagToEngineAttr(bag));
+    const partial = this._enginePartialFromPatch(patch);
+    if (!partial) return false;
+    this.fxEngine.applyLiveBag(Number(fid), partial);
     return true;
+  }
+
+  /**
+   * Preview a patch on the stage (prog overlay only — keys / attr untouched).
+   * @param {Iterable<number>} fids
+   * @param {Partial<import('./fixtureKeyValue.js').FixtureKeyValue>} patch
+   */
+  previewPatchOnFids(fids, patch) {
+    const partial = this._enginePartialFromPatch(patch);
+    if (!partial) return false;
+    for (const fid of fids) {
+      this.fxEngine.applyPreviewBag(Number(fid), partial);
+    }
+    return true;
+  }
+
+  /**
+   * Remove a previous preview overlay so the timeline curve shows again.
+   * @param {Iterable<number>} fids
+   * @param {Iterable<string>} keys
+   */
+  clearPreviewOnFids(fids, keys) {
+    const list = [...keys];
+    if (!list.length) return;
+    for (const fid of fids) {
+      this.fxEngine.clearProgFields(Number(fid), list);
+    }
+    this.apply(this.engine.playheadSec);
   }
 
   addKeyAtPlayhead(trackId, opt = {}) {
@@ -563,7 +676,7 @@ export class FixtureDirector {
 
   /**
    * Patch every key on selected fixture tracks (e.g. Dim/Zoom/Focus/Color after a bake).
-   * Callers should omit pan/tilt so linked aims stay intact.
+   * Linked tracks are temporarily unlocked. Pan/tilt overwrite baked aim — callers confirm.
    * @param {Iterable<number>} fids
    * @param {Partial<import('./fixtureKeyValue.js').FixtureKeyValue>} patch
    * @returns {number} keys updated
