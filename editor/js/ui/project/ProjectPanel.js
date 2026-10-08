@@ -1,4 +1,5 @@
 import { showProjectMetaPopup } from './ProjectMetaPopup.js';
+import { appConfirm, appPrompt } from '../AppDialog.js';
 
 
 
@@ -344,15 +345,17 @@ export function createProjectPanelBody(opts) {
 
     if (!row?.dataset.id) return;
 
-    const store = opts.getStore();
-
-    const scene = store?.project.scenes?.find((s) => s.id === row.dataset.id);
-
-    const next = window.prompt('씬 이름', scene?.name || `${row.dataset.id}`);
-
-    if (!next?.trim()) return;
-
-    void opts.onRenameScene(row.dataset.id, next.trim());
+    void (async () => {
+      const store = opts.getStore();
+      const scene = store?.project.scenes?.find((s) => s.id === row.dataset.id);
+      const next = await appPrompt({
+        title: '씬 이름',
+        message: '씬 이름을 입력하세요.',
+        defaultValue: scene?.name || `${row.dataset.id}`,
+      });
+      if (!next?.trim()) return;
+      void opts.onRenameScene(row.dataset.id, next.trim());
+    })();
 
   });
 

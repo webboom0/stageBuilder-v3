@@ -134,6 +134,9 @@ export const API = {
   projects: '/api/projects',
 };
 
+/** PIVOT portal — brand mark “초기 화면” destination */
+export const PIVOT_HOME_URL = 'https://pivot.mhsoft.co.kr/';
+
 /** pivot/nginx/server.js has no prop API — client falls back to fbx routes on deploy */
 export const PIVOT_LEGACY_ASSETS = Object.freeze({
   characterFilesPrefix: '/files/fbx/',

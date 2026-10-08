@@ -5,6 +5,7 @@ import {
   deleteProject,
 } from '../../domain/project/projectApi.js';
 import { showProjectMetaPopup } from './ProjectMetaPopup.js';
+import { appAlert, appConfirm } from '../AppDialog.js';
 
 /**
  * Modal — project list with edit / delete (파일 → 프로젝트 편집).
@@ -104,26 +105,28 @@ export function showProjectManagerDialog(opts = {}) {
         await onEdited?.(projectId, saved);
         await renderList();
       } catch (err) {
-        window.alert(`프로젝트 수정 실패\n\n${err.message || err}`);
+        await appAlert({ title: '프로젝트 수정', message: `프로젝트 수정 실패\n\n${err.message || err}` });
       }
     }
 
     async function removeProject(projectId, displayName) {
       const label = displayName || projectId;
-      if (projectId === activeProjectId) {
-        if (!window.confirm(
-          `현재 편집 중인 프로젝트 «${label}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`,
-        )) return;
-      } else if (!window.confirm(
-        `프로젝트 «${label}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`,
-      )) return;
+      const msg = projectId === activeProjectId
+        ? `현재 편집 중인 프로젝트 «${label}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`
+        : `프로젝트 «${label}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`;
+      const ok = await appConfirm({
+        title: '프로젝트 삭제',
+        message: msg,
+        danger: true,
+      });
+      if (!ok) return;
 
       try {
         await deleteProject(projectId);
         await onDeleted?.(projectId);
         await renderList();
       } catch (err) {
-        window.alert(`삭제 실패\n\n${err.message || err}`);
+        await appAlert({ title: '프로젝트 삭제', message: `삭제 실패\n\n${err.message || err}` });
       }
     }
 

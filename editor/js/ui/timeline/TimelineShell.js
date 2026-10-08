@@ -28,6 +28,7 @@ import {
 } from '../../domain/assets/stageAssetDrag.js';
 import { asMotionKeyValue } from '../../domain/motion/motionKeyValue.js';
 import { isStageMotionTrack, applyStageTransform } from '../../domain/motion/stageTransformSync.js';
+import { appConfirm, appPrompt } from '../AppDialog.js';
 import { TRACK_SOURCE_LINKED } from '../../domain/timeline/Track.js';
 
 /**
@@ -518,32 +519,38 @@ export function mountTimelineShell(host, ctx) {
   }
 
   el.duration.addEventListener('change', () => {
-    const v = Number(el.duration.value);
-    if (!Number.isFinite(v) || v <= 0) return;
-    const prev = engine.durationSec;
-    if (v < prev - 1e-9) {
-      const preview = previewDurationChange(engine, v, DURATION_MODE.CLAMP_END);
-      if (preview.removedCount > 0) {
-        const lines = [
-          `타임라인 길이를 ${Math.round(prev)}초 → ${Math.round(v)}초로 줄입니다.`,
-          '',
-        ];
-        if (preview.clampedCount > 0) {
-          lines.push(`• 끝을 넘는 키 ${preview.clampedCount}개 → ${Math.round(v)}초로 이동`);
-        }
-        lines.push(`• 겹쳐 삭제되는 키 ${preview.removedCount}개`);
-        if (preview.affectedTrackCount > 0) {
-          lines.push(`• 영향 트랙 ${preview.affectedTrackCount}개`);
-        }
-        lines.push('', '계속할까요?');
-        if (!window.confirm(lines.join('\n'))) {
-          el.duration.value = String(Math.round(prev));
-          return;
+    void (async () => {
+      const v = Number(el.duration.value);
+      if (!Number.isFinite(v) || v <= 0) return;
+      const prev = engine.durationSec;
+      if (v < prev - 1e-9) {
+        const preview = previewDurationChange(engine, v, DURATION_MODE.CLAMP_END);
+        if (preview.removedCount > 0) {
+          const lines = [
+            `타임라인 길이를 ${Math.round(prev)}초 → ${Math.round(v)}초로 줄입니다.`,
+            '',
+          ];
+          if (preview.clampedCount > 0) {
+            lines.push(`• 끝을 넘는 키 ${preview.clampedCount}개 → ${Math.round(v)}초로 이동`);
+          }
+          lines.push(`• 겹쳐 삭제되는 키 ${preview.removedCount}개`);
+          if (preview.affectedTrackCount > 0) {
+            lines.push(`• 영향 트랙 ${preview.affectedTrackCount}개`);
+          }
+          lines.push('', '계속할까요?');
+          const ok = await appConfirm({
+            title: '타임라인 길이',
+            message: lines.join('\n'),
+          });
+          if (!ok) {
+            el.duration.value = String(Math.round(prev));
+            return;
+          }
         }
       }
-    }
-    // Keep absolute key times; keys past the new end clamp to the end.
-    engine.setDuration(v, DURATION_MODE.CLAMP_END);
+      // Keep absolute key times; keys past the new end clamp to the end.
+      engine.setDuration(v, DURATION_MODE.CLAMP_END);
+    })();
   });
 
   let dragMoved = false;
@@ -1185,10 +1192,14 @@ export function mountTimelineShell(host, ctx) {
   }
 
   /** @param {string} trackId */
-  function promptTrackRename(trackId) {
+  async function promptTrackRename(trackId) {
     const track = engine.getTrack(trackId);
     if (!track || track.kind !== 'motion' || track.locked || !onRenameMotionTrack) return;
-    const name = window.prompt('트랙 이름', track.name || '');
+    const name = await appPrompt({
+      title: '트랙 이름',
+      message: '트랙 이름을 입력하세요.',
+      defaultValue: track.name || '',
+    });
     if (name == null) return;
     const trimmed = name.trim();
     if (!trimmed || trimmed === track.name) return;
@@ -1201,22 +1212,28 @@ export function mountTimelineShell(host, ctx) {
     if (!trackId) return false;
     const track = engine.getTrack(trackId);
     if (track?.kind !== 'motion' || track.locked || !onRenameMotionTrack) return false;
-    promptTrackRename(trackId);
+    void promptTrackRename(trackId);
     return true;
   }
 
-  /** @returns {boolean} */
-  function tryDeleteSelectedTrackWithConfirm() {
+  function canDeleteSelectedTrack() {
     const keyRefs = engine.listSelectedKeys?.() || [];
     if (keyRefs.length > 0 || (engine.selectedTrackId && engine.selectedKeyframeId)) {
       return false;
     }
     if (audio?.selectedClipId) return false;
-
     const trackId = engine.selectedTrackId;
     if (!trackId) return false;
     const track = engine.getTrack(trackId);
-    if (!track || track.locked) return false;
+    return !!(track && !track.locked);
+  }
+
+  /** @returns {Promise<boolean>} */
+  async function tryDeleteSelectedTrackWithConfirm() {
+    if (!canDeleteSelectedTrack()) return false;
+    const trackId = engine.selectedTrackId;
+    const track = engine.getTrack(trackId);
+    if (!track) return false;
 
     const name = track.name || '트랙';
     let detail = '키와 트랙이 함께 제거됩니다.';
@@ -1230,7 +1247,11 @@ export function mountTimelineShell(host, ctx) {
       detail = '오디오 트랙과 클립이 함께 제거됩니다.';
     }
 
-    const ok = window.confirm(`「${name}」 트랙을 삭제할까요?\n\n${detail}`);
+    const ok = await appConfirm({
+      title: '트랙 삭제',
+      message: `「${name}」 트랙을 삭제할까요?\n\n${detail}`,
+      danger: true,
+    });
     if (!ok) return false;
     deleteTimelineTrack(trackId);
     return true;
@@ -1332,7 +1353,7 @@ export function mountTimelineShell(host, ctx) {
         ? [{
           label: '이름 변경…',
           shortcut: 'F2',
-          action: () => promptTrackRename(trackId),
+          action: () => { void promptTrackRename(trackId); },
         }]
         : []),
       ...(track?.kind === 'motion' && onSaveTrackToPatternLibrary
@@ -1669,8 +1690,9 @@ export function mountTimelineShell(host, ctx) {
         e.preventDefault();
         return;
       }
-      if (tryDeleteSelectedTrackWithConfirm()) {
+      if (canDeleteSelectedTrack()) {
         e.preventDefault();
+        void tryDeleteSelectedTrackWithConfirm();
       }
       return;
     }

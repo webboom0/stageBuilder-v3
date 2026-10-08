@@ -14,6 +14,8 @@ import {
 import { isGroupDeployed } from '../domain/motion/applyGroupKeyframes.js';
 import { normalizeColorHex } from '../domain/motion/walkLitePerformer.js';
 import { repairGroupFromTimeline } from '../domain/project/sceneGroupRepair.js';
+import { appConfirm, appPrompt } from './AppDialog.js';
+import { bindDarkColorInputs } from './DarkColorPicker.js';
 
 /**
  * Groups / Ensemble panel — v3 segment editor (이동/대기/퇴장 + 무대 픽).
@@ -149,6 +151,7 @@ export function createGroupsPanelBody(opts) {
             style="--grp-accent:${escapeAttr(hex)}">${escapeHtml(g.name)}</button>
         </div>`;
       }).join('');
+      bindDarkColorInputs(groupsEl);
     }
 
     renderCatalog();
@@ -575,7 +578,11 @@ export function createGroupsPanelBody(opts) {
     if (act === 'rename') {
       const active = store.getActive();
       if (!active) return;
-      const name = window.prompt('그룹 이름', active.name);
+      const name = await appPrompt({
+        title: '그룹 이름',
+        message: '그룹 이름을 입력하세요.',
+        defaultValue: active.name,
+      });
       if (name) {
         active.name = name.trim() || active.name;
         render();
@@ -595,7 +602,7 @@ export function createGroupsPanelBody(opts) {
           + (n > 0 ? ` (${n}개 트랙)` : '')
           + '.\n\n삭제하면 타임라인 트랙과 씬 객체도 함께 제거됩니다. 계속할까요?';
       }
-      if (!window.confirm(msg)) return;
+      if (!(await appConfirm({ title: '그룹 삭제', message: msg, danger: true }))) return;
       if (opts.onGroupDelete) {
         await opts.onGroupDelete(active.id);
       } else {

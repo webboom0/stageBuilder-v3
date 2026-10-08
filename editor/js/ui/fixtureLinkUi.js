@@ -14,7 +14,7 @@ import { runLightingEdit } from '../domain/lighting/lightingHistory.js';
  *   getSelectedFids: () => Iterable<number>,
  *   getMotions: () => Array<{ id: string, name: string, trackId: string, object: import('three').Object3D }>,
  *   onChange?: () => void,
- *   onUnlink?: (linkTrackId: string) => string | null,
+ *   onUnlink?: (linkTrackId: string) => string | null | Promise<string | null>,
  * }} opts
  */
 export function mountFixtureLinkPanel(host, opts) {
@@ -258,20 +258,23 @@ export function mountFixtureLinkPanel(host, opts) {
   });
   applyBtn?.addEventListener('click', applyLink);
   unlinkBtn?.addEventListener('click', () => {
-    const tracks = selectedLinkTracks();
-    if (!tracks.length) {
-      setStatus('연결된 Fixture를 선택하세요.', 'err');
-      return;
-    }
-    let n = 0;
-    for (const t of tracks) {
-      if (opts.onUnlink?.(t.id)) n += 1;
-    }
-    if (!n) return;
-    lastSelKey = '';
-    userPicked = false;
-    setStatus(`연결 끊김 · ${n}개 · 이제 타임라인에서 키를 직접 편집할 수 있습니다.`);
-    updateUnlinkBtn();
+    void (async () => {
+      const tracks = selectedLinkTracks();
+      if (!tracks.length) {
+        setStatus('연결된 Fixture를 선택하세요.', 'err');
+        return;
+      }
+      let n = 0;
+      for (const t of tracks) {
+        const id = await opts.onUnlink?.(t.id);
+        if (id) n += 1;
+      }
+      if (!n) return;
+      lastSelKey = '';
+      userPicked = false;
+      setStatus(`연결 끊김 · ${n}개 · 이제 타임라인에서 키를 직접 편집할 수 있습니다.`);
+      updateUnlinkBtn();
+    })();
   });
   host.querySelector('[data-act="fx-link-help"]')?.addEventListener('click', (e) => {
     e.stopPropagation();

@@ -4,6 +4,7 @@ import {
   renderKeyframeTemplateSteps,
   templateToDraft,
 } from './keyframeTemplateUi.js';
+import { appConfirm, appPrompt } from './AppDialog.js';
 
 /**
  * 패턴 라이브러리 패널 — 패턴별 저장·편집, 선택 트랙에 적용.
@@ -251,56 +252,70 @@ export function createMotionTemplatesPanelBody(opts) {
   root.addEventListener('click', (e) => {
     const btn = e.target.closest?.('[data-act]');
     if (!btn) return;
-    const store = getStore();
-    if (!store) return;
+    void (async () => {
+      const store = getStore();
+      if (!store) return;
 
-    if (btn.dataset.act === 'new') {
-      const n = store.list().length + 1;
-      const name = window.prompt('패턴 이름', `패턴 ${n}`);
-      if (name === null) return;
-      const label = name.trim() || `패턴 ${n}`;
-      store.create(label);
-      loadActiveDraft();
-      void opts.onSaveTemplate?.();
-      render();
-      return;
-    }
-
-    if (btn.dataset.act === 'select-macro' && btn.dataset.id) {
-      store.setActive(btn.dataset.id);
-      loadActiveDraft();
-      render();
-      return;
-    }
-
-    if (btn.dataset.act === 'rename') {
-      const active = store.getActive();
-      if (!active) {
-        window.alert('이름을 바꿀 패턴을 선택하세요.');
+      if (btn.dataset.act === 'new') {
+        const n = store.list().length + 1;
+        const name = await appPrompt({
+          title: '패턴 이름',
+          message: '새 패턴 이름을 입력하세요.',
+          defaultValue: `패턴 ${n}`,
+        });
+        if (name === null) return;
+        const label = name.trim() || `패턴 ${n}`;
+        store.create(label);
+        loadActiveDraft();
+        void opts.onSaveTemplate?.();
+        render();
         return;
       }
-      const name = window.prompt('패턴 이름', active.label);
-      if (name === null) return;
-      const label = name.trim() || active.label;
-      store.update(active.id, { label });
-      if (draft) draft.label = label;
-      void opts.onSaveTemplate?.();
-      render();
-      return;
-    }
 
-    if (btn.dataset.act === 'delete-macro') {
-      const active = store.getActive();
-      if (!active) {
-        window.alert('삭제할 패턴을 선택하세요.');
+      if (btn.dataset.act === 'select-macro' && btn.dataset.id) {
+        store.setActive(btn.dataset.id);
+        loadActiveDraft();
+        render();
         return;
       }
-      if (!window.confirm(`패턴 «${active.label}» 삭제?`)) return;
-      store.remove(active.id);
-      loadActiveDraft();
-      void opts.onSaveTemplate?.();
-      render();
-    }
+
+      if (btn.dataset.act === 'rename') {
+        const active = store.getActive();
+        if (!active) {
+          window.alert('이름을 바꿀 패턴을 선택하세요.');
+          return;
+        }
+        const name = await appPrompt({
+          title: '패턴 이름',
+          message: '패턴 이름을 입력하세요.',
+          defaultValue: active.label,
+        });
+        if (name === null) return;
+        const label = name.trim() || active.label;
+        store.update(active.id, { label });
+        if (draft) draft.label = label;
+        void opts.onSaveTemplate?.();
+        render();
+        return;
+      }
+
+      if (btn.dataset.act === 'delete-macro') {
+        const active = store.getActive();
+        if (!active) {
+          window.alert('삭제할 패턴을 선택하세요.');
+          return;
+        }
+        if (!(await appConfirm({
+          title: '패턴 삭제',
+          message: `패턴 «${active.label}» 삭제?`,
+          danger: true,
+        }))) return;
+        store.remove(active.id);
+        loadActiveDraft();
+        void opts.onSaveTemplate?.();
+        render();
+      }
+    })();
   });
 
   opts.engine.subscribe?.((ev) => {

@@ -17,6 +17,8 @@ import {
 } from '../domain/lighting/lightingHistory.js';
 import { mountFixtureLinkPanel } from './fixtureLinkUi.js';
 import { TRACK_SOURCE_LINKED } from '../domain/timeline/Track.js';
+import { appConfirm } from './AppDialog.js';
+import { bindDarkColorInputs } from './DarkColorPicker.js';
 
 const HOUSE_UI = Object.freeze([
   { channel: 'fill', label: 'Stage Fill', hasSize: false },
@@ -406,6 +408,7 @@ export function createLightingPanelBody(opts) {
       });
       houseHost.appendChild(row);
     }
+    bindDarkColorInputs(houseHost);
     houseHost.querySelectorAll('.sb-house-channel').forEach((row) => {
       const channel = row.dataset.houseChannel;
       row.querySelectorAll('input').forEach((input) => {
@@ -888,7 +891,7 @@ export function createLightingPanelBody(opts) {
     }
   }
 
-  function removeSelectedHouseTrack() {
+  async function removeSelectedHouseTrack() {
     const channel = selectedHouseChannel;
     if (!channel) {
       window.alert('HOUSE 채널을 먼저 선택하세요.');
@@ -900,7 +903,7 @@ export function createLightingPanelBody(opts) {
     const msg = nKeys
       ? `HOUSE «${ch.name || channel}» 트랙을 삭제할까요?\n키 ${nKeys}개도 함께 삭제됩니다.`
       : `HOUSE «${ch.name || channel}» 트랙을 삭제할까요?`;
-    if (!window.confirm(msg)) return;
+    if (!(await appConfirm({ title: 'HOUSE 트랙 삭제', message: msg, danger: true }))) return;
     runLightingEdit(historyCtx, 'HOUSE 트랙 삭제', () => {
       light.removeTrackById(ch.trackId, { history: false });
       refreshAllHouseRows();
@@ -909,7 +912,7 @@ export function createLightingPanelBody(opts) {
     });
   }
 
-  function removeSelectedFixtureTracks() {
+  async function removeSelectedFixtureTracks() {
     const fids = [...selectedFids];
     const tracks = fids
       .map((fid) => fixtures.findByFid(fid))
@@ -929,7 +932,7 @@ export function createLightingPanelBody(opts) {
     const msg = nKeys
       ? `Fixture 트랙 ${nTracks}개를 삭제할까요?\n키 ${nKeys}개도 함께 삭제됩니다.`
       : `Fixture 트랙 ${nTracks}개를 삭제할까요?`;
-    if (!window.confirm(msg)) return;
+    if (!(await appConfirm({ title: 'Fixture 트랙 삭제', message: msg, danger: true }))) return;
     runLightingEdit(historyCtx, 'Fixture 트랙 삭제', () => {
       for (const fx of tracks) {
         fixtures.removeAllTracksForFid(fx.fid, { history: false });
@@ -990,7 +993,7 @@ export function createLightingPanelBody(opts) {
   });
   root.querySelector('[data-act="house-track-del"]')?.addEventListener('click', () => {
     ensureReady();
-    removeSelectedHouseTrack();
+    void removeSelectedHouseTrack();
   });
 
   root.querySelector('[data-act="fx-key"]')?.addEventListener('click', () => {
@@ -1151,7 +1154,7 @@ export function createLightingPanelBody(opts) {
     return { patch, label };
   }
 
-  function applyBulkForm() {
+  async function applyBulkForm() {
     ensureReady();
     if (!selectedFids.size) {
       window.alert('픽스처를 먼저 선택하세요.');
@@ -1160,9 +1163,10 @@ export function createLightingPanelBody(opts) {
     const read = readBulkFormPatch();
     if (!read) return;
     if (bulkFormAttr === 'pan' || bulkFormAttr === 'tilt') {
-      const ok = window.confirm(
-        'Pan/Tilt를 모든 키에 넣으면 트랙 연결로 계산된 조준이 덮어써집니다.\n계속할까요?',
-      );
+      const ok = await appConfirm({
+        title: '조준 덮어쓰기',
+        message: 'Pan/Tilt를 모든 키에 넣으면 트랙 연결로 계산된 조준이 덮어써집니다.\n계속할까요?',
+      });
       if (!ok) return;
     }
     let n = 0;
@@ -1201,7 +1205,7 @@ export function createLightingPanelBody(opts) {
       return;
     }
     if (t.closest('[data-act="fx-bulk-apply"]')) {
-      applyBulkForm();
+      void applyBulkForm();
     }
   });
   root.querySelector('[data-act="fx-kf-prev"]')?.addEventListener('click', () => {
@@ -1227,7 +1231,7 @@ export function createLightingPanelBody(opts) {
   });
   root.querySelector('[data-act="fx-track-del"]')?.addEventListener('click', () => {
     ensureReady();
-    removeSelectedFixtureTracks();
+    void removeSelectedFixtureTracks();
   });
 
   workBtn?.addEventListener('click', () => {
@@ -1379,7 +1383,7 @@ export function createLightingPanelBody(opts) {
       getSelectedFids: () => selectedFids,
       getMotions: () => (motion.list?.() || []).filter((m) => m?.trackId && m?.name && m?.object),
       onChange: () => opts.onChange?.(),
-      onUnlink: (linkTrackId) => unlinkFixtureTrack(linkTrackId),
+      onUnlink: async (linkTrackId) => unlinkFixtureTrack(linkTrackId),
     })
     : null;
 
@@ -1393,16 +1397,17 @@ export function createLightingPanelBody(opts) {
    * @param {string} linkTrackId
    * @returns {string | null} 전환된 트랙 id
    */
-  function unlinkFixtureTrack(linkTrackId) {
+  async function unlinkFixtureTrack(linkTrackId) {
     ensureReady();
     const track = engine.getTrack(linkTrackId);
     if (track?.source !== TRACK_SOURCE_LINKED) return null;
-    const ok = window.confirm(
-      `「${track.name}」의 캐릭터 연결을 끊을까요?\n\n`
-      + `· 키 ${track.keys.length}개는 그대로 남고 편집할 수 있게 됩니다\n`
-      + '· 캐릭터 동선을 고쳐도 조명이 더 이상 따라가지 않습니다\n'
-      + '· 다시 연결하려면 문장을 새로 적용해야 합니다',
-    );
+    const ok = await appConfirm({
+      title: '연결 끊기',
+      message: `「${track.name}」의 캐릭터 연결을 끊을까요?\n\n`
+        + `· 키 ${track.keys.length}개는 그대로 남고 편집할 수 있게 됩니다\n`
+        + '· 캐릭터 동선을 고쳐도 조명이 더 이상 따라가지 않습니다\n'
+        + '· 다시 연결하려면 문장을 새로 적용해야 합니다',
+    });
     if (!ok) return null;
 
     let converted = null;

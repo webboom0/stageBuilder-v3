@@ -18,6 +18,7 @@ import {
 } from '../domain/motion/aiPatternDefaults.js';
 import { mountRotYChips } from './rotYChips.js';
 import { FORMATION_LABELS, FORMATION_TYPES } from '../domain/motion/groupFormation.js';
+import { appConfirm } from './AppDialog.js';
 
 /** Unified apply button label (track already exists) */
 export const KEYFRAME_APPLY_LABEL = '키프레임 적용';
@@ -504,15 +505,21 @@ function wirePresetChipEvents(host, store, opts) {
   host.querySelectorAll('[data-del-preset]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const id = btn.getAttribute('data-del-preset');
-      const p = id ? store?.get(id) : null;
-      if (!p || !store) return;
-      if (!window.confirm(`위치 프리셋 «${p.label}» 삭제?`)) return;
-      opts.onPresetRemoved?.(id);
-      store.remove(id);
-      opts.onChange?.();
-      opts.onPositionPresetsChanged?.();
-      opts.onRefresh();
+      void (async () => {
+        const id = btn.getAttribute('data-del-preset');
+        const p = id ? store?.get(id) : null;
+        if (!p || !store) return;
+        if (!(await appConfirm({
+          title: '위치 프리셋 삭제',
+          message: `위치 프리셋 «${p.label}» 삭제?`,
+          danger: true,
+        }))) return;
+        opts.onPresetRemoved?.(id);
+        store.remove(id);
+        opts.onChange?.();
+        opts.onPositionPresetsChanged?.();
+        opts.onRefresh();
+      })();
     });
   });
 }
@@ -654,11 +661,17 @@ function openPositionPresetEditor(opts) {
     delBtn.textContent = '삭제';
     dlg.querySelector('.sb-modal-foot')?.prepend(delBtn);
     delBtn.addEventListener('click', () => {
-      if (!window.confirm(`위치 프리셋 «${opts.preset.label}» 삭제?`)) return;
-      opts.onPresetRemoved?.(opts.preset.id);
-      store.remove(opts.preset.id);
-      closeDialog(dlg);
-      opts.onSaved?.();
+      void (async () => {
+        if (!(await appConfirm({
+          title: '위치 프리셋 삭제',
+          message: `위치 프리셋 «${opts.preset.label}» 삭제?`,
+          danger: true,
+        }))) return;
+        opts.onPresetRemoved?.(opts.preset.id);
+        store.remove(opts.preset.id);
+        closeDialog(dlg);
+        opts.onSaved?.();
+      })();
     });
   }
 

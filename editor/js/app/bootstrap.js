@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { API_BASE_URL, apiUrl, API, tutorialUrl } from '../config/app-config.js';
+import { API_BASE_URL, apiUrl, API, tutorialUrl, PIVOT_HOME_URL } from '../config/app-config.js';
 import { DEFAULT_STAGE_PROFILE } from '../domain/stage/StageProfile.js';
 import { StageManager } from '../domain/stage/StageManager.js';
 import { StageViewportHelpers } from '../domain/stage/StageViewportHelpers.js';
@@ -8,6 +8,7 @@ import { STAGE_TYPES } from '../domain/stage/StageTypes.js';
 import { applyCameraPreset, applyDefaultStageCamera, mapStageScaledPoint, STAGE_CAMERA_PRESETS, zoomCamera } from '../domain/stage/CameraPresets.js';
 import { getClampedProfileFactors, getStagePivot } from '../domain/stage/stageFloorLayout.js';
 import { mountEditorShell } from '../ui/EditorShell.js';
+import { appAlert, appConfirm, appPrompt } from '../ui/AppDialog.js';
 import {
   bindViewportStageFocus,
   onStageFocusChange,
@@ -272,6 +273,20 @@ async function main(initialProjectStore) {
   /** @type {ReturnType<typeof createEditorLoadingOverlay>} */
   const editorLoading = bootLoading;
   bootLoading.show('에디터 준비 중…');
+
+  document.querySelector('.sb-brand-mark')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void (async () => {
+      const ok = await appConfirm({
+        title: '초기 화면으로 돌아갈까요?',
+        message: '지금까지 작업한 무대는 저장하지 않으면, 초기 화면으로 돌아갈 때 모두 사라집니다.',
+        confirmLabel: '돌아가기',
+        cancelLabel: '취소',
+      });
+      if (!ok) return;
+      window.location.href = PIVOT_HOME_URL;
+    })();
+  });
 
   setAudioProjectResolver(() => projectStore?.projectId ?? null);
   setStatus('Loading stage…');
@@ -758,10 +773,12 @@ async function main(initialProjectStore) {
           const names = parsed.tracks
             .map((t, i) => `${i + 1}:${t.sourceId.slice(0, 8)}(${t.keys.length}키)`)
             .join(' · ');
-          const pick = window.prompt(
-            `트랙 ${parsed.tracks.length}개 발견. 적용할 번호(1~${parsed.tracks.length})\n${names}`,
-            '1',
-          );
+          const pick = await appPrompt({
+            title: '트랙 선택',
+            message: `트랙 ${parsed.tracks.length}개 발견. 적용할 번호(1~${parsed.tracks.length})\n${names}`,
+            defaultValue: '1',
+          });
+          if (pick == null) return;
           const idx = Math.max(0, (Number(pick) || 1) - 1);
           trackKeys = parsed.tracks[Math.min(idx, parsed.tracks.length - 1)];
         }
@@ -1118,20 +1135,25 @@ async function main(initialProjectStore) {
     const track = timeline.getTrack(trackId);
     const item = motion.findByTrackId(trackId);
     if (!canSaveTrackToPatternLibrary(track, item)) {
-      window.alert(
-        '패턴 라이브러리에 저장하려면 Character / Stage 트랙에\n키프레임이 2개 이상 필요합니다.',
-      );
+      await appAlert({
+        title: '패턴 저장',
+        message: '패턴 라이브러리에 저장하려면 Character / Stage 트랙에\n키프레임이 2개 이상 필요합니다.',
+      });
       return;
     }
     const defaultName = track?.name ? `${track.name} 패턴` : '새 패턴';
-    const name = window.prompt('패턴 라이브러리 이름', defaultName);
+    const name = await appPrompt({
+      title: '패턴 라이브러리 이름',
+      message: '패턴 라이브러리에 저장할 이름을 입력하세요.',
+      defaultValue: defaultName,
+    });
     if (name === null) return;
     const label = name.trim() || defaultName;
     const tpl = trackToMotionTemplate(track, item, label, {
       presets: positionPresetStore.list(),
     });
     if (!tpl) {
-      window.alert('패턴으로 변환하지 못했습니다.');
+      await appAlert({ title: '패턴 저장', message: '패턴으로 변환하지 못했습니다.' });
       return;
     }
     motionTemplateStore.add(tpl);
@@ -1179,7 +1201,10 @@ async function main(initialProjectStore) {
 
   async function confirmDiscardDirty() {
     if (!projectStore?.dirty) return true;
-    return window.confirm('저장하지 않은 변경이 있습니다. 계속할까요?');
+    return appConfirm({
+      title: '저장하지 않은 변경',
+      message: '저장하지 않은 변경이 있습니다. 계속할까요?',
+    });
   }
 
   async function presentSceneLoadReport(result, sceneName) {
@@ -1374,12 +1399,17 @@ async function main(initialProjectStore) {
     if (!projectStore) return;
     const scenes = projectStore.project.scenes || [];
     if (scenes.length <= 1) {
-      window.alert('마지막 씬은 삭제할 수 없습니다.');
+      await appAlert({ title: '씬 삭제', message: '마지막 씬은 삭제할 수 없습니다.' });
       return;
     }
     const scene = scenes.find((s) => s.id === sceneId);
     const label = scene?.name || sceneId;
-    if (!window.confirm(`씬 «${label}»을(를) 삭제할까요?\n\n되돌릴 수 없습니다.`)) return;
+    const ok = await appConfirm({
+      title: '씬 삭제',
+      message: `씬 «${label}»을(를) 삭제할까요?\n\n되돌릴 수 없습니다.`,
+      danger: true,
+    });
+    if (!ok) return;
     suppressSceneDirty = true;
     try {
       shellRef.current?.setStageBusy?.(true);
@@ -1402,7 +1432,11 @@ async function main(initialProjectStore) {
     if (!projectStore) return;
     const id = projectStore.activeSceneId;
     const scene = projectStore.project.scenes?.find((s) => s.id === id);
-    const next = window.prompt('씬 이름', scene?.name || id);
+    const next = await appPrompt({
+      title: '씬 이름',
+      message: '씬 이름을 입력하세요.',
+      defaultValue: scene?.name || id,
+    });
     if (!next?.trim()) return;
     try {
       await projectStore.renameScene(id, next.trim());
@@ -1487,16 +1521,20 @@ async function main(initialProjectStore) {
     }
   }
 
-  function restoreSnapshotFlow() {
+  async function restoreSnapshotFlow() {
     if (!projectStore) {
-      window.alert('프로젝트를 연 뒤 「스냅샷에서 복원」을 사용하세요.');
+      await appAlert({
+        title: '스냅샷 복원',
+        message: '프로젝트를 연 뒤 「스냅샷에서 복원」을 사용하세요.',
+      });
       return;
     }
-    const ok = window.confirm(
-      '현재 프로젝트의 씬·설정이 스냅샷 내용으로 덮어씌워집니다.\n'
-      + '에셋(음악·FBX 등)은 그대로 유지됩니다.\n\n'
-      + '계속할까요?',
-    );
+    const ok = await appConfirm({
+      title: '스냅샷 복원',
+      message: '현재 프로젝트의 씬·설정이 스냅샷 내용으로 덮어씌워집니다.\n'
+        + '에셋(음악·FBX 등)은 그대로 유지됩니다.\n\n'
+        + '계속할까요?',
+    });
     if (!ok) return;
 
     const input = document.createElement('input');
@@ -1695,7 +1733,11 @@ async function main(initialProjectStore) {
   async function addSceneFlow() {
     if (!projectStore) return;
     const n = (projectStore.project.scenes?.length || 0) + 1;
-    const name = window.prompt('새 씬 이름', `${n}막`);
+    const name = await appPrompt({
+      title: '새 막 이름',
+      message: '새로운 막의 이름을 생성하세요.',
+      defaultValue: `${n}막`,
+    });
     if (!name?.trim()) return;
     suppressSceneDirty = true;
     try {

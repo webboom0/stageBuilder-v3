@@ -14,6 +14,9 @@
         <strong>StageBuilder</strong>
         <span>에디터 사용 안내</span>
       </div>
+      <button type="button" class="side-fold" id="side-fold" title="목차 접기" aria-label="목차 접기" aria-expanded="true">
+        <i class="fas fa-chevron-left" aria-hidden="true"></i>
+      </button>
       <nav id="side-nav">
         <div class="nav-group">시작</div>
         <a href="#intro" class="nav-l2">안내</a>
@@ -83,9 +86,9 @@
           <tbody>
             <tr><td>상단 메뉴</td><td><a href="#menubar">파일 · 편집 · 씬 · 라이브러리 · 보기 · 도움말 · 그리드</a></td></tr>
             <tr><td>메뉴 바로 아래</td><td>연결 상태 · 무대 크기 · 안내 메시지 (상태 표시줄)</td></tr>
-            <tr><td>왼쪽</td><td><strong>프로젝트</strong>·Assets(<span class="kbd">프로젝트</span>) · 무대(<span class="kbd">씬</span>)</td></tr>
+            <tr><td>왼쪽</td><td><strong>프로젝트</strong>·Assets(<span class="kbd">프로젝트</span>) · 무대(<span class="kbd">씬</span>) · 안쪽 가장자리 <strong>‹›</strong>로 접기/펼치기</td></tr>
             <tr><td>가운데</td><td>3D 무대 뷰 · 하단 <strong>뷰포트 툴바</strong> (이동/카메라/빌딩고정)</td></tr>
-            <tr><td>오른쪽</td><td><a href="#properties-panel">오른쪽 패널</a> — 뱃지 <strong>프로젝트</strong> / <strong>씬</strong></td></tr>
+            <tr><td>오른쪽</td><td><a href="#properties-panel">오른쪽 패널</a> — 뱃지 <strong>프로젝트</strong> / <strong>씬</strong> · 안쪽 가장자리 <strong>‹›</strong>로 접기/펼치기</td></tr>
             <tr><td>하단</td><td>타임라인 (<span class="kbd">씬</span>)</td></tr>
           </tbody>
         </table>
@@ -489,7 +492,7 @@
           <thead><tr><th>아이콘</th><th>기능</th></tr></thead>
           <tbody>
             <tr><td><span class="tut-icon"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 새로고침</td><td>목록 새로고침 (무대·타임라인은 유지)</td></tr>
-            <tr><td><span class="tut-icon tut-icon--accent"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5v15H5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6h5v13h-5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 5h4v14h-4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span> Lib</td><td>공용 라이브러리 — 선택 후 <strong>프로젝트에 가져오기</strong> (복사) · <strong>취소</strong></td></tr>
+            <tr><td><span class="tut-icon tut-icon--accent"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5v15H5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6h5v13h-5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 5h4v14h-4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span> Lib</td><td>공용 라이브러리 — <strong>리스트/카드</strong> 보기(캐릭터·스테이지·비디오) · 선택 후 <strong>프로젝트에 가져오기</strong> · <strong>프로젝트에 있음</strong> 표시</td></tr>
             <tr><td><span class="tut-icon tut-icon--upload"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 16V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 11l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> 업로드</td><td>선택 탭 형식으로 파일 업로드</td></tr>
             <tr><td><span class="tut-icon"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 5h6M6 8h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 8l1 12h6l1-12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span> 삭제</td><td>선택 파일 삭제 · 항목을 <strong>휴지통으로 드래그</strong>해도 삭제</td></tr>
           </tbody>

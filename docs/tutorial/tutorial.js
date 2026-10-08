@@ -54,4 +54,31 @@
     img.addEventListener('error', markMissing);
     if (img.complete && img.naturalWidth === 0) markMissing();
   });
+
+  const layout = document.querySelector('.layout');
+  const foldBtn = document.getElementById('side-fold');
+  if (layout && foldBtn) {
+    const icon = foldBtn.querySelector('i');
+    const applyFold = (collapsed) => {
+      layout.classList.toggle('is-side-collapsed', collapsed);
+      icon?.classList.toggle('fa-chevron-left', !collapsed);
+      icon?.classList.toggle('fa-chevron-right', collapsed);
+      const label = collapsed ? '목차 펼치기' : '목차 접기';
+      foldBtn.title = label;
+      foldBtn.setAttribute('aria-label', label);
+      foldBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      try {
+        localStorage.setItem('sb-tutorial-side-collapsed', collapsed ? '1' : '0');
+      } catch { /* ignore */ }
+    };
+    let collapsed = false;
+    try {
+      collapsed = localStorage.getItem('sb-tutorial-side-collapsed') === '1';
+    } catch { /* ignore */ }
+    applyFold(collapsed);
+    foldBtn.addEventListener('click', () => {
+      collapsed = !collapsed;
+      applyFold(collapsed);
+    });
+  }
 })();

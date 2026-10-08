@@ -13,6 +13,7 @@ import {
   stageTransformEditHint,
   snapshotStageTransformKeys,
 } from '../domain/motion/stageTransformSync.js';
+import { bindDarkColorInputs } from './DarkColorPicker.js';
 
 /**
  * Properties — tabs: 패턴 (move/hold/exit keyframe pattern) · 속성 (object/key).
@@ -237,6 +238,7 @@ export function createKeyframePropertiesPanel(opts) {
   const pickBtnStage = /** @type {HTMLButtonElement} */ (root.querySelector('[data-role="stage-pick-stage"]'));
   const animHost = root.querySelector('[data-role="anim-host"]');
   const keyBlock = root.querySelector('[data-role="key-block"]');
+  bindDarkColorInputs(root);
   const timeEl = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time"]'));
   const timeRange = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="time-range"]'));
   const interpEl = /** @type {HTMLSelectElement} */ (root.querySelector('[data-role="interp"]'));

@@ -16,6 +16,7 @@ import {
   onStageFocusChange,
   isStageFocusActive,
 } from './stageFocusMode.js';
+import { mountDockCollapse } from './dockCollapse.js';
 
 /**
  * @param {HTMLElement} root — .wrapper
@@ -90,6 +91,7 @@ import {
 export function mountEditorShell(root, ctx) {
   const leftRail = createPanelRail(root, { side: 'left', distribution: 'resizable', collapseMode: true });
   const rightRail = createPanelRail(root, { side: 'right', distribution: 'resizable', collapseMode: true });
+  const dockCollapse = mountDockCollapse(root);
 
   let projectPanelUi = null;
   if (ctx.getProjectStore) {
@@ -538,6 +540,8 @@ export function mountEditorShell(root, ctx) {
     refreshProjectPanel: () => projectPanelUi?.render(),
     openProjectPanel: () => leftRail.openPanel('project'),
     openAssetsPanel: () => leftRail.openPanel('assets'),
+    setLeftDockCollapsed: (on) => dockCollapse.setLeftCollapsed(on),
+    setRightDockCollapsed: (on) => dockCollapse.setRightCollapsed(on),
     /** @param {'character' | 'stage' | 'video' | 'audio'} tab */
     focusAssetsTab: (tab) => assetsUi.focusTab(tab),
     /** @param {'character' | 'stage' | 'video' | 'audio'} tab @param {{ elevated?: boolean, hintFilename?: string }} [dialogOpts] */

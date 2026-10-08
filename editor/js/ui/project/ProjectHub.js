@@ -1,6 +1,7 @@
 import { listProjects, createProject, deleteProject, importProjectBundle } from '../../domain/project/projectApi.js';
 import { ProjectStore } from '../../domain/project/ProjectStore.js';
 import { showProjectMetaPopup } from './ProjectMetaPopup.js';
+import { appAlert, appConfirm } from '../AppDialog.js';
 
 /**
  * Project hub — list saved projects or create new (v3 setup fields).
@@ -46,7 +47,7 @@ export function runProjectHub() {
         closeHub();
         resolve(store);
       } catch (err) {
-        window.alert(`프로젝트를 열지 못했습니다.\n\n${err.message || err}`);
+        await appAlert({ title: '프로젝트 열기', message: `프로젝트를 열지 못했습니다.\n\n${err.message || err}` });
       }
     }
 
@@ -64,12 +65,14 @@ export function runProjectHub() {
             <li class="sb-project-list__item" data-id="${escapeAttr(p.id)}">
               <div class="sb-project-list__main">
                 <div class="sb-project-list__name">${escapeHtml(p.name)}</div>
-                <div class="sb-project-list__meta">씬 ${p.sceneCount || 0}개</div>
               </div>
               <div class="sb-project-list__aside">
-                <div class="sb-project-list__meta">${escapeHtml(date)}</div>
+                <div class="sb-project-list__meta-block">
+                  <div class="sb-project-list__meta">씬 ${p.sceneCount || 0}개</div>
+                  <div class="sb-project-list__meta">${escapeHtml(date)}</div>
+                </div>
                 <button type="button" class="sb-project-list__del" data-act="delete" data-id="${escapeAttr(p.id)}"
-                  title="프로젝트 삭제">🗑</button>
+                  title="프로젝트 삭제" aria-label="프로젝트 삭제"><i class="fas fa-trash" aria-hidden="true"></i></button>
               </div>
             </li>`;
         }).join('');
@@ -85,13 +88,18 @@ export function runProjectHub() {
         void (async () => {
           const id = delBtn.dataset.id;
           const name = delBtn.closest('.sb-project-list__item')?.querySelector('.sb-project-list__name')?.textContent || id;
-          if (!window.confirm(`프로젝트 «${name}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`)) return;
+          const ok = await appConfirm({
+            title: '프로젝트 삭제',
+            message: `프로젝트 «${name}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`,
+            danger: true,
+          });
+          if (!ok) return;
           try {
             delBtn.disabled = true;
             await deleteProject(id);
             await renderList();
           } catch (err) {
-            window.alert(`삭제 실패\n\n${err.message || err}`);
+            await appAlert({ title: '프로젝트 삭제', message: `삭제 실패\n\n${err.message || err}` });
             delBtn.disabled = false;
           }
         })();
@@ -116,11 +124,15 @@ export function runProjectHub() {
             listEl.innerHTML = '<li class="sb-project-empty">ZIP 가져오는 중…</li>';
             const data = await importProjectBundle(file);
             await renderList();
-            if (data.projectId && window.confirm(`프로젝트 «${data.project?.showName || data.projectId}»을(를) 바로 열까요?`)) {
-              await openProject(data.projectId);
+            if (data.projectId) {
+              const openNow = await appConfirm({
+                title: 'ZIP 가져오기',
+                message: `프로젝트 «${data.project?.showName || data.projectId}»을(를) 바로 열까요?`,
+              });
+              if (openNow) await openProject(data.projectId);
             }
           } catch (err) {
-            window.alert(`ZIP 가져오기 실패\n\n${err.message || err}`);
+            await appAlert({ title: 'ZIP 가져오기', message: `ZIP 가져오기 실패\n\n${err.message || err}` });
             await renderList();
           }
         })();
@@ -138,7 +150,7 @@ export function runProjectHub() {
           closeHub();
           resolve(store);
         } catch (err) {
-          window.alert(`프로젝트 생성 실패\n\n${err.message || err}`);
+          await appAlert({ title: '새 프로젝트', message: `프로젝트 생성 실패\n\n${err.message || err}` });
         }
       })();
     });

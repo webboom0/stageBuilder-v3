@@ -1,0 +1,95 @@
+/* Common confirm / prompt / alert modal */
+.sb-app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.sb-app-dialog {
+  width: min(420px, 100%);
+  padding: 28px 28px 22px;
+  border-radius: 16px;
+  background: #121212;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
+}
+
+.sb-app-dialog__title {
+  margin: 0;
+  font: 700 20px/1.3 system-ui, sans-serif;
+  color: #a000ff;
+  letter-spacing: -0.01em;
+}
+
+.sb-app-dialog__message {
+  margin: 10px 0 0;
+  font: 14px/1.55 system-ui, sans-serif;
+  color: #f2f2f2;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.sb-app-dialog__input {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #d9d9d9;
+  color: #111;
+  font: 15px/1.3 system-ui, sans-serif;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.sb-app-dialog__input:focus {
+  box-shadow: 0 0 0 2px rgba(160, 0, 255, 0.45);
+}
+
+.sb-app-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.sb-app-dialog__btn {
+  min-width: 72px;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 10px;
+  font: 600 13px/1.2 system-ui, sans-serif;
+  color: #fff;
+  cursor: pointer;
+}
+
+.sb-app-dialog__btn--confirm {
+  background: #a000ff;
+}
+
+.sb-app-dialog__btn--confirm:hover {
+  background: #b52aff;
+}
+
+.sb-app-dialog__btn--cancel {
+  background: #333;
+}
+
+.sb-app-dialog__btn--cancel:hover {
+  background: #404040;
+}
+
+.sb-app-dialog__btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* alert: single confirm already uses accent */

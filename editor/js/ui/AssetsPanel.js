@@ -19,6 +19,7 @@ import {
   serializeAssetDrag,
   serializeAssetDeleteDrag,
 } from '../domain/assets/stageAssetDrag.js';
+import { appConfirm } from './AppDialog.js';
 import { ASSETS_TOOLBAR_ICONS } from './assetsToolbarIcons.js';
 import { formatUploadFailureAlert, readHttpUploadError } from '../domain/assets/uploadError.js';
 
@@ -258,7 +259,11 @@ export function createAssetsPanelBody(opts = {}) {
       return false;
     }
     const label = entry.filename || entry.displayName || entry.name || '항목';
-    if (confirmDelete && !window.confirm(`삭제할까요?\n${label}`)) return false;
+    if (confirmDelete && !(await appConfirm({
+      title: '에셋 삭제',
+      message: `삭제할까요?\n${label}`,
+      danger: true,
+    }))) return false;
 
     try {
       const projectId = opts.getProjectId?.() || null;
@@ -379,31 +384,53 @@ export function createAssetsPanelBody(opts = {}) {
     }
 
     const inProject = new Set(projectFilenames());
+    const supportsLibViews = tab === 'character' || tab === 'stage' || tab === 'video';
+    /** @type {'list' | 'grid'} */
+    let libView = supportsLibViews
+      ? (localStorage.getItem('sb-assets-lib-view') === 'grid' ? 'grid' : 'list')
+      : 'list';
+    let libThumbGen = 0;
+
+    const libTitle = tab === 'character' ? '캐릭터 공용 라이브러리'
+      : tab === 'stage' ? '스테이지 공용 라이브러리'
+        : tab === 'video' ? '비디오 공용 라이브러리'
+          : '오디오 공용 라이브러리';
+
+    const viewToggleHtml = supportsLibViews ? `
+      <div class="sb-assets-lib-views" role="group" aria-label="보기 방식">
+        <button type="button" class="sb-assets-lib-view-btn${libView === 'list' ? ' is-on' : ''}"
+          data-act="lib-view" data-view="list" title="리스트형" aria-pressed="${libView === 'list' ? 'true' : 'false'}">
+          <i class="fas fa-list" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="sb-assets-lib-view-btn${libView === 'grid' ? ' is-on' : ''}"
+          data-act="lib-view" data-view="grid" title="카드형" aria-pressed="${libView === 'grid' ? 'true' : 'false'}">
+          <i class="fas fa-th" aria-hidden="true"></i>
+        </button>
+      </div>` : '';
+
     const overlay = document.createElement('div');
     overlay.className = `sb-assets-lib-overlay${elevated ? ' sb-assets-lib-overlay--elevated' : ''}`;
     overlay.innerHTML = `
-      <div class="sb-assets-lib-dlg" role="dialog" aria-modal="true" aria-label="공용 라이브러리">
+      <div class="sb-assets-lib-dlg sb-assets-lib-dlg--${libView}" role="dialog" aria-modal="true" aria-label="${escapeAttr(libTitle)}">
         <div class="sb-assets-lib-head">
-          <strong>${escapeHtml(tabLabel())} — 공용 라이브러리</strong>
-          <button type="button" class="sb-tl-help-close" data-act="close-lib" aria-label="닫기">×</button>
+          <strong class="sb-assets-lib-title">${escapeHtml(libTitle)}</strong>
+          <div class="sb-assets-lib-head-right">
+            ${viewToggleHtml}
+            <button type="button" class="sb-tl-help-close" data-act="close-lib" aria-label="닫기">×</button>
+          </div>
         </div>
-        <p class="sb-assets-lib-hint">
-          서버 <code>${escapeHtml(libraryFolderHint(tab))}</code> 폴더의 파일입니다.
-          ${projectId
-            ? '선택 후 <strong>프로젝트에 가져오기</strong> — 업로드 없이 프로젝트 에셋으로 복사됩니다.'
-            : '선택 후 <strong>씬에 추가</strong> — 프로젝트를 열면 에셋 폴더로 복사할 수 있습니다.'}
-        </p>
-        <div class="sb-assets-lib-list" data-role="lib-list"></div>
+        <div class="sb-assets-lib-list" data-role="lib-list" data-view="${libView}"></div>
         <div class="sb-assets-lib-actions">
           <button type="button" class="sb-tl-btn" data-act="close-lib">취소</button>
-          <button type="button" class="sb-tl-btn sb-tl-btn-primary" data-act="import-lib" disabled>
+          <button type="button" class="sb-tl-btn sb-assets-lib-import" data-act="import-lib" disabled>
             ${projectId ? '프로젝트에 가져오기' : '씬에 추가'}
           </button>
         </div>
       </div>
     `;
 
-    const listHost = overlay.querySelector('[data-role="lib-list"]');
+    const dlg = /** @type {HTMLElement} */ (overlay.querySelector('.sb-assets-lib-dlg'));
+    const listHost = /** @type {HTMLElement} */ (overlay.querySelector('[data-role="lib-list"]'));
     const importBtn = /** @type {HTMLButtonElement} */ (overlay.querySelector('[data-act="import-lib"]'));
     /** @type {number | null} */
     let selectedIdx = null;
@@ -418,34 +445,139 @@ export function createAssetsPanelBody(opts = {}) {
       if (idx >= 0) selectedIdx = idx;
     }
 
-    function renderLibList() {
-      if (!libItems.length) {
-        listHost.innerHTML = '<div class="sb-assets-empty">라이브러리에 파일이 없습니다.</div>';
-        importBtn.disabled = true;
+    function libTypeIcon() {
+      if (tab === 'video') return 'fa-video';
+      if (tab === 'audio') return 'fa-music';
+      return 'fa-cube';
+    }
+
+    /** @type {'list' | 'grid' | null} */
+    let renderedView = null;
+
+    function syncLibChrome() {
+      importBtn.disabled = selectedIdx == null;
+      listHost.dataset.view = libView;
+      dlg.classList.toggle('sb-assets-lib-dlg--list', libView === 'list');
+      dlg.classList.toggle('sb-assets-lib-dlg--grid', libView === 'grid');
+      overlay.querySelectorAll('[data-act="lib-view"]').forEach((btn) => {
+        const on = btn.getAttribute('data-view') === libView;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+
+    function syncLibSelection() {
+      listHost.querySelectorAll('.sb-assets-lib-item, .sb-assets-lib-card').forEach((el) => {
+        el.classList.toggle('is-selected', Number(el.dataset.i) === selectedIdx);
+      });
+      importBtn.disabled = selectedIdx == null;
+    }
+
+    function renderLibList({ force = false } = {}) {
+      syncLibChrome();
+      if (!force && renderedView === libView && listHost.childElementCount) {
+        syncLibSelection();
         return;
       }
+      renderedView = libView;
+
+      if (!libItems.length) {
+        listHost.innerHTML = '<div class="sb-assets-empty">라이브러리에 파일이 없습니다.</div>';
+        return;
+      }
+
+      if (libView === 'grid' && supportsLibViews) {
+        listHost.innerHTML = libItems.map((it, i) => {
+          const fn = String(it.filename || '');
+          const label = it.displayName || fn;
+          const dup = inProject.has(fn.toLowerCase());
+          const sel = selectedIdx === i ? ' is-selected' : '';
+          const badge = dup
+            ? '<span class="sb-assets-lib-badge">프로젝트에 있음</span>'
+            : '';
+          return `
+            <div class="sb-assets-lib-card${sel}${dup ? ' is-dup' : ''}" data-i="${i}" role="button" tabindex="0">
+              <div class="sb-assets-lib-card-thumb">
+                <img class="sb-assets-lib-card-img" data-lib-thumb-i="${i}" alt="" />
+                ${badge}
+              </div>
+              <div class="sb-assets-lib-card-name" title="${escapeAttr(label)}">${escapeHtml(label)}</div>
+            </div>`;
+        }).join('');
+        hydrateLibThumbnails();
+        return;
+      }
+
+      const icon = libTypeIcon();
       listHost.innerHTML = libItems.map((it, i) => {
         const fn = String(it.filename || '');
+        const label = it.displayName || fn;
         const dup = inProject.has(fn.toLowerCase());
         const sel = selectedIdx === i ? ' is-selected' : '';
-        const dupMark = dup ? ' <span class="sb-assets-badge">프로젝트에 있음</span>' : '';
+        const badge = dup
+          ? '<span class="sb-assets-lib-badge">프로젝트에 있음</span>'
+          : '';
         return `
-          <div class="sb-assets-lib-item${sel}${dup ? ' is-dup' : ''}" data-i="${i}">
-            <span class="sb-assets-item-name">${escapeHtml(it.displayName || fn)}${dupMark}</span>
-            <span class="sb-assets-lib-fname">${escapeHtml(fn)}</span>
+          <div class="sb-assets-lib-item${sel}${dup ? ' is-dup' : ''}" data-i="${i}" role="button" tabindex="0">
+            <span class="sb-assets-lib-item-icon" aria-hidden="true"><i class="fas ${icon}"></i></span>
+            <span class="sb-assets-lib-item-name">${escapeHtml(label)}</span>
+            ${badge}
           </div>`;
       }).join('');
     }
 
-    renderLibList();
-    importBtn.disabled = selectedIdx == null;
+    function hydrateLibThumbnails() {
+      const gen = ++libThumbGen;
+      const imgs = listHost.querySelectorAll('.sb-assets-lib-card-img');
+      imgs.forEach((img) => {
+        const i = Number(img.dataset.libThumbI);
+        const entry = libItems[i];
+        if (!entry) return;
+        img.removeAttribute('src');
+        img.classList.remove('is-loaded', 'is-failed');
+        const load = tab === 'video'
+          ? getVideoThumbnailDataUrl(entry.url)
+          : tab === 'stage'
+            ? getPropThumbnailDataUrl(entry)
+            : getCharacterThumbnailDataUrl(entry);
+        void load.then((dataUrl) => {
+          if (gen !== libThumbGen || !img.isConnected) return;
+          if (dataUrl) {
+            img.src = dataUrl;
+            img.classList.add('is-loaded');
+          } else {
+            img.classList.add('is-failed');
+          }
+        });
+      });
+    }
+
+    renderLibList({ force: true });
+
+    overlay.querySelectorAll('[data-act="lib-view"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const next = btn.getAttribute('data-view') === 'grid' ? 'grid' : 'list';
+        if (next === libView) return;
+        libView = next;
+        try { localStorage.setItem('sb-assets-lib-view', libView); } catch { /* ignore */ }
+        renderLibList({ force: true });
+      });
+    });
 
     listHost?.addEventListener('click', (e) => {
-      const row = e.target.closest?.('.sb-assets-lib-item');
+      const row = e.target.closest?.('.sb-assets-lib-item, .sb-assets-lib-card');
       if (!row) return;
       selectedIdx = Number(row.dataset.i);
       renderLibList();
-      importBtn.disabled = !Number.isFinite(selectedIdx);
+    });
+
+    listHost?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const row = e.target.closest?.('.sb-assets-lib-item, .sb-assets-lib-card');
+      if (!row) return;
+      e.preventDefault();
+      selectedIdx = Number(row.dataset.i);
+      renderLibList();
     });
 
     listHost?.addEventListener('dblclick', async () => {
