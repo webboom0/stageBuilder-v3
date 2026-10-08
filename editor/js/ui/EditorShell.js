@@ -11,12 +11,15 @@ import { createKeyframePropertiesPanel } from './KeyframePropertiesPanel.js';
 import { mountViewportToolbar } from './ViewportToolbar.js';
 import { mountMenubar } from './menubar/Menubar.js';
 import { mountViewportMenubarControls } from './menubar/ViewportMenubarControls.js';
+import { mountPivotChrome } from './menubar/PivotChrome.js';
 import {
   toggleStageFocus,
   onStageFocusChange,
   isStageFocusActive,
 } from './stageFocusMode.js';
 import { mountDockCollapse } from './dockCollapse.js';
+import { pivotPortalUrl } from '../config/app-config.js';
+import { appConfirm } from './AppDialog.js';
 
 /**
  * @param {HTMLElement} root — .wrapper
@@ -77,6 +80,7 @@ import { mountDockCollapse } from './dockCollapse.js';
  *   onTransformMode?: (mode: 'translate' | 'rotate' | 'scale') => void,
  *   onTransformSpace?: (local: boolean) => void,
  *   getProjectId?: () => string | null,
+ *   getProjectTitle?: () => string,
  *   getProjectStore?: () => import('../domain/project/ProjectStore.js').ProjectStore | null,
  *   onSwitchScene?: (sceneId: string) => void | Promise<void>,
  *   onAddScene?: () => void | Promise<void>,
@@ -111,7 +115,7 @@ export function mountEditorShell(root, ctx) {
       defaultHeight: 260,
       minHeight: 180,
       dataScope: 'project',
-      titleHelp: '<strong>프로젝트 공통</strong> — 공연 정보·씬 목록. 씬을 바꿔도 프로젝트 자체는 같습니다.',
+      titleHelp: '<strong>프로젝트 공통</strong> — 공연 정보·막 목록. 막을 바꿔도 프로젝트 자체는 같습니다.',
     });
     leftRail.registerPanel({
       id: 'project',
@@ -130,17 +134,17 @@ export function mountEditorShell(root, ctx) {
     onChange: ctx.onChange,
   });
 
-  const stagePanel = createDockPanel('무대', stageUi.root, {
+  const stagePanel = createDockPanel('무대타입', stageUi.root, {
     storageKey: 'dock-stage-무대',
     defaultHeight: 300,
     dataScope: 'scene',
-    titleHelp: '<strong>씬 전용</strong> — 무대 타입·규격은 지금 씬에 저장됩니다.',
+    titleHelp: '<strong>막 전용</strong> — 무대 타입·규격은 지금 막에 저장됩니다.',
   });
 
   leftRail.registerPanel({
     id: 'stage',
     icon: 'fas fa-theater-masks',
-    label: '무대',
+    label: '무대타입',
     panelEl: stagePanel.el,
     panelApi: stagePanel,
     defaultOpen: true,
@@ -161,18 +165,18 @@ export function mountEditorShell(root, ctx) {
       groupsUi?.refreshCatalog?.();
     },
   });
-  const assetsPanel = createDockPanel('Assets', assetsUi.root, {
+  const assetsPanel = createDockPanel('에셋', assetsUi.root, {
     storageKey: 'dock-assets',
     defaultHeight: 320,
     dataScope: 'project',
     titleHelp:
       '<strong>프로젝트 공통</strong> — 파일 목록은 프로젝트 폴더에 있습니다.<br>'
-      + '<strong>+</strong>로 무대에 올린 객체·트랙은 <strong>현재 씬</strong>에만 남습니다.',
+      + '<strong>+</strong>로 무대에 올린 객체·트랙은 <strong>현재 막</strong>에만 남습니다.',
   });
   leftRail.registerPanel({
     id: 'assets',
     icon: 'fas fa-folder-open',
-    label: 'Assets',
+    label: '에셋',
     panelEl: assetsPanel.el,
     panelApi: assetsPanel,
     defaultOpen: true,
@@ -210,7 +214,7 @@ export function mountEditorShell(root, ctx) {
       minHeight: 120,
       dataScope: 'project',
       titleHelp:
-        '<strong>프로젝트 공통</strong> — 씬을 바꿔도 등장·퇴장 지점 목록은 같습니다.<br>'
+        '<strong>프로젝트 공통</strong> — 막을 바꿔도 등장·퇴장 지점 목록은 같습니다.<br>'
         + '칩 클릭 시 미리보기 및 <strong>선택 트랙</strong> 또는 <strong>활성 그룹</strong> 시작 위치에 적용',
     });
   }
@@ -237,7 +241,7 @@ export function mountEditorShell(root, ctx) {
       minHeight: 200,
       dataScope: 'project',
       titleHelp:
-        '<strong>프로젝트 공통</strong> — 저장한 패턴은 모든 씬에서 적용할 수 있습니다.<br>'
+        '<strong>프로젝트 공통</strong> — 저장한 패턴은 모든 막에서 적용할 수 있습니다.<br>'
         + 'Properties <strong>패턴</strong>은 선택 트랙 1개 편집, 여기는 <strong>여러 패턴 보관함</strong>',
     });
   }
@@ -275,7 +279,7 @@ export function mountEditorShell(root, ctx) {
     minHeight: 200,
     dataScope: 'scene',
     titleHelp:
-      '<strong>씬 전용</strong> — 선택한 트랙·키는 지금 씬 타임라인에 속합니다.<br>'
+      '<strong>막 전용</strong> — 선택한 트랙·키는 지금 막 타임라인에 속합니다.<br>'
       + 'Character·Stage는 <strong>패턴 · 속성</strong> 탭으로 나뉩니다',
   });
 
@@ -302,13 +306,13 @@ export function mountEditorShell(root, ctx) {
       onGroupColor: (group) => ctx.onGroupColor?.(group),
       onChange: () => ctx.onChange?.(),
     });
-    groupsPanel = createDockPanel('그룹 / Ensemble', groupsUi.root, {
+    groupsPanel = createDockPanel('그룹', groupsUi.root, {
       storageKey: 'dock-groups',
       defaultHeight: 720,
       minHeight: 200,
       dataScope: 'scene',
       titleHelp:
-        '<strong>씬 전용</strong> — 씬마다 그룹·멤버·애니메이션을 따로 둡니다.<br>'
+        '<strong>막 전용</strong> — 막마다 그룹·멤버·애니메이션을 따로 둡니다.<br>'
         + '여러 Characters를 묶어 포메이션·키프레임을 한 번에 적용',
     });
   }
@@ -331,7 +335,7 @@ export function mountEditorShell(root, ctx) {
       minHeight: 200,
       dataScope: 'scene',
       titleHelp:
-        '<strong>씬 전용</strong> — HOUSE/Fixture 트랙·키는 씬마다 다릅니다.<br>'
+        '<strong>막 전용</strong> — HOUSE/Fixture 트랙·키는 막마다 다릅니다.<br>'
         + '슬라이더는 <strong>라이브</strong> · 기록은 <strong>+ 키</strong>',
     });
   }
@@ -394,10 +398,12 @@ export function mountEditorShell(root, ctx) {
 
   const menubarEl = root.querySelector('#menubar');
   const viewportControlsEl = root.querySelector('#viewport-controls');
+  const appHeaderEl = root.querySelector('#sb-app-header');
 
   let menubarApi = null;
   let controlsApi = null;
   let toolbarApi = null;
+  let pivotChromeApi = null;
 
   const syncHelperUi = () => {
     menubarApi?.syncViewToggles();
@@ -405,6 +411,28 @@ export function mountEditorShell(root, ctx) {
   };
 
   const handleStageFocusToggle = () => toggleStageFocus();
+
+  function setProjectTitle(name) {
+    pivotChromeApi?.setProjectTitle?.(name);
+  }
+
+  if (appHeaderEl) {
+    pivotChromeApi = mountPivotChrome(appHeaderEl, {
+      onBrandClick: () => leftRail.openPanel('project'),
+      onGoHome: async () => {
+        const ok = await appConfirm({
+          title: 'Pivot 메인으로 이동할까요?',
+          message: '지금까지 작업한 무대는 저장하지 않으면, 메인으로 이동할 때 모두 사라집니다.',
+          confirmLabel: '이동',
+          cancelLabel: '취소',
+        });
+        if (!ok) return;
+        window.location.href = pivotPortalUrl('home');
+      },
+    });
+  }
+
+  setProjectTitle(ctx.getProjectTitle?.() || '프로젝트');
 
   if (menubarEl) {
     menubarApi = mountMenubar(menubarEl, {
@@ -542,6 +570,9 @@ export function mountEditorShell(root, ctx) {
     openAssetsPanel: () => leftRail.openPanel('assets'),
     setLeftDockCollapsed: (on) => dockCollapse.setLeftCollapsed(on),
     setRightDockCollapsed: (on) => dockCollapse.setRightCollapsed(on),
+    /** @param {string} [name] */
+    setProjectTitle: (name) => setProjectTitle(name),
+    refreshPivotChrome: () => pivotChromeApi?.refreshAccount?.(),
     /** @param {'character' | 'stage' | 'video' | 'audio'} tab */
     focusAssetsTab: (tab) => assetsUi.focusTab(tab),
     /** @param {'character' | 'stage' | 'video' | 'audio'} tab @param {{ elevated?: boolean, hintFilename?: string }} [dialogOpts] */

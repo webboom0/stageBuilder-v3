@@ -132,7 +132,7 @@ export class AudioDirector {
     }
   }
 
-  /** 씬 전환 후 렌더 캡처 그래프에 새 클립 연결 */
+  /** 막 전환 후 렌더 캡처 그래프에 새 클립 연결 */
   refreshExportCaptureWiring() {
     if (!this._exportCapture) return;
     const { ctx, dest } = this._exportCapture;

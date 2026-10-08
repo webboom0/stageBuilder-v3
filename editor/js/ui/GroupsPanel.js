@@ -600,7 +600,7 @@ export function createGroupsPanelBody(opts) {
         const n = usage.trackCount || 0;
         msg = `그룹 «${active.name}»이(가) 타임라인에 적용되어 있습니다`
           + (n > 0 ? ` (${n}개 트랙)` : '')
-          + '.\n\n삭제하면 타임라인 트랙과 씬 객체도 함께 제거됩니다. 계속할까요?';
+          + '.\n\n삭제하면 타임라인 트랙과 막 객체도 함께 제거됩니다. 계속할까요?';
       }
       if (!(await appConfirm({ title: '그룹 삭제', message: msg, danger: true }))) return;
       if (opts.onGroupDelete) {

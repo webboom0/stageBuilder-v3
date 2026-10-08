@@ -26,28 +26,28 @@ import { formatUploadFailureAlert, readHttpUploadError } from '../domain/assets/
 /** Must match server/server.js MEDIA_EXTS + limits */
 const UPLOAD_RULES = Object.freeze({
   character: Object.freeze({
-    tabLabel: 'Characters',
+    tabLabel: '캐릭터',
     exts: ['.fbx'],
     extHint: '.fbx',
     maxBytes: 100 * 1024 * 1024,
     maxLabel: '100MB',
   }),
   stage: Object.freeze({
-    tabLabel: 'Stage',
+    tabLabel: '소품',
     exts: ['.fbx', '.obj'],
     extHint: '.fbx, .obj',
     maxBytes: 100 * 1024 * 1024,
     maxLabel: '100MB',
   }),
   video: Object.freeze({
-    tabLabel: 'Video',
+    tabLabel: '비디오',
     exts: ['.mp4', '.webm', '.ogg', '.avi', '.mov'],
     extHint: '.mp4, .webm, .mov, .avi, .ogg',
     maxBytes: 500 * 1024 * 1024,
     maxLabel: '500MB',
   }),
   audio: Object.freeze({
-    tabLabel: 'Audio',
+    tabLabel: '오디오',
     exts: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'],
     extHint: '.mp3, .wav, .ogg, .m4a, .aac, .flac',
     maxBytes: 50 * 1024 * 1024,
@@ -84,10 +84,10 @@ export function createAssetsPanelBody(opts = {}) {
   root.className = 'sb-panel-body sb-assets';
   root.innerHTML = `
     <div class="sb-assets-tabs" role="tablist">
-      <button type="button" class="sb-assets-tab is-on" data-tab="character" role="tab">Characters</button>
-      <button type="button" class="sb-assets-tab" data-tab="stage" role="tab">Stage</button>
-      <button type="button" class="sb-assets-tab" data-tab="video" role="tab">Video</button>
-      <button type="button" class="sb-assets-tab" data-tab="audio" role="tab">Audio</button>
+      <button type="button" class="sb-assets-tab is-on" data-tab="character" role="tab">캐릭터</button>
+      <button type="button" class="sb-assets-tab" data-tab="stage" role="tab">소품</button>
+      <button type="button" class="sb-assets-tab" data-tab="video" role="tab">비디오</button>
+      <button type="button" class="sb-assets-tab" data-tab="audio" role="tab">오디오</button>
     </div>
     <div class="sb-assets-toolbar">
       <span class="sb-assets-status" data-role="status">…</span>
@@ -95,7 +95,7 @@ export function createAssetsPanelBody(opts = {}) {
         <button type="button" class="sb-assets-tool" data-act="refresh" title="목록 새로고침" aria-label="목록 새로고침">
           <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.refresh}</span>
         </button>
-        <button type="button" class="sb-assets-tool" data-act="library" title="공용 라이브러리에서 가져오기" aria-label="공용 라이브러리">
+        <button type="button" class="sb-assets-tool" data-act="library" title="공동라이브러리에서 가져오기" aria-label="공동라이브러리">
           <span class="sb-assets-tool-icon" aria-hidden="true">${ASSETS_TOOLBAR_ICONS.library}</span>
         </button>
         <label class="sb-assets-tool sb-assets-upload" title="업로드" aria-label="업로드">
@@ -108,12 +108,10 @@ export function createAssetsPanelBody(opts = {}) {
       </div>
     </div>
     <div class="sb-assets-list" data-role="list"></div>
-    <p class="sb-assets-hint" data-role="hint">WalkLite 기본 · Lib · 업로드 · + 또는 드래그로 추가 · 색은 속성</p>
   `;
 
   const listEl = root.querySelector('[data-role="list"]');
   const statusEl = root.querySelector('[data-role="status"]');
-  const hintEl = root.querySelector('[data-role="hint"]');
   const fileInput = /** @type {HTMLInputElement} */ (root.querySelector('[data-role="file"]'));
   const delBtn = /** @type {HTMLButtonElement | null} */ (root.querySelector('[data-act="delete"]'));
 
@@ -391,10 +389,10 @@ export function createAssetsPanelBody(opts = {}) {
       : 'list';
     let libThumbGen = 0;
 
-    const libTitle = tab === 'character' ? '캐릭터 공용 라이브러리'
-      : tab === 'stage' ? '스테이지 공용 라이브러리'
-        : tab === 'video' ? '비디오 공용 라이브러리'
-          : '오디오 공용 라이브러리';
+    const libTitle = tab === 'character' ? '캐릭터 공동라이브러리'
+      : tab === 'stage' ? '소품 공동라이브러리'
+        : tab === 'video' ? '비디오 공동라이브러리'
+          : '오디오 공동라이브러리';
 
     const viewToggleHtml = supportsLibViews ? `
       <div class="sb-assets-lib-views" role="group" aria-label="보기 방식">
@@ -423,7 +421,7 @@ export function createAssetsPanelBody(opts = {}) {
         <div class="sb-assets-lib-actions">
           <button type="button" class="sb-tl-btn" data-act="close-lib">취소</button>
           <button type="button" class="sb-tl-btn sb-assets-lib-import" data-act="import-lib" disabled>
-            ${projectId ? '프로젝트에 가져오기' : '씬에 추가'}
+            ${projectId ? '프로젝트에 가져오기' : '막에 추가'}
           </button>
         </div>
       </div>
@@ -664,19 +662,6 @@ export function createAssetsPanelBody(opts = {}) {
     });
     fileInput.accept = acceptForTab();
     selectedKey = null;
-    if (tab === 'character') {
-      hintEl.textContent = 'WalkLite 기본 · Lib · 업로드 · + 또는 드래그로 추가 · 색은 속성';
-    } else if (tab === 'stage') {
-      if (propApiAvailable === false) {
-        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX 업로드 · + 또는 드래그로 추가 (PIVOT: FBX만)';
-      } else {
-        hintEl.textContent = '직육면체·원통 기본 · Lib · FBX/OBJ · + 또는 드래그로 추가 · 색은 속성';
-      }
-    } else if (tab === 'video') {
-      hintEl.textContent = '마우스 오버 미리보기 · + 무대 배경 · 재생 중 − · 🗑 삭제';
-    } else {
-      hintEl.textContent = '▶ 듣기 · + 타임라인 · 🗑 삭제';
-    }
     refresh({ quiet: false });
   }
 
@@ -704,7 +689,7 @@ export function createAssetsPanelBody(opts = {}) {
           : '';
         const addOverlay = tab === 'video' && activeOnStage
           ? `<button type="button" class="sb-assets-add-overlay is-remove" data-act="remove-video" data-i="${i}" draggable="false" title="무대에서 비디오 제거">−</button>`
-          : `<button type="button" class="sb-assets-add-overlay" data-act="add" data-i="${i}" draggable="false" title="${tab === 'video' ? '무대 배경 재생' : '오디오 타임라인에 추가'}">+</button>`;
+          : `<button type="button" class="sb-assets-add-overlay" data-act="add" data-i="${i}" draggable="false" title="${tab === 'video' ? '무대 배경 재생' : '타임라인에 추가'}">+</button>`;
 
         if (tab === 'video') {
           return `
@@ -744,7 +729,7 @@ export function createAssetsPanelBody(opts = {}) {
 
       let addBtn = '';
       if (tab === 'character' || tab === 'stage') {
-        addBtn = `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="씬·타임라인에 추가">+</button>`;
+        addBtn = `<button type="button" class="sb-assets-add" data-act="add" data-i="${i}" title="타임라인에 추가">+</button>`;
       }
 
       if (isGridTab) {
@@ -760,7 +745,7 @@ export function createAssetsPanelBody(opts = {}) {
               <img class="sb-assets-thumb-img" data-thumb-i="${i}" data-thumb-key="${thumbKey}" alt="" />
               ${thumbBadge}
             </div>
-            <button type="button" class="sb-assets-add-overlay" data-act="add" data-i="${i}" draggable="false" title="씬·타임라인에 추가">+</button>
+            <button type="button" class="sb-assets-add-overlay" data-act="add" data-i="${i}" draggable="false" title="타임라인에 추가">+</button>
           </div>
           <div class="sb-assets-card-foot">
             <span class="sb-assets-item-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>

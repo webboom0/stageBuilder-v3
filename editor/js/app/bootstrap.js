@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { API_BASE_URL, apiUrl, API, tutorialUrl, PIVOT_HOME_URL } from '../config/app-config.js';
+import { API_BASE_URL, apiUrl, API, tutorialUrl } from '../config/app-config.js';
 import { DEFAULT_STAGE_PROFILE } from '../domain/stage/StageProfile.js';
 import { StageManager } from '../domain/stage/StageManager.js';
 import { StageViewportHelpers } from '../domain/stage/StageViewportHelpers.js';
@@ -110,25 +110,23 @@ const MENU_PHASE_HINTS = {
   'file:export:renderScene': '렌더',
   'file:export:renderAll': '렌더',
   'view:multiview': '멀티뷰',
-  'scene:add': 'Phase 6 — 멀티 씬',
-  'scene:duplicate': 'Phase 6 — 멀티 씬',
-  'scene:delete': 'Phase 6 — 멀티 씬',
-  'scene:rename': 'Phase 6 — 멀티 씬',
-  'scene:prev': 'Phase 6 — 멀티 씬',
-  'scene:next': 'Phase 6 — 멀티 씬',
-  'scene:list': 'Phase 6 — 멀티 씬',
+  'scene:add': 'Phase 6 — 멀티 막',
+  'scene:duplicate': 'Phase 6 — 멀티 막',
+  'scene:delete': 'Phase 6 — 멀티 막',
+  'scene:rename': 'Phase 6 — 멀티 막',
+  'scene:prev': 'Phase 6 — 멀티 막',
+  'scene:next': 'Phase 6 — 멀티 막',
+  'scene:list': 'Phase 6 — 멀티 막',
   'show:panel': '왼쪽 그룹 패널 (MVP)',
   'show:go': '그룹 패널 GO',
   'show:standby': 'Phase 7 — Show Control',
   'show:presets': 'Phase 7 — 무대연출',
   'view:skeleton': 'Phase 3 — 모션',
   'help:tutorial': '사용자 튜토리얼 (HTML)',
-  'help:qa': 'docs/04_작업단위_테스트_튜토리얼.md',
-  'help:about': 'StageBuilder v4 · Phase 5 Audio',
-  'library:character': '공용 라이브러리 — 캐릭터',
-  'library:stage': '공용 라이브러리 — 스테이지',
-  'library:audio': '공용 라이브러리 — 오디오',
-  'library:video': '공용 라이브러리 — 비디오',
+  'library:character': '공동라이브러리 — 캐릭터',
+  'library:stage': '공동라이브러리 — 소품',
+  'library:audio': '공동라이브러리 — 오디오',
+  'library:video': '공동라이브러리 — 비디오',
 };
 
 function setStatus(text) {
@@ -273,20 +271,6 @@ async function main(initialProjectStore) {
   /** @type {ReturnType<typeof createEditorLoadingOverlay>} */
   const editorLoading = bootLoading;
   bootLoading.show('에디터 준비 중…');
-
-  document.querySelector('.sb-brand-mark')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    void (async () => {
-      const ok = await appConfirm({
-        title: '초기 화면으로 돌아갈까요?',
-        message: '지금까지 작업한 무대는 저장하지 않으면, 초기 화면으로 돌아갈 때 모두 사라집니다.',
-        confirmLabel: '돌아가기',
-        cancelLabel: '취소',
-      });
-      if (!ok) return;
-      window.location.href = PIVOT_HOME_URL;
-    })();
-  });
 
   setAudioProjectResolver(() => projectStore?.projectId ?? null);
   setStatus('Loading stage…');
@@ -598,7 +582,7 @@ async function main(initialProjectStore) {
 
   const refreshStatus = (extra = '') => setStatus(formatStatus(api, stageManager, extra, projectStore));
 
-  /** 씬 load 중 타임라인 emit → dirty 오탐 방지 */
+  /** 막 load 중 타임라인 emit → dirty 오탐 방지 */
   let suppressSceneDirty = false;
 
   function markSceneDirty() {
@@ -653,7 +637,7 @@ async function main(initialProjectStore) {
     fixtures.apply(timeline.playheadSec);
     audio.apply(timeline.playheadSec);
     interaction?.clearSelection?.();
-    refreshStatus(`씬: ${projectStore?.sceneName?.() ?? ''}`);
+    refreshStatus(`막: ${projectStore?.sceneName?.() ?? ''}`);
   }
 
   function syncActiveVideoIndicator() {
@@ -1248,6 +1232,7 @@ async function main(initialProjectStore) {
     projectStore = store;
     setAudioProjectResolver(() => projectStore?.projectId ?? null);
     shellRef.current?.clearAssetsStale?.();
+    shellRef.current?.setProjectTitle?.(store?.project?.showName || store?.projectId || '프로젝트');
 
     if (store?.project?.stageProfile) {
       stageManager.applyProfile(store.project.stageProfile);
@@ -1271,7 +1256,7 @@ async function main(initialProjectStore) {
     try {
       shellRef.current?.setStageBusy?.(true);
       if (projectStore) {
-        if (!skipOverlay) editorLoading.setMessage('씬 불러오는 중…');
+        if (!skipOverlay) editorLoading.setMessage('막 불러오는 중…');
         const result = await projectStore.loadActiveScene(getSceneCtx());
         afterSceneSwitch();
         presentSceneLoadReport(result, projectStore.sceneName());
@@ -1347,6 +1332,7 @@ async function main(initialProjectStore) {
         if (projectStore?.projectId === projectId) {
           projectStore.project = project;
           shellRef.current?.refreshProjectPanel?.();
+          shellRef.current?.setProjectTitle?.(project?.showName || projectId || '프로젝트');
           refreshStatus('프로젝트 정보 수정됨');
         }
       },
@@ -1383,11 +1369,11 @@ async function main(initialProjectStore) {
       const dup = await projectStore.duplicateScene(getSceneCtx(), sceneId);
       afterSceneSwitch();
       presentSceneLoadReport(dup, projectStore.sceneName());
-      refreshStatus(`씬 복제됨`);
+      refreshStatus(`막 복제됨`);
     } catch (err) {
       console.error(err);
-      refreshStatus(`씬 복제 실패: ${err.message}`);
-      window.alert(err.message || '씬 복제 실패');
+      refreshStatus(`막 복제 실패: ${err.message}`);
+      window.alert(err.message || '막 복제 실패');
     } finally {
       suppressSceneDirty = false;
       shellRef.current?.setStageBusy?.(false);
@@ -1399,14 +1385,14 @@ async function main(initialProjectStore) {
     if (!projectStore) return;
     const scenes = projectStore.project.scenes || [];
     if (scenes.length <= 1) {
-      await appAlert({ title: '씬 삭제', message: '마지막 씬은 삭제할 수 없습니다.' });
+      await appAlert({ title: '막 삭제', message: '마지막 막은 삭제할 수 없습니다.' });
       return;
     }
     const scene = scenes.find((s) => s.id === sceneId);
     const label = scene?.name || sceneId;
     const ok = await appConfirm({
-      title: '씬 삭제',
-      message: `씬 «${label}»을(를) 삭제할까요?\n\n되돌릴 수 없습니다.`,
+      title: '막 삭제',
+      message: `막 «${label}»을(를) 삭제할까요?\n\n되돌릴 수 없습니다.`,
       danger: true,
     });
     if (!ok) return;
@@ -1416,11 +1402,11 @@ async function main(initialProjectStore) {
       const loadResult = await projectStore.deleteScene(getSceneCtx(), sceneId);
       afterSceneSwitch();
       if (loadResult) presentSceneLoadReport(loadResult, projectStore.sceneName());
-      refreshStatus(`씬 삭제: ${label}`);
+      refreshStatus(`막 삭제: ${label}`);
     } catch (err) {
       console.error(err);
-      refreshStatus(`씬 삭제 실패: ${err.message}`);
-      window.alert(err.message || '씬 삭제 실패');
+      refreshStatus(`막 삭제 실패: ${err.message}`);
+      window.alert(err.message || '막 삭제 실패');
     } finally {
       suppressSceneDirty = false;
       shellRef.current?.setStageBusy?.(false);
@@ -1433,15 +1419,15 @@ async function main(initialProjectStore) {
     const id = projectStore.activeSceneId;
     const scene = projectStore.project.scenes?.find((s) => s.id === id);
     const next = await appPrompt({
-      title: '씬 이름',
-      message: '씬 이름을 입력하세요.',
+      title: '막 이름',
+      message: '막 이름을 입력하세요.',
       defaultValue: scene?.name || id,
     });
     if (!next?.trim()) return;
     try {
       await projectStore.renameScene(id, next.trim());
       shellRef.current?.refreshProjectPanel?.();
-      refreshStatus(`씬 이름: ${next.trim()}`);
+      refreshStatus(`막 이름: ${next.trim()}`);
     } catch (err) {
       console.error(err);
       refreshStatus(`이름 변경 실패: ${err.message}`);
@@ -1531,7 +1517,7 @@ async function main(initialProjectStore) {
     }
     const ok = await appConfirm({
       title: '스냅샷 복원',
-      message: '현재 프로젝트의 씬·설정이 스냅샷 내용으로 덮어씌워집니다.\n'
+      message: '현재 프로젝트의 막·설정이 스냅샷 내용으로 덮어씌워집니다.\n'
         + '에셋(음악·FBX 등)은 그대로 유지됩니다.\n\n'
         + '계속할까요?',
     });
@@ -1629,7 +1615,7 @@ async function main(initialProjectStore) {
     const popupWasOpen = multiViewPopup.isOpen();
     await runRenderStudio({
       mode: 'scene',
-      sceneName: projectStore.sceneName?.() || '현재 씬',
+      sceneName: projectStore.sceneName?.() || '현재 막',
       durationSec: timeline.durationSec,
       fps: timeline.fps,
       scene: stageManager.scene,
@@ -1661,7 +1647,7 @@ async function main(initialProjectStore) {
     if (!projectStore) return;
     const scenes = projectStore.project.scenes || [];
     if (!scenes.length) {
-      window.alert('렌더할 씬이 없습니다.');
+      window.alert('렌더할 막이 없습니다.');
       return;
     }
     const popupWasOpen = multiViewPopup.isOpen();
@@ -1712,16 +1698,16 @@ async function main(initialProjectStore) {
     if (!target || !projectStore) return;
     cancelAutoSaveDebounce();
     suppressSceneDirty = true;
-    editorLoading.show(`씬 「${target.name}」 불러오는 중…`);
+    editorLoading.show(`막 「${target.name}」 불러오는 중…`);
     try {
       shellRef.current?.setStageBusy?.(true);
       const result = await projectStore.switchScene(getSceneCtx(), sceneId);
       afterSceneSwitch();
       presentSceneLoadReport(result, target.name);
-      refreshStatus(`씬: ${target.name}`);
+      refreshStatus(`막: ${target.name}`);
     } catch (err) {
       console.error(err);
-      refreshStatus(`씬 전환 실패: ${err.message}`);
+      refreshStatus(`막 전환 실패: ${err.message}`);
     } finally {
       suppressSceneDirty = false;
       shellRef.current?.setStageBusy?.(false);
@@ -1745,10 +1731,10 @@ async function main(initialProjectStore) {
       const created = await projectStore.createScene(getSceneCtx(), name.trim());
       afterSceneSwitch();
       presentSceneLoadReport(created, name.trim());
-      refreshStatus(`씬 추가: ${name.trim()}`);
+      refreshStatus(`막 추가: ${name.trim()}`);
     } catch (err) {
       console.error(err);
-      refreshStatus(`씬 추가 실패: ${err.message}`);
+      refreshStatus(`막 추가 실패: ${err.message}`);
     } finally {
       suppressSceneDirty = false;
       shellRef.current?.setStageBusy?.(false);
@@ -1761,11 +1747,11 @@ async function main(initialProjectStore) {
     try {
       await projectStore.reorderScene(sceneId, direction);
       shellRef.current?.refreshProjectPanel?.();
-      refreshStatus('씬 순서 변경됨');
+      refreshStatus('막 순서 변경됨');
     } catch (err) {
       console.error(err);
       refreshStatus(`순서 변경 실패: ${err.message}`);
-      window.alert(err.message || '씬 순서 변경 실패');
+      window.alert(err.message || '막 순서 변경 실패');
     }
   }
 
@@ -1782,6 +1768,7 @@ async function main(initialProjectStore) {
     light,
     fixtures,
     getProjectId: () => projectStore?.projectId ?? null,
+    getProjectTitle: () => projectStore?.project?.showName || projectStore?.projectId || '프로젝트',
     getProjectStore: () => projectStore ?? null,
     onSwitchScene: (sceneId) => switchToScene(sceneId),
     onAddScene: () => addSceneFlow(),
@@ -1790,7 +1777,7 @@ async function main(initialProjectStore) {
       try {
         await projectStore.renameScene(sceneId, name);
         shellRef.current?.refreshProjectPanel?.();
-        refreshStatus(`씬 이름: ${name}`);
+        refreshStatus(`막 이름: ${name}`);
       } catch (err) {
         console.error(err);
         refreshStatus(`이름 변경 실패: ${err.message}`);
@@ -1804,6 +1791,9 @@ async function main(initialProjectStore) {
       if (!projectStore) return;
       try {
         projectStore.applyMetaPatch(meta);
+        shellRef.current?.setProjectTitle?.(
+          projectStore.project?.showName || projectStore.projectId || '프로젝트',
+        );
         if (meta.stageProfile) {
           stageManager.applyProfile(meta.stageProfile);
           shellRef.current?.syncStagePanel?.();
@@ -2136,7 +2126,7 @@ async function main(initialProjectStore) {
       if (projectStore && action === 'scene:list') {
         shellRef.current?.openProjectPanel?.();
         shellRef.current?.refreshProjectPanel?.();
-        refreshStatus('프로젝트 패널 — 씬 목록');
+        refreshStatus('프로젝트 패널 — 막 목록');
         return;
       }
       if (projectStore && (action === 'scene:next' || action === 'scene:prev')) {
@@ -2145,7 +2135,7 @@ async function main(initialProjectStore) {
           const idx = scenes.findIndex((s) => s.id === projectStore.activeSceneId);
           const target = action === 'scene:next' ? scenes[idx + 1] : scenes[idx - 1];
           if (!target) {
-            refreshStatus(action === 'scene:next' ? '마지막 씬' : '첫 씬');
+            refreshStatus(action === 'scene:next' ? '마지막 막' : '첫 막');
             return;
           }
           await switchToScene(target.id);
@@ -2170,16 +2160,6 @@ async function main(initialProjectStore) {
           });
           refreshStatus(MENU_PHASE_HINTS[action] ?? '라이브러리');
         }
-        return;
-      }
-      if (action === 'help:qa') {
-        const url = apiUrl('/docs/04_%EC%9E%91%EC%97%85%EB%8B%A8%EC%9C%84_%ED%85%8C%EC%8A%A4%ED%8A%B8_%ED%8A%9C%ED%86%A0%EB%A6%AC%EC%96%BC.md');
-        window.open(url, '_blank', 'noopener,noreferrer');
-        refreshStatus('QA 문서 열림');
-        return;
-      }
-      if (action === 'help:about') {
-        refreshStatus(MENU_PHASE_HINTS[action]);
         return;
       }
       if (action.startsWith('file:export:')) {
@@ -2324,7 +2304,7 @@ async function main(initialProjectStore) {
     shell.syncStagePanel();
     if (projectStore) {
       try {
-        bootLoading.setMessage('씬 불러오는 중…');
+        bootLoading.setMessage('막 불러오는 중…');
         suppressSceneDirty = true;
         const result = await projectStore.loadActiveScene(getSceneCtx());
         cancelAutoSaveDebounce();
@@ -2333,7 +2313,7 @@ async function main(initialProjectStore) {
         shellRef.current?.refreshProjectPanel?.();
       } catch (err) {
         console.error(err);
-        refreshStatus(`씬 로드 실패: ${err.message}`);
+        refreshStatus(`막 로드 실패: ${err.message}`);
       } finally {
         suppressSceneDirty = false;
       }

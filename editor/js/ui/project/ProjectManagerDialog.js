@@ -112,8 +112,8 @@ export function showProjectManagerDialog(opts = {}) {
     async function removeProject(projectId, displayName) {
       const label = displayName || projectId;
       const msg = projectId === activeProjectId
-        ? `현재 편집 중인 프로젝트 «${label}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`
-        : `프로젝트 «${label}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`;
+        ? `현재 편집 중인 프로젝트 «${label}»을(를) 삭제할까요?\n\n막·에셋이 모두 지워지며 되돌릴 수 없습니다.`
+        : `프로젝트 «${label}»을(를) 삭제할까요?\n\n막·에셋이 모두 지워지며 되돌릴 수 없습니다.`;
       const ok = await appConfirm({
         title: '프로젝트 삭제',
         message: msg,
@@ -146,7 +146,7 @@ export function showProjectManagerDialog(opts = {}) {
             <li class="sb-project-list__item sb-project-list__item--manage${isActive ? ' is-active' : ''}" data-id="${escapeAttr(p.id)}" data-name="${escapeAttr(p.name)}">
               <div class="sb-project-list__main">
                 <div class="sb-project-list__name">${escapeHtml(p.name)}${activeBadge}</div>
-                <div class="sb-project-list__meta">씬 ${p.sceneCount || 0}개 · ${escapeHtml(date)}</div>
+                <div class="sb-project-list__meta">막 ${p.sceneCount || 0}개 · ${escapeHtml(date)}</div>
               </div>
               <div class="sb-project-list__actions">
                 <button type="button" class="sb-project-list__edit" data-act="edit" data-id="${escapeAttr(p.id)}">수정</button>

@@ -134,8 +134,32 @@ export const API = {
   projects: '/api/projects',
 };
 
-/** PIVOT portal — brand mark “초기 화면” destination */
+/** PIVOT portal — brand mark / home icon destination */
 export const PIVOT_HOME_URL = 'https://pivot.mhsoft.co.kr/';
+
+/** PIVOT Project Board (알림·계정과 동일 오리진 경로; 로컬은 portal URL 기준) */
+export const PIVOT_PB_URL = `${PIVOT_HOME_URL.replace(/\/$/, '')}/pb/`;
+export const PIVOT_ACCOUNT_URL = `${PIVOT_HOME_URL.replace(/\/$/, '')}/account`;
+export const PIVOT_LOGOUT_URL = `${PIVOT_HOME_URL.replace(/\/$/, '')}/logout`;
+
+/**
+ * Same-origin PIVOT paths when editor is hosted on pivot (e.g. /stageBuilder/).
+ * Localhost keeps absolute portal URLs above.
+ * @param {'home' | 'pb' | 'account' | 'logout'} kind
+ */
+export function pivotPortalUrl(kind) {
+  if (typeof window !== 'undefined' && !IS_LOCAL_DEV) {
+    const origin = window.location.origin;
+    if (kind === 'home') return `${origin}/`;
+    if (kind === 'pb') return `${origin}/pb/`;
+    if (kind === 'account') return `${origin}/account`;
+    if (kind === 'logout') return `${origin}/logout`;
+  }
+  if (kind === 'home') return PIVOT_HOME_URL;
+  if (kind === 'pb') return PIVOT_PB_URL;
+  if (kind === 'account') return PIVOT_ACCOUNT_URL;
+  return PIVOT_LOGOUT_URL;
+}
 
 /** pivot/nginx/server.js has no prop API — client falls back to fbx routes on deploy */
 export const PIVOT_LEGACY_ASSETS = Object.freeze({

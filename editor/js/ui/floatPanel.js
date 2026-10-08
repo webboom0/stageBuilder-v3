@@ -30,10 +30,10 @@ export function createDockPanel(title, contentDom, opts = {}) {
   if (opts.dataScope === 'project' || opts.dataScope === 'scene') {
     const badge = document.createElement('span');
     badge.className = `sb-dock-scope-badge is-${opts.dataScope}`;
-    badge.textContent = opts.dataScope === 'project' ? '프로젝트' : '씬';
+    badge.textContent = opts.dataScope === 'project' ? '프로젝트' : '막';
     badge.title = opts.dataScope === 'project'
-      ? '프로젝트 공통 — 씬을 바꿔도 목록이 유지됩니다'
-      : '씬 전용 — 씬을 바꾸면 내용이 바뀝니다';
+      ? '프로젝트 공통 — 막을 바꿔도 목록이 유지됩니다'
+      : '막 전용 — 막을 바꾸면 내용이 바뀝니다';
     titleWrap.appendChild(badge);
     panel.dataset.dataScope = opts.dataScope;
   }

@@ -22,19 +22,19 @@
         <a href="#intro" class="nav-l2">안내</a>
         <a href="#layout" class="nav-l2">화면 구성</a>
         <a href="#menubar" class="nav-l2">상단 메뉴 (전체)</a>
-        <a href="#project-scenes" class="nav-l2">프로젝트 · 씬</a>
+        <a href="#project-scenes" class="nav-l2">프로젝트 · 막</a>
 
         <div class="nav-group">무대</div>
         <a href="#stage-type" class="nav-l2">타입 · 규격</a>
         <a href="#stage-camera" class="nav-l2">카메라 · 툴바 · 그리드</a>
 
-        <div class="nav-group">Assets · 라이브러리</div>
-        <a href="#assets-common" class="nav-l2">Assets 공통</a>
+        <div class="nav-group">에셋 · 공동라이브러리</div>
+        <a href="#assets-common" class="nav-l2">에셋 공통</a>
 
-        <a href="#assets-characters" class="nav-l2">Characters</a>
-        <a href="#assets-stage" class="nav-l2">Stage</a>
-        <a href="#assets-video" class="nav-l2">Video</a>
-        <a href="#assets-audio" class="nav-l2">Audio</a>
+        <a href="#assets-characters" class="nav-l2">캐릭터</a>
+        <a href="#assets-stage" class="nav-l2">소품</a>
+        <a href="#assets-video" class="nav-l2">비디오</a>
+        <a href="#assets-audio" class="nav-l2">오디오</a>
 
         <div class="nav-group">타임라인</div>
         <a href="#timeline-common" class="nav-l2">공통 (재생 · 길이)</a>
@@ -52,15 +52,15 @@
         <a href="#audio-track" class="nav-l3">트랙 · 클립</a>
 
         <div class="nav-group">오른쪽 패널</div>
-        <a href="#properties-panel" class="nav-l2">Properties (씬)</a>
+        <a href="#properties-panel" class="nav-l2">Properties (막)</a>
         <a href="#char-pattern" class="nav-l2">Characters · 패턴</a>
         <a href="#char-props" class="nav-l2">Characters · 속성</a>
         <a href="#stage-pattern" class="nav-l2">Stage · 패턴</a>
         <a href="#stage-props" class="nav-l2">Stage · 속성</a>
-        <a href="#char-group" class="nav-l2">그룹 (씬)</a>
+        <a href="#char-group" class="nav-l2">그룹 (막)</a>
         <a href="#pattern-library" class="nav-l2">패턴 라이브러리 (프로젝트)</a>
         <a href="#position-presets" class="nav-l2">위치 프리셋 (프로젝트)</a>
-        <a href="#light-props" class="nav-l2">조명 (씬)</a>
+        <a href="#light-props" class="nav-l2">조명 (막)</a>
 
         <div class="nav-group">더보기</div>
         <a href="#viewport-multiview" class="nav-l2">멀티뷰</a>
@@ -74,8 +74,8 @@
         <h1>StageBuilder 에디터</h1>
         <p>
           무대·모션·타임라인으로 공연 연출을 구성하는 에디터입니다.
-          왼쪽 메뉴는 <strong>Assets → 타임라인 → 오른쪽 패널</strong> 순으로 연결됩니다.
-          에디터에서는 <strong><a href="#menubar">도움말 → 사용자 튜토리얼…</a></strong> 로 이 안내를 엽니다.
+          왼쪽 메뉴는 <strong>에셋 → 타임라인 → 오른쪽 패널</strong> 순으로 연결됩니다.
+          에디터에서는 <strong><a href="#menubar">도움말 → 사용자 튜토리얼</a></strong> 로 이 안내를 엽니다.
         </p>
       </header>
 
@@ -84,26 +84,24 @@
         <table>
           <thead><tr><th>영역</th><th>역할</th></tr></thead>
           <tbody>
-            <tr><td>상단 메뉴</td><td><a href="#menubar">파일 · 편집 · 씬 · 라이브러리 · 보기 · 도움말 · 그리드</a></td></tr>
-            <tr><td>메뉴 바로 아래</td><td>연결 상태 · 무대 크기 · 안내 메시지 (상태 표시줄)</td></tr>
-            <tr><td>왼쪽</td><td><strong>프로젝트</strong>·Assets(<span class="kbd">프로젝트</span>) · 무대(<span class="kbd">씬</span>) · 안쪽 가장자리 <strong>‹›</strong>로 접기/펼치기</td></tr>
+            <tr><td>상단 메뉴</td><td><a href="#menubar">파일 · 편집 · 막 · 공동라이브러리 · 보기 · 도움말 · 그리드</a></td></tr>
+            <tr><td>왼쪽</td><td><strong>프로젝트</strong>·에셋(<span class="kbd">프로젝트</span>) · 무대타입(<span class="kbd">막</span>) · 안쪽 가장자리 <strong>‹›</strong>로 접기/펼치기</td></tr>
             <tr><td>가운데</td><td>3D 무대 뷰 · 하단 <strong>뷰포트 툴바</strong> (이동/카메라/빌딩고정)</td></tr>
-            <tr><td>오른쪽</td><td><a href="#properties-panel">오른쪽 패널</a> — 뱃지 <strong>프로젝트</strong> / <strong>씬</strong> · 안쪽 가장자리 <strong>‹›</strong>로 접기/펼치기</td></tr>
-            <tr><td>하단</td><td>타임라인 (<span class="kbd">씬</span>)</td></tr>
+            <tr><td>오른쪽</td><td><a href="#properties-panel">오른쪽 패널</a> — 뱃지 <strong>프로젝트</strong> / <strong>막</strong> · 안쪽 가장자리 <strong>‹›</strong>로 접기/펼치기</td></tr>
+            <tr><td>하단</td><td>타임라인 (<span class="kbd">막</span>)</td></tr>
           </tbody>
         </table>
         <h3>데이터 범위</h3>
-        <p>패널 타이틀 옆 뱃지(<strong>프로젝트</strong> / <strong>씬</strong>)로 구분합니다. ⓘ를 누르면 범위 설명이 나옵니다(접힌 패널에서도 표시).</p>
+        <p>패널 타이틀 옆 뱃지(<strong>프로젝트</strong> / <strong>막</strong>)로 구분합니다. ⓘ를 누르면 범위 설명이 나옵니다(접힌 패널에서도 표시).</p>
         <table>
-          <thead><tr><th>뱃지</th><th>의미</th><th>씬 전환 시</th></tr></thead>
+          <thead><tr><th>뱃지</th><th>의미</th><th>막 전환 시</th></tr></thead>
           <tbody>
-            <tr><td><strong>프로젝트</strong></td><td>프로젝트 공통 — 모든 씬에서 같은 목록</td><td><strong>유지</strong></td></tr>
-            <tr><td><strong>씬</strong></td><td>지금 편집 중인 씬만</td><td><strong>갱신</strong></td></tr>
+            <tr><td><strong>프로젝트</strong></td><td>프로젝트 공통 — 모든 막에서 같은 목록</td><td><strong>유지</strong></td></tr>
+            <tr><td><strong>막</strong></td><td>지금 편집 중인 막만</td><td><strong>갱신</strong></td></tr>
           </tbody>
         </table>
         <div class="note">
-          메뉴 이름 끝의 <strong>…</strong>는 «창·목록·파일 선택»처럼 <strong>한 단계 더 필요</strong>할 때 쓰는 표기입니다.
-          바로 실행되는 항목(저장 · 씬 추가 등)에는 붙지 않습니다.
+          메뉴 <strong>▸</strong>는 마우스를 올리면 <strong>하위 메뉴</strong>가 펼쳐집니다.
         </div>
         <figure class="tutorial-figure" data-file="images/01-layout-full.png">
           <img class="tutorial-shot" src="./images/01-layout-full.png" alt="메뉴 · 패널 · 뷰 · 타임라인 전체 화면" width="1280" height="720" loading="lazy" decoding="async" />
@@ -118,7 +116,6 @@
           아래 다른 절에서 «파일 → …»처럼 적힌 경로는 모두 이 표를 가리킵니다.
         </p>
         <div class="note">
-          이름 끝 <strong>…</strong> — 창·목록·파일 선택 등 <strong>한 단계 더</strong> 필요할 때.
           <strong>▸</strong> — 마우스를 올리면 <strong>하위 메뉴</strong>가 펼쳐집니다.
         </div>
 
@@ -127,21 +124,21 @@
           <thead><tr><th>항목</th><th>단축키</th><th>동작</th></tr></thead>
           <tbody>
             <tr><td>새 프로젝트</td><td></td><td>공연 정보 입력 후 새 공연 · 저장 확인 후 전환 · <a href="#project-scenes">로딩</a></td></tr>
-            <tr><td>열기…</td><td></td><td>저장된 프로젝트 목록에서 선택 · 전환</td></tr>
-            <tr><td>프로젝트 편집…</td><td></td><td>저장된 프로젝트 <strong>목록</strong>에서 수정·삭제 (패널 <strong>수정</strong>과 별도)</td></tr>
-            <tr><td>저장</td><td>Ctrl+S</td><td>지금 씬 저장</td></tr>
-            <tr><td>스냅샷 저장…</td><td></td><td>씬 JSON만 ZIP 다운로드 · <a href="#project-snapshot">스냅샷</a></td></tr>
-            <tr><td>스냅샷에서 복원…</td><td></td><td>지금 연 프로젝트에 스냅샷 덮어쓰기</td></tr>
-            <tr><td>ZIP 가져오기 (에셋 포함)…</td><td></td><td>ZIP → <strong>새 프로젝트</strong> · <a href="#project-zip">ZIP</a></td></tr>
+            <tr><td>이전 프로젝트 열기</td><td></td><td>저장된 프로젝트 목록에서 선택 · 전환</td></tr>
+            <tr><td>프로젝트 편집</td><td></td><td>저장된 프로젝트 <strong>목록</strong>에서 수정·삭제 (패널 <strong>수정</strong>과 별도)</td></tr>
+            <tr><td>저장</td><td>Ctrl+S</td><td>지금 막 저장</td></tr>
+            <tr><td>스냅샷 저장</td><td></td><td>막 JSON만 ZIP 다운로드 · <a href="#project-snapshot">스냅샷</a></td></tr>
+            <tr><td>스냅샷에서 복원</td><td></td><td>지금 연 프로젝트에 스냅샷 덮어쓰기</td></tr>
+            <tr><td>ZIP 가져오기 (에셋 포함)</td><td></td><td>ZIP → <strong>새 프로젝트</strong> · <a href="#project-zip">ZIP</a></td></tr>
             <tr><td>내보내기 ▸</td><td></td><td>하위 — 아래 표</td></tr>
           </tbody>
         </table>
         <table>
           <thead><tr><th>내보내기 ▸</th><th>동작</th></tr></thead>
           <tbody>
-            <tr><td>프로젝트 ZIP (에셋 포함)…</td><td>씬·에셋 전체 ZIP · <a href="#project-zip">ZIP</a></td></tr>
-            <tr><td>현재 씬 렌더…</td><td>활성 씬 WebM · <a href="#render">렌더</a></td></tr>
-            <tr><td>전체 렌더…</td><td>씬 순서대로 WebM <strong>1개</strong> · <a href="#render">렌더</a></td></tr>
+            <tr><td>프로젝트 ZIP (에셋 포함)</td><td>막·에셋 전체 ZIP · <a href="#project-zip">ZIP</a></td></tr>
+            <tr><td>현재 막 렌더</td><td>활성 막 WebM · <a href="#render">렌더</a></td></tr>
+            <tr><td>전체 렌더</td><td>막 순서대로 WebM <strong>1개</strong> · <a href="#render">렌더</a></td></tr>
           </tbody>
         </table>
 
@@ -155,32 +152,32 @@
         </table>
         <div class="note">키·클립 삭제는 타임라인 <strong>Del</strong> 버튼 · <strong>D</strong> / <strong>Del</strong> 단축키 · 트랙 우클릭 — <a href="#timeline-common">타임라인 공통</a></div>
 
-        <h3 id="menubar-scene">씬</h3>
+        <h3 id="menubar-scene">막</h3>
         <table>
           <thead><tr><th>항목</th><th>단축키</th><th>동작</th></tr></thead>
           <tbody>
-            <tr><td>씬 추가</td><td></td><td>새 막 · <a href="#project-scenes">씬 패널</a></td></tr>
-            <tr><td>씬 복제</td><td></td><td>활성 씬 복제</td></tr>
-            <tr><td>씬 삭제</td><td></td><td>활성 씬 삭제 (마지막 씬 불가)</td></tr>
-            <tr><td>이름 바꾸기…</td><td></td><td>이름 입력 · 패널 <strong>더블클릭</strong>도 가능</td></tr>
-            <tr><td>이전 씬</td><td>Ctrl+[</td><td>이전 막으로 전환 · 로딩 표시</td></tr>
-            <tr><td>다음 씬</td><td>Ctrl+]</td><td>다음 막으로 전환</td></tr>
-            <tr><td>씬 목록…</td><td></td><td>왼쪽 <strong>프로젝트</strong> 패널 열기</td></tr>
+            <tr><td>막 추가</td><td></td><td>새 막 · <a href="#project-scenes">프로젝트 패널</a></td></tr>
+            <tr><td>막 복제</td><td></td><td>활성 막 복제</td></tr>
+            <tr><td>막 삭제</td><td></td><td>활성 막 삭제 (마지막 막 불가)</td></tr>
+            <tr><td>막 이름 바꾸기</td><td></td><td>이름 입력 · 패널 <strong>더블클릭</strong>도 가능</td></tr>
+            <tr><td>이전 막</td><td>Ctrl+[</td><td>이전 막으로 전환 · 로딩 표시</td></tr>
+            <tr><td>다음 막</td><td>Ctrl+]</td><td>다음 막으로 전환</td></tr>
+            <tr><td>막 목록</td><td></td><td>왼쪽 <strong>프로젝트</strong> 패널 열기</td></tr>
           </tbody>
         </table>
 
-        <h3 id="menubar-library">라이브러리</h3>
-        <p>서버 <strong>공용 files</strong> 폴더 — 프로젝트 Assets와 별도. <a href="#assets-common">Assets Lib</a>는 복사만, 여기서는 업로드·삭제.</p>
+        <h3 id="menubar-library">공동라이브러리</h3>
+        <p>서버 <strong>공용 files</strong> 폴더 — 프로젝트 에셋와 별도. <a href="#assets-common">에셋 Lib</a>는 복사만, 여기서는 업로드·삭제.</p>
         <table>
           <thead><tr><th>항목</th><th>관리 대상</th></tr></thead>
           <tbody>
-            <tr><td>캐릭터…</td><td><code>files/characters</code> · <code>files/fbx</code></td></tr>
-            <tr><td>스테이지…</td><td><code>files/props</code></td></tr>
-            <tr><td>오디오…</td><td><code>files/music</code></td></tr>
-            <tr><td>비디오…</td><td><code>files/video</code></td></tr>
+            <tr><td>캐릭터</td><td><code>files/characters</code> · <code>files/fbx</code></td></tr>
+            <tr><td>소품</td><td><code>files/props</code></td></tr>
+            <tr><td>오디오</td><td><code>files/music</code></td></tr>
+            <tr><td>비디오</td><td><code>files/video</code></td></tr>
           </tbody>
         </table>
-        <p id="library-dialog">열리는 창: <strong>새로고침 · 업로드 · 삭제</strong> (Assets 툴바와 같은 아이콘) · 목록 선택 · <strong>닫기</strong>. 변경 후 Assets 패널 목록도 갱신됩니다. 허용 형식·용량이 아니면 업로드 전에 경고가 뜹니다 (캐릭터·스테이지 100MB · 오디오 50MB · 비디오 500MB).</p>
+        <p id="library-dialog">열리는 창: <strong>새로고침 · 업로드 · 삭제</strong> (에셋 툴바와 같은 아이콘) · 목록 선택 · <strong>닫기</strong>. 변경 후 에셋 패널 목록도 갱신됩니다. 허용 형식·용량이 아니면 업로드 전에 경고가 뜹니다 (캐릭터·소품 100MB · 오디오 50MB · 비디오 500MB).</p>
 
         <h3 id="menubar-view">보기</h3>
         <table>
@@ -201,9 +198,7 @@
         <table>
           <thead><tr><th>항목</th><th>동작</th></tr></thead>
           <tbody>
-            <tr><td>사용자 튜토리얼…</td><td>이 안내 (새 탭)</td></tr>
-            <tr><td>작업 단위 테스트…</td><td>개발·QA용 체크 문서 (연출 작업에는 불필요)</td></tr>
-            <tr><td>StageBuilder v4 정보</td><td>버전 안내</td></tr>
+            <tr><td>사용자 튜토리얼</td><td>이 안내 (새 탭)</td></tr>
           </tbody>
         </table>
 
@@ -223,10 +218,10 @@
       </section>
 
       <section id="project-scenes">
-        <h2>프로젝트 · 씬 (막)</h2>
+        <h2>프로젝트 · 막</h2>
         <p>
           에디터를 열면 먼저 <strong>프로젝트 허브</strong>에서 공연을 고르거나 새로 만듭니다.
-          편집 중에는 왼쪽 <strong>프로젝트</strong> 패널(필름 아이콘)에서 공연명과 씬 목록을 확인합니다.
+          편집 중에는 왼쪽 <strong>프로젝트</strong> 패널(필름 아이콘)에서 공연명과 막 목록을 확인합니다.
         </p>
 
         <h3>프로젝트 허브</h3>
@@ -270,38 +265,38 @@
         </div>
 
         <div class="note">
-          <strong><a href="#menubar-file">파일 → 열기…</a></strong> · <strong>새 프로젝트</strong> · <strong>ZIP 가져오기</strong> ·
-          <strong><a href="#menubar-scene">씬 → 이전/다음</a></strong> 중에는 화면 전체 <strong>로딩</strong>(스피너)이 표시됩니다.
-          «프로젝트 여는 중…» → «씬 불러오는 중…» 순으로 안내가 바뀝니다.
+          <strong><a href="#menubar-file">파일 → 이전 프로젝트 열기</a></strong> · <strong>새 프로젝트</strong> · <strong>ZIP 가져오기</strong> ·
+          <strong><a href="#menubar-scene">막 → 이전/다음</a></strong> 중에는 화면 전체 <strong>로딩</strong>(스피너)이 표시됩니다.
+          «프로젝트 여는 중…» → «막 불러오는 중…» 순으로 안내가 바뀝니다.
           <strong><a href="#stage-type">무대 타입·규격</a></strong> 변경 시에도 같은 로딩이 표시됩니다.
         </div>
         <div class="note">
-          다른 프로젝트로 바꾸면 <strong>Assets · 그룹 · Properties · 조명</strong> 등 패널이 새 프로젝트 기준으로 자동 갱신됩니다.
+          다른 프로젝트로 바꾸면 <strong>에셋 · 그룹 · Properties · 조명</strong> 등 패널이 새 프로젝트 기준으로 자동 갱신됩니다.
         </div>
 
-        <h3>씬 · 패널</h3>
-        <p>패널 <strong>위쪽</strong>은 씬(막) 목록, <strong>아래쪽</strong>은 공연 요약입니다.</p>
+        <h3>막 · 패널</h3>
+        <p>패널 <strong>위쪽</strong>은 막 목록, <strong>아래쪽</strong>은 공연 요약입니다.</p>
         <table>
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
-            <tr><td>지금 편집 중인 씬</td><td>목록 <strong>편집 중</strong> · 왼쪽 <strong>번호</strong> (1막·2막 순서) · 상태 표시줄 「공연명」 1막</td></tr>
-            <tr><td>저장 안 됨</td><td>「씬 (막)」 옆 <strong>저장 안 됨</strong> 배지 — 저장 전까지 표시</td></tr>
-            <tr><td>씬 저장</td><td>씬 (막) 옆 <strong>저장</strong> 아이콘 · <strong><a href="#menubar-file">파일 → 저장</a></strong> (Ctrl+S)</td></tr>
+            <tr><td>지금 편집 중인 막</td><td>목록 <strong>편집 중</strong> · 왼쪽 <strong>번호</strong> (1막·2막 순서) · 상태 표시줄 「공연명」 1막</td></tr>
+            <tr><td>저장 안 됨</td><td>「막」 옆 <strong>저장 안 됨</strong> 배지 — 저장 전까지 표시</td></tr>
+            <tr><td>막 저장</td><td>막 옆 <strong>저장</strong> 아이콘 · <strong><a href="#menubar-file">파일 → 저장</a></strong> (Ctrl+S)</td></tr>
             <tr><td>자동 저장</td><td>변경 후 약 <strong>45초</strong> 뒤 자동 저장</td></tr>
-            <tr><td>씬 전환</td><td>목록 클릭 · <strong><a href="#menubar-scene">씬 → 이전/다음</a></strong> (Ctrl+[ / Ctrl+])</td></tr>
-            <tr><td>씬 추가</td><td><strong>+</strong> · <strong><a href="#menubar-scene">씬 → 씬 추가</a></strong></td></tr>
-            <tr><td>이름 변경</td><td>씬 항목 <strong>더블클릭</strong> · <strong><a href="#menubar-scene">씬 → 이름 바꾸기…</a></strong></td></tr>
-            <tr><td>씬 순서</td><td>항목 옆 <strong>↑ ↓</strong></td></tr>
-            <tr><td>씬 복제</td><td>복제 아이콘 · <strong><a href="#menubar-scene">씬 → 씬 복제</a></strong></td></tr>
-            <tr><td>씬 삭제</td><td>휴지통 (마지막 씬은 불가) · <strong><a href="#menubar-scene">씬 → 씬 삭제</a></strong></td></tr>
+            <tr><td>막 전환</td><td>목록 클릭 · <strong><a href="#menubar-scene">막 → 이전/다음</a></strong> (Ctrl+[ / Ctrl+])</td></tr>
+            <tr><td>막 추가</td><td><strong>+</strong> · <strong><a href="#menubar-scene">막 → 막 추가</a></strong></td></tr>
+            <tr><td>이름 변경</td><td>막 항목 <strong>더블클릭</strong> · <strong><a href="#menubar-scene">막 → 막 이름 바꾸기</a></strong></td></tr>
+            <tr><td>막 순서</td><td>항목 옆 <strong>↑ ↓</strong></td></tr>
+            <tr><td>막 복제</td><td>복제 아이콘 · <strong><a href="#menubar-scene">막 → 막 복제</a></strong></td></tr>
+            <tr><td>막 삭제</td><td>휴지통 (마지막 막은 불가) · <strong><a href="#menubar-scene">막 → 막 삭제</a></strong></td></tr>
           </tbody>
         </table>
 
         <h3 id="project-snapshot">스냅샷 (작업 되돌리기)</h3>
         <p>
-          지금 연 프로젝트 폴더가 서버에 있을 때, <strong>씬·타임라인·조명 설계만</strong> 백업하고 나중에 되돌릴 때 씁니다.
+          지금 연 프로젝트 폴더가 서버에 있을 때, <strong>막·타임라인·조명 설계만</strong> 백업하고 나중에 되돌릴 때 씁니다.
           음악·FBX 등 <strong>에셋은 프로젝트 폴더에 그대로</strong> 두고 JSON만 저장·복원합니다.
-          메뉴: <strong><a href="#menubar-file">파일 → 스냅샷 저장… / 스냅샷에서 복원…</a></strong>
+          메뉴: <strong><a href="#menubar-file">파일 → 스냅샷 저장 / 스냅샷에서 복원</a></strong>
           (저장 시 <code>_snapshot_날짜.zip</code> 다운로드).
         </p>
         <div class="note">스냅샷 복원은 <strong>프로젝트를 연 상태</strong>에서만 사용하세요. 허브 「ZIP 가져오기」와는 다릅니다.</div>
@@ -313,34 +308,34 @@
           <strong><a href="#menubar-file">파일 → ZIP 가져오기 (에셋 포함)…</a></strong> · 허브 ZIP 가져오기.
         </p>
 
-        <h3 id="project-load-report">씬 로드 경고</h3>
+        <h3 id="project-load-report">막 로드 경고</h3>
         <p>
-          씬·프로젝트를 열 때 캐릭터·오디오·영상 등 <strong>프로젝트 에셋 파일</strong>을 찾지 못하면 경고 창이 뜹니다.
-          씬 JSON과 타임라인 트랙은 열리지만, <strong>무대(3D)에는 해당 객체가 나타나지 않을 수 있습니다</strong>.
+          막·프로젝트를 열 때 캐릭터·오디오·영상 등 <strong>프로젝트 에셋 파일</strong>을 찾지 못하면 경고 창이 뜹니다.
+          막 JSON과 타임라인 트랙은 열리지만, <strong>무대(3D)에는 해당 객체가 나타나지 않을 수 있습니다</strong>.
         </p>
         <table>
           <thead><tr><th>항목</th><th>설명</th></tr></thead>
           <tbody>
             <tr><td>누락 종류</td><td><strong>캐릭터</strong> · 오디오 · 비디오 · 에셋 (파일명 표시)</td></tr>
-            <tr><td><span class="tut-icon tut-icon--upload"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 16V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 11l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> 업로드</td><td>PC에서 파일을 프로젝트에 올림 (해당 Assets 탭으로 자동 전환)</td></tr>
-            <tr><td><span class="tut-icon tut-icon--accent"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5v15H5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6h5v13h-5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 5h4v14h-4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span> 라이브러리</td><td>공용 라이브러리에서 <strong>프로젝트로 가져오기</strong> — 공용 files에 있으면 버튼이 강조되고 «공용 라이브러리에 있음» 안내 표시</td></tr>
-            <tr><td>씬 다시 불러오기</td><td>파일 추가 후 — 3D·재생에 반영</td></tr>
+            <tr><td><span class="tut-icon tut-icon--upload"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 16V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 11l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> 업로드</td><td>PC에서 파일을 프로젝트에 올림 (해당 에셋 탭으로 자동 전환)</td></tr>
+            <tr><td><span class="tut-icon tut-icon--accent"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5v15H5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6h5v13h-5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 5h4v14h-4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span> 공동라이브러리</td><td>공동라이브러리에서 <strong>프로젝트로 가져오기</strong> — 공용 files에 있으면 버튼이 강조되고 «공동라이브러리에 있음» 안내 표시</td></tr>
+            <tr><td>막 다시 불러오기</td><td>파일 추가 후 — 3D·재생에 반영</td></tr>
             <tr><td>닫기</td><td>경고만 닫고 편집 계속 · «파일 없이 계속할까요?» 확인 후 진행 가능</td></tr>
           </tbody>
         </table>
         <div class="note">
           타임라인 트랙·클립은 그대로 남습니다. 파일을 넣지 않고 닫으면 트랙만 보이고 무대에는 비어 있을 수 있습니다.
-          나중에 <a href="#assets-common">Assets</a> 탭에서 추가한 뒤 <strong>씬 다시 불러오기</strong> 또는 씬 전환으로 복원하세요.
+          나중에 <a href="#assets-common">에셋</a> 탭에서 추가한 뒤 <strong>막 다시 불러오기</strong> 또는 막 전환으로 복원하세요.
         </div>
         <figure class="tutorial-figure" data-file="images/23-scene-load-report.png">
-          <img class="tutorial-shot" src="./images/23-scene-load-report.png" alt="씬 로드 경고 — 업로드 · 라이브러리 · 씬 다시 불러오기" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>씬 로드 경고 — 누락 목록 · 업로드 · 라이브러리(강조) · 씬 다시 불러오기 · 닫기 확인</figcaption>
+          <img class="tutorial-shot" src="./images/23-scene-load-report.png" alt="막 로드 경고 — 업로드 · 라이브러리 · 막 다시 불러오기" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>막 로드 경고 — 누락 목록 · 업로드 · 라이브러리(강조) · 막 다시 불러오기 · 닫기 확인</figcaption>
         </figure>
 
-        <div class="note">씬마다 타임라인·모션·조명이 따로 저장됩니다. Assets는 프로젝트마다 묶입니다.</div>
+        <div class="note">막마다 타임라인·모션·조명이 따로 저장됩니다. 에셋은 프로젝트마다 묶입니다.</div>
         <figure class="tutorial-figure" data-file="images/03-project-panel.png">
-          <img class="tutorial-shot" src="./images/03-project-panel.png" alt="프로젝트 패널 — 씬 목록 · 저장 안 됨 · 하단 공연 요약" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>프로젝트 패널 — 씬 목록(상단) · 저장 안 됨 배지 · 하단 공연 요약 · 수정</figcaption>
+          <img class="tutorial-shot" src="./images/03-project-panel.png" alt="프로젝트 패널 — 막 목록 · 저장 안 됨 · 하단 공연 요약" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>프로젝트 패널 — 막 목록(상단) · 저장 안 됨 배지 · 하단 공연 요약 · 수정</figcaption>
         </figure>
       </section>
 
@@ -386,7 +381,7 @@
           <img class="tutorial-shot" src="./images/04-stage-panel.png" alt="무대 패널 — 타입 썸네일 · 규격 · 변경" width="1280" height="720" loading="lazy" decoding="async" />
           <figcaption>무대 패널 — 프로시니엄/아레나 썸네일 · 규격 이름 · 변경</figcaption>
         </figure>
-        <p>직육면체·원통 등 <strong>기본 소품</strong>은 <a href="#assets-stage">Assets → Stage</a> 탭에서 추가합니다. 새 씬·씬 전환 시 없으면 자동 배치됩니다.</p>
+        <p>직육면체·원통 등 <strong>기본 소품</strong>은 <a href="#assets-stage">에셋 → 소품</a> 탭에서 추가합니다. 새 막·막 전환 시 없으면 자동 배치됩니다.</p>
       </section>
 
       <section id="stage-camera">
@@ -479,20 +474,20 @@
       </section>
 
       <section id="assets-common">
-        <h2>Assets — 공통</h2>
-        <p>왼쪽 레일 <strong>Assets</strong>에서 <strong>지금 연 프로젝트</strong>의 Characters·Stage·Video·Audio 파일을 관리합니다. 탭·툴바·업로드 규칙은 모든 탭에 공통입니다.</p>
+        <h2>에셋 — 공통</h2>
+        <p>왼쪽 레일 <strong>에셋</strong>에서 <strong>지금 연 프로젝트</strong>의 캐릭터·소품·비디오·오디오 파일을 관리합니다. 탭·툴바·업로드 규칙은 모든 탭에 공통입니다.</p>
         <div class="note">
-          서버 <strong>공용</strong> 파일 전체를 올리거나 지울 때는 <strong><a href="#menubar-library">라이브러리</a></strong> 메뉴를 사용하세요.
-          Assets <strong>Lib</strong>는 공용 목록에서 <strong>프로젝트로 가져오기(복사)</strong>만 합니다.
+          서버 <strong>공용</strong> 파일 전체를 올리거나 지울 때는 <strong><a href="#menubar-library">공동라이브러리</a></strong> 메뉴를 사용하세요.
+          에셋 <strong>Lib</strong>는 공용 목록에서 <strong>프로젝트로 가져오기(복사)</strong>만 합니다.
         </div>
-        <div class="note">탭별 <strong>+</strong> 동작·배치 방법은 아래 <strong>Characters · Stage · Video · Audio</strong> 항목을 참고하세요.</div>
+        <div class="note">탭별 <strong>+</strong> 동작·배치 방법은 아래 <strong>캐릭터 · 소품 · 비디오 · 오디오</strong> 항목을 참고하세요.</div>
         <h3>공통 UI</h3>
         <p>툴바: <strong>왼쪽</strong> 파일 <strong>개수</strong> · <strong>오른쪽</strong> 아이콘(새로고침 · Lib · 업로드 · 삭제)</p>
         <table>
           <thead><tr><th>아이콘</th><th>기능</th></tr></thead>
           <tbody>
             <tr><td><span class="tut-icon"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> 새로고침</td><td>목록 새로고침 (무대·타임라인은 유지)</td></tr>
-            <tr><td><span class="tut-icon tut-icon--accent"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5v15H5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6h5v13h-5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 5h4v14h-4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span> Lib</td><td>공용 라이브러리 — <strong>리스트/카드</strong> 보기(캐릭터·스테이지·비디오) · 선택 후 <strong>프로젝트에 가져오기</strong> · <strong>프로젝트에 있음</strong> 표시</td></tr>
+            <tr><td><span class="tut-icon tut-icon--accent"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 4h5v15H5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6h5v13h-5z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 5h4v14h-4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span> Lib</td><td>공동라이브러리 — <strong>리스트/카드</strong> 보기(캐릭터·소품·비디오) · 선택 후 <strong>프로젝트에 가져오기</strong> · <strong>프로젝트에 있음</strong> 표시</td></tr>
             <tr><td><span class="tut-icon tut-icon--upload"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 16V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 11l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> 업로드</td><td>선택 탭 형식으로 파일 업로드</td></tr>
             <tr><td><span class="tut-icon"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 5h6M6 8h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8 8l1 12h6l1-12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span> 삭제</td><td>선택 파일 삭제 · 항목을 <strong>휴지통으로 드래그</strong>해도 삭제</td></tr>
           </tbody>
@@ -500,39 +495,39 @@
         <table>
           <thead><tr><th>요소</th><th>기능</th></tr></thead>
           <tbody>
-            <tr><td>탭</td><td><strong>Characters</strong> · <strong>Stage</strong> · <strong>Video</strong> · <strong>Audio</strong></td></tr>
-            <tr><td>카드 목록</td><td>Characters·Stage — 3열 썸네일 · Video — 2열 · Audio — 파형 1열</td></tr>
-            <tr><td>카드 <strong>+</strong></td><td>마우스를 올리면 표시 — 무대/타임라인에 추가</td></tr>
-            <tr><td>드래그</td><td>Characters·Stage 카드를 타임라인 해당 섹션으로 끌어 추가</td></tr>
-            <tr><td>Video</td><td>마우스 오버 시 미리 재생 · 재생 중 <strong>−</strong></td></tr>
-            <tr><td>Audio</td><td>파형 · ▶ 듣기 · <strong>+</strong> 타임라인</td></tr>
+            <tr><td>탭</td><td><strong>캐릭터</strong> · <strong>소품</strong> · <strong>비디오</strong> · <strong>오디오</strong></td></tr>
+            <tr><td>카드 목록</td><td>캐릭터·소품 — 3열 썸네일 · 비디오 — 2열 · 오디오 — 파형 1열</td></tr>
+            <tr><td>카드 <strong>+</strong></td><td>마우스를 올리면 표시 — 툴팁 «타임라인에 추가»</td></tr>
+            <tr><td>드래그</td><td>캐릭터·소품 카드를 타임라인 해당 섹션으로 끌어 추가</td></tr>
+            <tr><td>비디오</td><td>마우스 오버 시 미리 재생 · 재생 중 <strong>−</strong></td></tr>
+            <tr><td>오디오</td><td>파형 · ▶ 듣기 · <strong>+</strong> 타임라인</td></tr>
           </tbody>
         </table>
         <h3>탭별 업로드 · + 동작</h3>
         <table>
           <thead><tr><th>탭</th><th>업로드 형식</th><th>+ 버튼</th><th>타임라인</th></tr></thead>
           <tbody>
-            <tr><td>Characters</td><td>.fbx (최대 100MB)</td><td>무대에 배치 · 트랙 1개 생성</td><td><a href="#assets-characters">Assets</a> · <a href="#timeline-characters">타임라인</a></td></tr>
-            <tr><td>Stage</td><td>.fbx · .obj (최대 100MB)</td><td>무대에 배치 · 트랙 1개 생성</td><td><a href="#assets-stage">Assets</a> · <a href="#timeline-stage">타임라인</a></td></tr>
-            <tr><td>Video</td><td>.mp4 · .webm · .mov 등 (최대 500MB)</td><td><strong>+</strong> 배경 재생 · 재생 중 <strong>−</strong> 제거</td><td><a href="#assets-video">Assets</a> (타임라인 트랙 없음)</td></tr>
-            <tr><td>Audio</td><td>.mp3 · .wav · .ogg 등 (최대 50MB)</td><td><strong>+</strong> 클릭마다 새 트랙 + 클립</td><td><a href="#assets-audio">Assets</a> · <a href="#timeline-audio">타임라인</a></td></tr>
+            <tr><td>캐릭터</td><td>.fbx (최대 100MB)</td><td>무대에 배치 · 트랙 1개 생성</td><td><a href="#assets-characters">에셋</a> · <a href="#timeline-characters">타임라인</a></td></tr>
+            <tr><td>소품</td><td>.fbx · .obj (최대 100MB)</td><td>무대에 배치 · 트랙 1개 생성</td><td><a href="#assets-stage">에셋</a> · <a href="#timeline-stage">타임라인</a></td></tr>
+            <tr><td>비디오</td><td>.mp4 · .webm · .mov 등 (최대 500MB)</td><td><strong>+</strong> 배경 재생 · 재생 중 <strong>−</strong> 제거</td><td><a href="#assets-video">에셋</a> (타임라인 트랙 없음)</td></tr>
+            <tr><td>오디오</td><td>.mp3 · .wav · .ogg 등 (최대 50MB)</td><td><strong>+</strong> 클릭마다 새 트랙 + 클립</td><td><a href="#assets-audio">에셋</a> · <a href="#timeline-audio">타임라인</a></td></tr>
           </tbody>
         </table>
         <div class="note">
-          Characters·Stage는 <strong>+</strong> 할 때 <strong>현재 플레이헤드</strong>에 첫 키가 생깁니다.
-          Audio는 <strong>+</strong> 할 때마다 새 트랙·클립이 생깁니다. 서버 <code>/files/music/</code> 경로만 사용합니다.
-          첫 키 <strong>이전</strong>(Characters·Stage)은 비표시. 형식·용량이 맞지 않으면 업로드 전에 경고창이 뜹니다 (Characters·Stage 100MB · Audio 50MB · Video 500MB).
+          캐릭터·소품은 <strong>+</strong> 할 때 <strong>현재 플레이헤드</strong>에 첫 키가 생깁니다.
+          오디오는 <strong>+</strong> 할 때마다 새 트랙·클립이 생깁니다. 서버 <code>/files/music/</code> 경로만 사용합니다.
+          첫 키 <strong>이전</strong>(캐릭터·소품)은 비표시. 형식·용량이 맞지 않으면 업로드 전에 경고창이 뜹니다 (캐릭터·소품 100MB · 오디오 50MB · 비디오 500MB).
         </div>
         <figure class="tutorial-figure" data-file="images/07-assets-common.png">
-          <img class="tutorial-shot" src="./images/07-assets-common.png" alt="Assets — 탭 · SVG 툴바 · 카드 그리드" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Assets — 탭 · 새로고침·Lib·업로드·삭제 아이콘 · 카드 그리드</figcaption>
+          <img class="tutorial-shot" src="./images/07-assets-common.png" alt="에셋 — 탭 · SVG 툴바 · 카드 그리드" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>에셋 — 탭 · 새로고침·Lib·업로드·삭제 아이콘 · 카드 그리드</figcaption>
         </figure>
       </section>
 
       <section id="assets-characters" class="section-overview">
-        <h2>Characters</h2>
-        <p>Assets <strong>Characters</strong> 탭 — WalkLite(기본)·FBX · <strong>3열 썸네일 카드</strong> · <strong>+</strong> 또는 타임라인으로 추가.</p>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Characters 탭 <strong>+</strong> → <a href="#timeline-characters">타임라인 Characters</a></p>
+        <h2>캐릭터</h2>
+        <p>에셋 <strong>캐릭터</strong> 탭 — WalkLite(기본)·FBX · <strong>3열 썸네일 카드</strong> · <strong>+</strong> 또는 타임라인으로 추가.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> 캐릭터 탭 <strong>+</strong> → <a href="#timeline-characters">타임라인 Characters</a></p>
         <ul class="section-toc">
           <li>WalkLite · FBX · 170cm · X/Z · 틴트 · 그룹 등록</li>
         </ul>
@@ -544,21 +539,21 @@
             <tr><td>위치 편집</td><td>Properties·기즈모는 <strong>X/Z만</strong> (Y는 바닥 높이 고정)</td></tr>
             <tr><td>색</td><td>Properties <strong>속성</strong> 탭 · 틴트 색상</td></tr>
             <tr><td>등장·퇴장</td><td>오디오처럼 클립 길이로 숨기지 않음 · <strong>등장 클립 막대</strong>는 구간 표시 · 연출은 <strong>패턴</strong>·<strong>Opacity</strong>(페이드) · 마지막 키 <strong>자동 안 보임</strong></td></tr>
-            <tr><td>그룹</td><td>오른쪽 <strong>그룹</strong> 패널에 FBX 등록 가능 (Stage는 불가)</td></tr>
+            <tr><td>그룹</td><td>오른쪽 <strong>그룹</strong> 패널에 FBX 등록 가능 (소품은 불가)</td></tr>
           </tbody>
         </table>
         <div class="note">
           Properties는 기본으로 <strong>패턴</strong> 탭이 열립니다. <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 <strong>패턴</strong> · <strong>그룹</strong> · <strong>패턴 라이브러리</strong>에서 만듭니다.
         </div>
         <figure class="tutorial-figure" data-file="images/08-assets-characters.png">
-          <img class="tutorial-shot" src="./images/08-assets-characters.png" alt="Assets · Characters · + 배치" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Assets · Characters · + 배치</figcaption>
+          <img class="tutorial-shot" src="./images/08-assets-characters.png" alt="에셋 · 캐릭터 · + 배치" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>에셋 · 캐릭터 · + 배치</figcaption>
         </figure>
       </section>
 
       <section id="assets-stage" class="section-overview">
-        <h2>Stage</h2>
-        <p>Assets <strong>Stage</strong> 탭 — 직육면체·원통(기본)·FBX/OBJ · 3열 카드 · <strong>+</strong> 또는 드래그로 추가.</p>
+        <h2>소품</h2>
+        <p>에셋 <strong>소품</strong> 탭 — 직육면체·원통(기본)·FBX/OBJ · 3열 카드 · <strong>+</strong> 또는 드래그로 추가.</p>
         <table>
           <thead><tr><th>소품</th><th>크기</th></tr></thead>
           <tbody>
@@ -566,12 +561,12 @@
             <tr><td>원통</td><td>반경 0.25 m · 높이 0.5 m</td></tr>
           </tbody>
         </table>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Stage 탭 <strong>+</strong> → <a href="#timeline-stage">타임라인 Stage</a></p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> 소품 탭 <strong>+</strong> → <a href="#timeline-stage">타임라인 Stage</a></p>
         <ul class="section-toc">
           <li>직육면체 0.5m · 원통 R0.25 · XYZ 속성 · 그룹 불가</li>
         </ul>
         <ol>
-          <li><strong>Stage</strong> 탭을 고릅니다.</li>
+          <li><strong>소품</strong> 탭을 고릅니다.</li>
           <li>목록에서 <strong>+</strong> — 트랙 1줄 · 플레이헤드 첫 키</li>
         </ol>
         <h3>기본 오브젝트</h3>
@@ -584,28 +579,28 @@
         </table>
         <p>업로드 <strong>FBX/OBJ</strong>도 같은 방식으로 <strong>+</strong> 합니다. 사람 키 스케일을 쓰지 않습니다.</p>
         <table>
-          <thead><tr><th>Characters와 다른 점</th><th>Stage</th></tr></thead>
+          <thead><tr><th>캐릭터와 다른 점</th><th>소품</th></tr></thead>
           <tbody>
-            <tr><td>Properties 탭</td><td><strong>패턴</strong> · <strong>속성</strong> (기본은 패턴 · Characters와 동일 UI, 포메이션 없음)</td></tr>
+            <tr><td>Properties 탭</td><td><strong>패턴</strong> · <strong>속성</strong> (기본은 패턴 · 캐릭터와 동일 UI, 포메이션 없음)</td></tr>
             <tr><td>위치·회전·크기</td><td><strong>X/Y/Z</strong> 전부 편집</td></tr>
             <tr><td>바닥</td><td><strong>무대 바닥 아래</strong>로는 내려가지 않음 (기즈모·속성·재생)</td></tr>
             <tr><td>퇴장 연출</td><td><a href="#stage-pattern">패턴</a> <strong>퇴장</strong> 구간 · 마지막 키 <strong>자동 안 보임</strong> · Opacity 페이드(선택)</td></tr>
-            <tr><td>그룹</td><td>등록 불가 (Characters만)</td></tr>
+            <tr><td>그룹</td><td>등록 불가 (캐릭터만)</td></tr>
           </tbody>
         </table>
         <figure class="tutorial-figure" data-file="images/09-assets-stage.png">
-          <img class="tutorial-shot" src="./images/09-assets-stage.png" alt="Assets · Stage · + 배치" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Assets · Stage · + 배치</figcaption>
+          <img class="tutorial-shot" src="./images/09-assets-stage.png" alt="에셋 · 소품 · + 배치" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>에셋 · 소품 · + 배치</figcaption>
         </figure>
       </section>
 
       <section id="assets-video" class="section-overview">
-        <h2>Video</h2>
-        <p>Assets <strong>Video</strong> 탭 — 2열 카드 · 마우스 오버 미리 재생 · 무대 배경. 타임라인 트랙 없음.</p>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Video 탭 <strong>+</strong> 재생 · 재생 중 <strong>−</strong> 제거</p>
+        <h2>비디오</h2>
+        <p>에셋 <strong>비디오</strong> 탭 — 2열 카드 · 마우스 오버 미리 재생 · 무대 배경. 타임라인 트랙 없음.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> 비디오 탭 <strong>+</strong> 재생 · 재생 중 <strong>−</strong> 제거</p>
         <div class="note">프로시니엄: FBX의 <strong>회색 스크린 패널</strong>·스크린 구역 <strong>램프 장식</strong>은 자동으로 숨겨지고, <strong>건물 뒤 벽</strong>은 유지됩니다. 비디오는 스크린 개구보다 <strong>약간 뒤(업스테이지)</strong>의 별도 평면으로 재생됩니다.</div>
         <ol>
-          <li><strong>Video</strong> 탭에서 파일을 고릅니다.</li>
+          <li><strong>비디오</strong> 탭에서 파일을 고릅니다.</li>
           <li><strong>+</strong> — 관객 정면 배경 스크린에서 재생</li>
           <li>재생 중 같은 행 <strong>−</strong> — 무대에서만 제거 (파일은 유지)</li>
           <li><strong>🗑</strong> — 서버에서 파일 삭제 (목록 툴바 · 선택 후)</li>
@@ -614,23 +609,23 @@
           <thead><tr><th>항목</th><th>설명</th></tr></thead>
           <tbody>
             <tr><td>업로드</td><td>.mp4 · .webm · .ogg · .avi · .mov (최대 500MB)</td></tr>
-            <tr><td>타임라인</td><td>없음 — 재생/제거만 Assets에서</td></tr>
+            <tr><td>타임라인</td><td>없음 — 재생/제거만 에셋에서</td></tr>
             <tr><td>프로시니엄</td><td>스크린 회색 패널·램프 장식 자동 숨김 · 건물 뒤 벽 유지</td></tr>
             <tr><td>↻ · ⬆</td><td><a href="#assets-common">공통</a> 툴바와 동일</td></tr>
           </tbody>
         </table>
         <figure class="tutorial-figure" data-file="images/10-assets-video.png">
-          <img class="tutorial-shot" src="./images/10-assets-video.png" alt="Assets · Video · + / −" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Assets · Video · + / −</figcaption>
+          <img class="tutorial-shot" src="./images/10-assets-video.png" alt="에셋 · 비디오 · + / −" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>에셋 · 비디오 · + / −</figcaption>
         </figure>
       </section>
 
       <section id="assets-audio" class="section-overview">
-        <h2>Audio</h2>
-        <p>Assets <strong>Audio</strong> 탭 — 파형 카드 · ▶ 듣기 · <strong>+</strong> 로 타임라인 클립 배치.</p>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> Audio 탭 <strong>+</strong> → <a href="#timeline-audio">타임라인 Audio</a> · <a href="#audio-track">트랙 · 클립</a></p>
+        <h2>오디오</h2>
+        <p>에셋 <strong>오디오</strong> 탭 — 파형 카드 · ▶ 듣기 · <strong>+</strong> 로 타임라인 클립 배치.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-common">공통</a> 오디오 탭 <strong>+</strong> → <a href="#timeline-audio">타임라인 Audio</a> · <a href="#audio-track">트랙 · 클립</a></p>
         <ol>
-          <li><strong>Audio</strong> 탭에서 음원을 고릅니다.</li>
+          <li><strong>오디오</strong> 탭에서 음원을 고릅니다.</li>
           <li><strong>+</strong> — 클릭할 때마다 <strong>새 오디오 트랙</strong> + 현재 플레이헤드에 클립</li>
           <li>클립 trim · Split · 볼륨 등은 <a href="#audio-track">타임라인 Audio</a>에서 편집</li>
           <li><strong>🗑</strong> — 서버 파일 삭제 (트랙·클립과 별도)</li>
@@ -644,15 +639,15 @@
           </tbody>
         </table>
         <figure class="tutorial-figure" data-file="images/11-assets-audio.png">
-          <img class="tutorial-shot" src="./images/11-assets-audio.png" alt="Assets · Audio · +" width="1280" height="720" loading="lazy" decoding="async" />
-          <figcaption>Assets · Audio · +</figcaption>
+          <img class="tutorial-shot" src="./images/11-assets-audio.png" alt="에셋 · 오디오 · +" width="1280" height="720" loading="lazy" decoding="async" />
+          <figcaption>에셋 · 오디오 · +</figcaption>
         </figure>
       </section>
 
       <section id="timeline-characters" class="section-overview">
         <h2>Characters</h2>
         <p>타임라인 <strong>Characters</strong> 섹션 — WalkLite·FBX 등 <strong>사람 모션</strong>. 1객체=1트랙, compound 키(위치·회전·Opacity 등).</p>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-characters">Assets +</a> → <strong>트랙</strong> → <a href="#properties-panel">Properties</a> · 포메이션은 <a href="#char-group">그룹</a></p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-characters">에셋 · 캐릭터 +</a> → <strong>트랙</strong> → <a href="#properties-panel">Properties</a> · 포메이션은 <a href="#char-group">그룹</a></p>
         <ul class="section-toc">
           <li><a href="#char-track">트랙</a> — 추가 · 키 · 등장 클립 · 우클릭 · 삭제 · 잠금</li>
         </ul>
@@ -660,13 +655,13 @@
 
       <section id="char-track">
         <h2>Characters — 트랙</h2>
-        <p class="flow-hint"><strong>흐름</strong> Assets Characters <strong>+</strong> → 타임라인 <strong>Characters</strong> 트랙 → <a href="#properties-panel">Properties</a></p>
+        <p class="flow-hint"><strong>흐름</strong> 에셋 캐릭터 <strong>+</strong> → 타임라인 <strong>Characters</strong> 트랙 → <a href="#properties-panel">Properties</a></p>
 
         <h3>트랙 추가</h3>
         <ol>
-          <li><a href="#assets-characters">Assets → Characters</a>에서 WalkLite 또는 FBX <strong>+</strong></li>
+          <li><a href="#assets-characters">에셋 → 캐릭터</a>에서 WalkLite 또는 FBX <strong>+</strong></li>
           <li>1 객체 = 타임라인 <strong>Characters</strong> 섹션 <strong>트랙 1줄</strong></li>
-          <li>같은 Assets 이름을 여러 번 추가하면 트랙 이름에 <strong>2, 3…</strong> 번호가 붙습니다</li>
+          <li>같은 에셋 이름을 여러 번 추가하면 트랙 이름에 <strong>2, 3…</strong> 번호가 붙습니다</li>
           <li><strong>현재 플레이헤드</strong>에 첫 키 생성 · 첫 키 <strong>이전</strong>은 비표시</li>
         </ol>
 
@@ -720,7 +715,7 @@
       <section id="timeline-stage" class="section-overview">
         <h2>Stage</h2>
         <p>타임라인 <strong>Stage</strong> 섹션 — 직육면체·원통·FBX/OBJ <strong>무대 소품</strong>. 사람 스케일 없음, XYZ 전체 편집.</p>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-stage">Assets +</a> → <strong>트랙</strong> → <a href="#properties-panel">Properties</a></p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-stage">에셋 · 소품 +</a> → <strong>트랙</strong> → <a href="#properties-panel">Properties</a></p>
         <ul class="section-toc">
           <li><a href="#stage-track">트랙</a> — 추가 · 키 · 우클릭 · 삭제</li>
         </ul>
@@ -728,11 +723,11 @@
 
       <section id="stage-track">
         <h2>Stage — 트랙</h2>
-        <p class="flow-hint"><strong>흐름</strong> Assets Stage <strong>+</strong> → 타임라인 <strong>Stage</strong> 트랙 → <a href="#properties-panel">Properties</a></p>
+        <p class="flow-hint"><strong>흐름</strong> 에셋 소품 <strong>+</strong> → 타임라인 <strong>Stage</strong> 트랙 → <a href="#properties-panel">Properties</a></p>
 
         <h3>트랙 추가</h3>
         <ol>
-          <li><a href="#assets-stage">Assets → Stage</a> — 직육면체·원통·FBX/OBJ <strong>+</strong></li>
+          <li><a href="#assets-stage">에셋 → 소품</a> — 직육면체·원통·FBX/OBJ <strong>+</strong></li>
           <li>1 객체 = <strong>Stage</strong> 섹션 트랙 1줄 · 플레이헤드에 첫 키 · 중복 이름은 Characters와 같이 <strong>2, 3…</strong> 자동 부여</li>
         </ol>
 
@@ -799,7 +794,7 @@
       <section id="timeline-audio" class="section-overview">
         <h2>Audio</h2>
         <p>타임라인 <strong>Audio</strong> 섹션 — 키가 아닌 <strong>클립</strong>(파형) 편집. 멀티 트랙 · Master 볼륨.</p>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-audio">Assets Audio +</a> → <strong>트랙 · 클립</strong></p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-audio">에셋 오디오 +</a> → <strong>트랙 · 클립</strong></p>
         <ul class="section-toc">
           <li><a href="#audio-track">트랙 · 클립</a> — Master · Split · trim · 재생 동기</li>
         </ul>
@@ -807,8 +802,8 @@
 
       <section id="audio-track">
         <h2>Audio — 트랙 · 클립</h2>
-        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-audio">Assets → Audio</a> <strong>+</strong> → 타임라인 <strong>Audio</strong> 트랙 · 클립 편집</p>
-        <p>타임라인 <strong>Audio</strong> 섹션 — 키가 아니라 <strong>클립</strong>(파형 막대)을 편집합니다. 음원 업로드·목록은 <a href="#assets-audio">Assets Audio</a> 탭을 사용합니다.</p>
+        <p class="flow-hint"><strong>흐름</strong> <a href="#assets-audio">에셋 → 오디오</a> <strong>+</strong> → 타임라인 <strong>Audio</strong> 트랙 · 클립 편집</p>
+        <p>타임라인 <strong>Audio</strong> 섹션 — 키가 아니라 <strong>클립</strong>(파형 막대)을 편집합니다. 음원 업로드·목록은 <a href="#assets-audio">에셋 오디오</a> 탭을 사용합니다.</p>
 
         <h3>섹션 · 트랙 헤더</h3>
         <table>
@@ -825,7 +820,7 @@
         <table>
           <thead><tr><th>동작</th><th>방법</th></tr></thead>
           <tbody>
-            <tr><td>클립 추가</td><td><a href="#assets-audio">Assets Audio +</a> (새 트랙)</td></tr>
+            <tr><td>클립 추가</td><td><a href="#assets-audio">에셋 오디오 +</a> (새 트랙)</td></tr>
             <tr><td>이동</td><td>클립 드래그</td></tr>
             <tr><td>Trim</td><td>좌·우 핸들 드래그</td></tr>
             <tr><td>Split</td><td>클립 선택 · 플레이헤드 · Split 또는 <span class="kbd">S</span></td></tr>
@@ -841,16 +836,16 @@
       </section>
 
       <section id="properties-panel">
-        <h2>Properties <span class="kbd">씬</span></h2>
-        <p>화면 <strong>오른쪽</strong> 패널입니다. 타이틀 옆 뱃지로 <strong>프로젝트</strong>(공통) / <strong>씬</strong>(현재 씬)을 구분합니다.</p>
+        <h2>Properties <span class="kbd">막</span></h2>
+        <p>화면 <strong>오른쪽</strong> 패널입니다. 타이틀 옆 뱃지로 <strong>프로젝트</strong>(공통) / <strong>막</strong>(현재 막)을 구분합니다.</p>
         <table>
-          <thead><tr><th>구역 · 패널</th><th>저장 범위</th><th>씬 전환 시</th></tr></thead>
+          <thead><tr><th>구역 · 패널</th><th>저장 범위</th><th>막 전환 시</th></tr></thead>
           <tbody>
-            <tr><td>Properties · 그룹 · 조명</td><td><strong>씬</strong></td><td>갱신</td></tr>
+            <tr><td>Properties · 그룹 · 조명</td><td><strong>막</strong></td><td>갱신</td></tr>
             <tr><td>패턴 라이브러리 · 위치 프리셋</td><td><strong>프로젝트</strong></td><td>유지</td></tr>
           </tbody>
         </table>
-        <p>오른쪽 레일 <strong>Properties</strong> — 무대·타임라인에서 <strong>선택한 객체·트랙</strong>에 맞춰 내용이 바뀝니다. Character·Stage는 상단 <strong>패턴 · 속성</strong> 탭으로 나뉘며, <strong>기본으로 패턴</strong> 탭이 열립니다. 씬을 바꾸면 Properties 내용도 그 씬 기준으로 바뀝니다.</p>
+        <p>오른쪽 레일 <strong>Properties</strong> — 무대·타임라인에서 <strong>선택한 객체·트랙</strong>에 맞춰 내용이 바뀝니다. Character·Stage는 상단 <strong>패턴 · 속성</strong> 탭으로 나뉘며, <strong>기본으로 패턴</strong> 탭이 열립니다. 막을 바꾸면 Properties 내용도 그 막 기준으로 바뀝니다.</p>
         <table>
           <thead><tr><th>탭</th><th>역할</th></tr></thead>
           <tbody>
@@ -866,7 +861,7 @@
             <tr><td>조명 (HOUSE/Fixture)</td><td>패턴 탭 없음 · Dim·색·Pan/Tilt 등 — <a href="#light-props">조명 패널</a>과 연동</td></tr>
           </tbody>
         </table>
-        <div class="note">Character·Stage <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 <strong>패턴</strong> 탭 · <strong>그룹</strong> · <strong>패턴 라이브러리</strong>에서 만듭니다. 트랙 표시 이름은 트랙 선택 후 <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong>으로 바꿉니다(Assets 라이브러리 이름과 별개).</div>
+        <div class="note">Character·Stage <strong>속성</strong> 탭에는 퇴장 버튼이 없습니다. 퇴장 연출은 <strong>패턴</strong> 탭 · <strong>그룹</strong> · <strong>패턴 라이브러리</strong>에서 만듭니다. 트랙 표시 이름은 트랙 선택 후 <span class="kbd">F2</span> · <strong>우클릭 → 이름 변경…</strong> · Properties <strong>이름</strong>으로 바꿉니다(에셋 라이브러리 이름과 별개).</div>
       </section>
 
       <section id="char-pattern">
@@ -977,8 +972,8 @@
       </section>
 
       <section id="char-group">
-        <h2>그룹 <span class="kbd">씬</span></h2>
-        <p>오른쪽 <strong>그룹</strong> 패널 — 여러 Characters를 묶어 포메이션·애니메이션·키프레임 적용으로 한 번에 배치. <strong>씬마다</strong> 그룹·멤버를 따로 둡니다. Stage는 등록 불가.</p>
+        <h2>그룹 <span class="kbd">막</span></h2>
+        <p>오른쪽 <strong>그룹</strong> 패널 — 여러 Characters를 묶어 포메이션·애니메이션·키프레임 적용으로 한 번에 배치. <strong>막마다</strong> 그룹·멤버를 따로 둡니다. Stage는 등록 불가.</p>
         <table>
           <thead><tr><th>단계</th><th>내용</th></tr></thead>
           <tbody>
@@ -999,7 +994,7 @@
 
       <section id="pattern-library">
         <h2>패턴 라이브러리 <span class="kbd">프로젝트</span></h2>
-        <p>오른쪽 레일 <strong>패턴 라이브러리</strong> — 이동→대기→퇴장 등 <strong>동작 패턴</strong>을 저장하고 다른 트랙에 적용합니다. Properties <strong>패턴</strong>은 선택 트랙 1개(씬) 편집, 여기는 <strong>여러 패턴 보관함</strong>(프로젝트 공통)입니다.</p>
+        <p>오른쪽 레일 <strong>패턴 라이브러리</strong> — 이동→대기→퇴장 등 <strong>동작 패턴</strong>을 저장하고 다른 트랙에 적용합니다. Properties <strong>패턴</strong>은 선택 트랙 1개(막) 편집, 여기는 <strong>여러 패턴 보관함</strong>(프로젝트 공통)입니다.</p>
         <table>
           <thead><tr><th>동작</th><th>설명</th></tr></thead>
           <tbody>
@@ -1019,7 +1014,7 @@
 
       <section id="position-presets">
         <h2>위치 프리셋 <span class="kbd">프로젝트</span></h2>
-        <p>오른쪽 레일 <strong>위치 프리셋</strong> 패널 — 프로젝트 공통 무대 좌표(등장·퇴장·중앙 등). 씬이 바뀌어도 <strong>프로젝트 전체</strong>에서 공유됩니다.</p>
+        <p>오른쪽 레일 <strong>위치 프리셋</strong> 패널 — 프로젝트 공통 무대 좌표(등장·퇴장·중앙 등). 막이 바뀌어도 <strong>프로젝트 전체</strong>에서 공유됩니다.</p>
         <table>
           <thead><tr><th>동작</th><th>설명</th></tr></thead>
           <tbody>
@@ -1041,8 +1036,8 @@
       </section>
 
       <section id="light-props">
-        <h2>조명 <span class="kbd">씬</span></h2>
-        <p>오른쪽 레일 <strong>조명</strong> 패널 + 트랙 선택 시 <strong>Properties</strong>. HOUSE/Fixture 트랙·키는 <strong>씬마다</strong> 다릅니다. 슬라이더는 <strong>라이브</strong> · 기록은 <strong>+ 키</strong>.</p>
+        <h2>조명 <span class="kbd">막</span></h2>
+        <p>오른쪽 레일 <strong>조명</strong> 패널 + 트랙 선택 시 <strong>Properties</strong>. HOUSE/Fixture 트랙·키는 <strong>막마다</strong> 다릅니다. 슬라이더는 <strong>라이브</strong> · 기록은 <strong>+ 키</strong>.</p>
 
         <h3>공통 · WORK</h3>
         <ul>
@@ -1170,7 +1165,7 @@
 
         <div class="note">
           칸 사이 구분선은 굵게 표시됩니다. 멀티뷰가 열려 있으면
-          <strong><a href="#menubar-file">파일 → 내보내기 → 현재 씬 렌더… / 전체 렌더…</a></strong> 시
+          <strong><a href="#menubar-file">파일 → 내보내기 → 현재 막 렌더… / 전체 렌더…</a></strong> 시
           팝업이 잠시 닫힌 뒤 녹화됩니다.
         </div>
       </section>
@@ -1180,8 +1175,8 @@
         <p><strong>렌더 스튜디오</strong> 팝업에서 카메라·미리보기를 확인한 뒤 녹화합니다. 렌더 중에는 에디터 작업이 차단됩니다.</p>
         <h3>내보내기</h3>
         <ul>
-          <li><strong><a href="#menubar-file">파일 → 내보내기 → 현재 씬 렌더…</a></strong> — 활성 씬 1개</li>
-          <li><strong><a href="#menubar-file">파일 → 내보내기 → 전체 렌더…</a></strong> — 프로젝트 씬을 순서대로 이어 <strong>WebM 1개</strong></li>
+          <li><strong><a href="#menubar-file">파일 → 내보내기 → 현재 막 렌더…</a></strong> — 활성 막 1개</li>
+          <li><strong><a href="#menubar-file">파일 → 내보내기 → 전체 렌더…</a></strong> — 프로젝트 막을 순서대로 이어 <strong>WebM 1개</strong></li>
         </ul>
         <h3>렌더 스튜디오</h3>
         <ol>
@@ -1195,12 +1190,12 @@
         </figure>
         <div class="note">
           상단·좌/우는 구조물 자동 처리. 타임라인 <strong>오디오 클립</strong>은 WebM에 함께 녹음됩니다.
-          렌더 <strong>완료·취소</strong> 후 플레이헤드·편집 중 씬(전체 렌더)·멀티뷰는 <strong>자동으로 되돌아갑니다</strong> (복원 버튼 없음).
+          렌더 <strong>완료·취소</strong> 후 플레이헤드·편집 중 막(전체 렌더)·멀티뷰는 <strong>자동으로 되돌아갑니다</strong> (복원 버튼 없음).
         </div>
       </section>
 
       <p class="footer-meta">
-        StageBuilder · <a href="#menubar-help">도움말 → 사용자 튜토리얼…</a>
+        StageBuilder · <a href="#menubar-help">도움말 → 사용자 튜토리얼</a>
       </p>
     </main>
   </div>

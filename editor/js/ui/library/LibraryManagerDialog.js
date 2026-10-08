@@ -30,7 +30,7 @@ export function showLibraryManagerDialog(tab, opts = {}) {
     /** @type {'list' | 'grid' | null} */
     let renderedView = null;
 
-    const libTitle = `${rules.label} 공용 라이브러리`;
+    const libTitle = `${rules.label} 공동라이브러리`;
     const viewToggleHtml = supportsViews ? `
       <div class="sb-assets-lib-views" role="group" aria-label="보기 방식">
         <button type="button" class="sb-assets-lib-view-btn${libView === 'list' ? ' is-on' : ''}"

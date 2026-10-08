@@ -12,7 +12,7 @@ export const LIBRARY_UPLOAD_RULES = Object.freeze({
     maxLabel: '100MB',
   }),
   stage: Object.freeze({
-    label: '스테이지',
+    label: '소품',
     exts: ['.fbx', '.obj'],
     extHint: '.fbx, .obj',
     maxBytes: 100 * 1024 * 1024,

@@ -21,6 +21,7 @@
 </head>
 <body class="premiere-workspace">
   <div class="wrapper">
+    <header id="sb-app-header" class="sb-app-header" aria-label="앱 헤더"></header>
     <div class="viewerWrapper sb-editor-grid">
       <aside class="side sb-left" id="sidebar-left">
         <nav id="sidebar-left-rail" class="sb-left-rail" aria-label="왼쪽 도구"></nav>
@@ -30,13 +31,9 @@
       <div class="viewer sb-program">
         <div class="topWrapper">
           <div class="topMenuBar">
-            <a class="sb-brand-mark" href="javascript:void(0)" title="초기 화면으로 돌아가기" aria-label="초기 화면으로 돌아가기">
-              <img src="images/stagebuilder-logo.png" width="18" height="18" alt="StageBuilder" draggable="false" />
-            </a>
             <div id="menubar" class="menubar" aria-label="메뉴"></div>
             <div id="viewport-controls" class="menubar-viewport-controls"></div>
           </div>
-          <div id="status" class="sb-viewport-status">Initializing…</div>
         </div>
         <div id="viewport"></div>
         <div class="toolBar">
@@ -71,8 +68,6 @@
           '',
           '(Three.js /files/stage/ API는 포트 3000 서버가 제공합니다)',
         ].join('\n');
-        const status = document.getElementById('status');
-        if (status) status.textContent = 'node server/server.js 후 localhost:3000/stageBuilder/ 로 여세요';
         const box = document.createElement('div');
         box.id = 'sb-wrong-host';
         box.style.cssText = [

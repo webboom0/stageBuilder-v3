@@ -11,15 +11,15 @@
  */
 export function showRenderDialog(opts) {
   const mode = opts.mode || 'scene';
-  const title = mode === 'all' ? '전체 씬 렌더' : '현재 씬 렌더';
+  const title = mode === 'all' ? '전체 막 렌더' : '현재 막 렌더';
   const dur = Number.isFinite(opts.durationSec) ? opts.durationSec : 0;
   const fps = Number.isFinite(opts.fps) ? opts.fps : 30;
   const durLine = dur > 0
     ? `타임라인 <strong>${dur.toFixed(0)}초</strong> · ${fps} fps`
     : '';
   const subtitle = mode === 'all'
-    ? `프로젝트 씬 ${opts.sceneCount ?? 0}개를 순서대로 WebM으로 내보냅니다.${durLine ? `<br>${durLine}` : ''}`
-    : `「${escapeHtml(opts.sceneName || '현재 씬')}」을 WebM으로 녹화합니다.${durLine ? `<br>${durLine}` : ''}`;
+    ? `프로젝트 막 ${opts.sceneCount ?? 0}개를 순서대로 WebM으로 내보냅니다.${durLine ? `<br>${durLine}` : ''}`
+    : `「${escapeHtml(opts.sceneName || '현재 막')}」을 WebM으로 녹화합니다.${durLine ? `<br>${durLine}` : ''}`;
 
   return new Promise((resolve) => {
     document.querySelector('.sb-render-dialog-overlay')?.remove();

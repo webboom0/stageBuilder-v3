@@ -141,7 +141,7 @@ export function inferGroupStartConfigured(group) {
   return !!group.startConfigured;
 }
 
-/** 씬 로드·패널 표시 전 그룹 애니메이션 필드 정규화 */
+/** 막 로드·패널 표시 전 그룹 애니메이션 필드 정규화 */
 export function normalizeGroupAnimation(group) {
   if (!group) return group;
   ensureGroupSegments(group);

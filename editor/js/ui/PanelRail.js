@@ -87,7 +87,7 @@ export function createPanelRail(root, opts = {}) {
   }
 
   /**
-   * Icon-rail section label (e.g. 프로젝트 / 이 씬). Call before the panels in that group.
+   * Icon-rail section label (e.g. 프로젝트 / 이 막). Call before the panels in that group.
    * @param {{ id: string, label: string }} opts
    */
   function registerRailGroup({ id, label }) {

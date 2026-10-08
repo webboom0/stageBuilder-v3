@@ -37,17 +37,17 @@ export function showSceneLoadReportDialog(report) {
 
   const panel = document.createElement('div');
   panel.className = 'sb-project-hub sb-scene-load-report';
-  const title = report.sceneName ? `씬 로드 경고 — ${report.sceneName}` : '씬 로드 경고';
+  const title = report.sceneName ? `막 로드 경고 — ${report.sceneName}` : '막 로드 경고';
   const hint = hasAssetsActions
     ? (hasLibraryHits
-      ? '일부 파일은 <strong>공용 라이브러리</strong>에 있습니다 — 보라색 <strong>라이브러리</strong> 버튼으로 가져온 뒤 <strong>씬 다시 불러오기</strong>를 누르세요. 업로드·닫기 후 나중에 넣어도 됩니다.'
-      : '아래에서 업로드·라이브러리로 파일을 추가한 뒤 <strong>씬 다시 불러오기</strong>를 누르세요. 지금 닫고 나중에 Assets 탭에서 넣어도 됩니다.')
+      ? '일부 파일은 <strong>공용 라이브러리</strong>에 있습니다 — 보라색 <strong>라이브러리</strong> 버튼으로 가져온 뒤 <strong>막 다시 불러오기</strong>를 누르세요. 업로드·닫기 후 나중에 넣어도 됩니다.'
+      : '아래에서 업로드·라이브러리로 파일을 추가한 뒤 <strong>막 다시 불러오기</strong>를 누르세요. 지금 닫고 나중에 Assets 탭에서 넣어도 됩니다.')
     : 'Assets 탭에서 파일을 다시 업로드하거나, 타임라인에서 해당 트랙을 삭제하세요.';
 
   panel.innerHTML = `
     <div class="sb-project-hub__header">
       <h2 class="sb-project-picker__title">${escapeHtml(title)}</h2>
-      <p class="sb-project-hub__subtitle">일부 항목을 복원하지 못했거나 파일이 없습니다. 씬은 열렸습니다.<br>
+      <p class="sb-project-hub__subtitle">일부 항목을 복원하지 못했거나 파일이 없습니다. 막은 열렸습니다.<br>
         <span class="sb-scene-load-report__hint">${hint}</span></p>
     </div>
     <div class="sb-project-hub__body sb-scene-load-report__body">
@@ -55,7 +55,7 @@ export function showSceneLoadReportDialog(report) {
       <p class="sb-scene-load-report__status" data-role="status" hidden></p>
     </div>
     <div class="sb-project-picker__foot sb-scene-load-report__foot">
-      ${report.onReloadScene ? '<button type="button" class="sb-project-hub__btn" data-act="reload">씬 다시 불러오기</button>' : ''}
+      ${report.onReloadScene ? '<button type="button" class="sb-project-hub__btn" data-act="reload">막 다시 불러오기</button>' : ''}
       <button type="button" class="sb-project-hub__btn sb-project-hub__btn--primary" data-act="ok">닫기</button>
     </div>
   `;
@@ -138,7 +138,7 @@ export function showSceneLoadReportDialog(report) {
 
     let extraNote = '';
     if (assetsAdded) {
-      extraNote = '<p class="sb-scene-load-dismiss__note sb-scene-load-dismiss__note--warn">파일을 추가했지만 <strong>씬 다시 불러오기</strong>를 하지 않았습니다. 지금 닫으면 무대에 아직 반영되지 않을 수 있습니다.</p>';
+      extraNote = '<p class="sb-scene-load-dismiss__note sb-scene-load-dismiss__note--warn">파일을 추가했지만 <strong>막 다시 불러오기</strong>를 하지 않았습니다. 지금 닫으면 무대에 아직 반영되지 않을 수 있습니다.</p>';
     } else if (hasLibraryHits) {
       extraNote = '<p class="sb-scene-load-dismiss__note">일부 파일은 공용 라이브러리에 있습니다. 나중에 Assets 탭에서 가져올 수 있습니다.</p>';
     }
@@ -157,7 +157,7 @@ export function showSceneLoadReportDialog(report) {
           <ul class="sb-scene-load-dismiss__bullets">
             <li>타임라인 트랙·클립은 <strong>그대로 남습니다</strong>.</li>
             <li>캐릭터·영상·오디오 등은 <strong>무대(3D)에 표시·재생되지 않을 수 있습니다</strong>.</li>
-            <li>나중에 Assets 탭에서 추가한 뒤 <strong>씬 다시 불러오기</strong>로 복원할 수 있습니다.</li>
+            <li>나중에 Assets 탭에서 추가한 뒤 <strong>막 다시 불러오기</strong>로 복원할 수 있습니다.</li>
           </ul>
           ${extraNote}
         </div>
@@ -205,7 +205,7 @@ export function showSceneLoadReportDialog(report) {
       : report.assetsActions?.pickLibrary?.(tab, { hintFilename: hintName, elevated: true });
     void Promise.resolve(run).then((result) => {
       if (result?.ok) {
-        notifyAssetAdded(`「${result.filename || w.label}」 추가됨 — 씬 다시 불러오기를 눌러 반영하세요.`);
+        notifyAssetAdded(`「${result.filename || w.label}」 추가됨 — 막 다시 불러오기를 눌러 반영하세요.`);
       }
     }).catch((err) => {
       console.error(err);
@@ -225,13 +225,13 @@ export function showSceneLoadReportDialog(report) {
   panel.querySelector('[data-act="ok"]')?.addEventListener('click', requestClose);
   reloadBtn?.addEventListener('click', () => {
     reloadBtn.disabled = true;
-    setStatus('씬 다시 불러오는 중…');
+    setStatus('막 다시 불러오는 중…');
     void Promise.resolve(report.onReloadScene?.()).then(() => {
       close();
     }).catch((err) => {
       console.error(err);
       reloadBtn.disabled = false;
-      setStatus(`씬 불러오기 실패: ${err?.message || err}`);
+      setStatus(`막 불러오기 실패: ${err?.message || err}`);
     });
   });
   panel.addEventListener('click', (e) => e.stopPropagation());
@@ -249,7 +249,7 @@ export function showSceneLoadReportDialog(report) {
 /** @param {string} kind */
 function kindLabel(kind) {
   if (kind === 'motion' || kind === 'character') return '캐릭터';
-  if (kind === 'stage') return '스테이지';
+  if (kind === 'stage') return '소품';
   if (kind === 'audio') return '오디오';
   if (kind === 'video') return '비디오';
   if (kind === 'asset') return '에셋';

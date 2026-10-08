@@ -1,13 +1,22 @@
 import {
   DEFAULT_STAGE_PROFILE,
+  GRAND_HALL_DEFAULT,
+  PROJECT_VENUE_OTHER,
   SHOW_GENRES,
+  createStageProfile,
+  formatCustomScaleLabel,
   formatProjectVenueLabel,
   getProjectScalesForVenue,
   getProjectVenueNames,
   getStageProfileForVenueScale,
   resolveProjectVenueInitial,
 } from '../../domain/stage/StageProfile.js';
+import { checkStageSizeInput, buildStageSizeHelpHtml } from '../stageSizeHelp.js';
 import { appAlert } from '../AppDialog.js';
+
+/** 새 프로젝트 폼에서 무대 한도 계산에 쓰는 기본 무대 타입 */
+const PROJECT_SETUP_STAGE_TYPE = 'proscenium';
+const GENRE_OTHER = '기타';
 
 const CAL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
   <path fill="currentColor" d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1zm12 8H5v10h14V10zm-2-5H7v1a1 1 0 0 1-2 0V5H5v3h14V5h-1v1a1 1 0 1 1-2 0V5z"/>
@@ -36,6 +45,9 @@ export function showProjectMetaPopup(opts = {}) {
     stageProfile: initial.stageProfile,
     venue: initial.venue || '',
   });
+  const genreInit = resolveGenreInitial(initial.genre || '');
+  const initWidth = venueInit.widthM ?? GRAND_HALL_DEFAULT.widthM;
+  const initDepth = venueInit.depthM ?? GRAND_HALL_DEFAULT.depthM;
 
   return new Promise((resolve) => {
     document.querySelector('.sb-project-setup-overlay')?.remove();
@@ -52,7 +64,7 @@ export function showProjectMetaPopup(opts = {}) {
       </div>
       <form class="sb-project-setup__form" novalidate>
         ${field('공연명', 'showName', 'text', '예 : 로미오와 줄리엣', true, initial.showName || initial.name || '')}
-        ${genreSelect(initial.genre || '')}
+        ${genreSelect(genreInit.genre, genreInit.genreCustom)}
         <div class="sb-project-field">
           <label class="sb-project-label">공연기간</label>
           <div class="sb-project-period">
@@ -61,8 +73,8 @@ export function showProjectMetaPopup(opts = {}) {
             ${dateField('endDate', initial.endDate || '')}
           </div>
         </div>
-        ${venueSelect(venueInit.venue)}
-        ${scaleSelect(venueInit.venue, venueInit.scale)}
+        ${venueSelect(venueInit.venue, venueInit.venueCustom || '')}
+        ${scaleSelect(venueInit.venue, venueInit.scale, initWidth, initDepth)}
         ${field('연출', 'director', 'text', '예 : 홍길동', false, initial.director || '')}
         <div class="sb-project-setup__actions">
           <button type="button" class="sb-project-btn sb-project-btn--cancel">취소</button>
@@ -75,16 +87,92 @@ export function showProjectMetaPopup(opts = {}) {
     document.body.appendChild(overlay);
 
     const form = /** @type {HTMLFormElement} */ (popup.querySelector('form'));
+    const genreSelectEl = /** @type {HTMLSelectElement} */ (popup.querySelector('[name="genre"]'));
+    const genreCustomEl = /** @type {HTMLInputElement | null} */ (popup.querySelector('[name="genreCustom"]'));
+    const genreOtherWrap = /** @type {HTMLElement | null} */ (popup.querySelector('[data-role="genre-other"]'));
     const venueSelectEl = /** @type {HTMLSelectElement} */ (popup.querySelector('[name="venueName"]'));
     const scaleSelectEl = /** @type {HTMLSelectElement} */ (popup.querySelector('[name="venueScale"]'));
+    const venueCustomEl = /** @type {HTMLInputElement | null} */ (popup.querySelector('[name="venueCustom"]'));
+    const venueOtherWrap = /** @type {HTMLElement | null} */ (popup.querySelector('[data-role="venue-other"]'));
+    const scaleOtherWrap = /** @type {HTMLElement | null} */ (popup.querySelector('[data-role="scale-other"]'));
+    const widthEl = /** @type {HTMLInputElement | null} */ (popup.querySelector('[name="stageWidthM"]'));
+    const depthEl = /** @type {HTMLInputElement | null} */ (popup.querySelector('[name="stageDepthM"]'));
+    const sizeWarningEl = /** @type {HTMLElement | null} */ (popup.querySelector('[data-role="size-warning"]'));
+    const sizeHelpEl = /** @type {HTMLElement | null} */ (popup.querySelector('[data-role="size-help"]'));
+
+    if (sizeHelpEl) {
+      sizeHelpEl.innerHTML = buildStageSizeHelpHtml(PROJECT_SETUP_STAGE_TYPE);
+    }
 
     wireDateFields(popup);
 
-    venueSelectEl?.addEventListener('change', () => {
-      const scales = getProjectScalesForVenue(venueSelectEl.value);
-      const prev = scaleSelectEl.value;
-      scaleSelectEl.innerHTML = renderScaleOptions(venueSelectEl.value, scales.some((s) => s.scale === prev) ? prev : scales[0]?.scale);
+    function syncOtherFields() {
+      const genreOther = genreSelectEl?.value === GENRE_OTHER;
+      const venueOther = venueSelectEl?.value === PROJECT_VENUE_OTHER;
+      const scaleOther = venueOther;
+      genreOtherWrap?.classList.toggle('is-hidden', !genreOther);
+      venueOtherWrap?.classList.toggle('is-hidden', !venueOther);
+      scaleOtherWrap?.classList.toggle('is-hidden', !scaleOther);
+      if (genreCustomEl) genreCustomEl.disabled = !genreOther;
+      if (venueCustomEl) venueCustomEl.disabled = !venueOther;
+      if (widthEl) widthEl.disabled = !scaleOther;
+      if (depthEl) depthEl.disabled = !scaleOther;
+      if (scaleOther) validateStageSize();
+      else if (sizeWarningEl) {
+        sizeWarningEl.hidden = true;
+        sizeWarningEl.textContent = '';
+      }
+    }
+
+    function validateStageSize() {
+      if (!widthEl || !depthEl || !sizeWarningEl) return true;
+      const widthM = Number(widthEl.value);
+      const depthM = Number(depthEl.value);
+      const check = checkStageSizeInput(widthM, depthM, PROJECT_SETUP_STAGE_TYPE);
+      widthEl.classList.toggle('is-invalid', check.isOutOfRange && (check.overWidth || check.underWidth));
+      depthEl.classList.toggle('is-invalid', check.isOutOfRange && (check.overDepth || check.underDepth));
+      if (check.isOutOfRange && Number.isFinite(widthM) && Number.isFinite(depthM)) {
+        sizeWarningEl.hidden = false;
+        sizeWarningEl.textContent = check.message;
+        return false;
+      }
+      sizeWarningEl.hidden = true;
+      sizeWarningEl.textContent = '';
+      return Number.isFinite(widthM) && Number.isFinite(depthM) && widthM > 0 && depthM > 0;
+    }
+
+    function refreshScaleOptions(preferredScale) {
+      if (!scaleSelectEl || !venueSelectEl) return;
+      const venue = venueSelectEl.value;
+      const scales = getProjectScalesForVenue(venue);
+      let next = preferredScale;
+      if (venue === PROJECT_VENUE_OTHER) {
+        next = PROJECT_VENUE_OTHER;
+      } else if (next === PROJECT_VENUE_OTHER || !scales.some((s) => s.scale === next)) {
+        // 알려진 공연장: 규모「기타」제거 → 첫 프리셋으로
+        next = scales[0]?.scale || '';
+      }
+      scaleSelectEl.innerHTML = renderScaleOptions(venue, next);
+      scaleSelectEl.style.pointerEvents = venue === PROJECT_VENUE_OTHER ? 'none' : '';
+      scaleSelectEl.style.opacity = venue === PROJECT_VENUE_OTHER ? '0.72' : '';
+      syncOtherFields();
+    }
+
+    genreSelectEl?.addEventListener('change', () => {
+      syncOtherFields();
+      if (genreSelectEl.value === GENRE_OTHER) genreCustomEl?.focus();
     });
+    venueSelectEl?.addEventListener('change', () => {
+      refreshScaleOptions(scaleSelectEl?.value);
+      if (venueSelectEl.value === PROJECT_VENUE_OTHER) venueCustomEl?.focus();
+    });
+    scaleSelectEl?.addEventListener('change', () => {
+      syncOtherFields();
+      if (scaleSelectEl.value === PROJECT_VENUE_OTHER) widthEl?.focus();
+    });
+    widthEl?.addEventListener('input', validateStageSize);
+    depthEl?.addEventListener('input', validateStageSize);
+    syncOtherFields();
 
     const close = (result) => {
       closeOpenCalendar();
@@ -106,23 +194,74 @@ export function showProjectMetaPopup(opts = {}) {
         await appAlert({ title: '입력 필요', message: '공연명을 입력해주세요.' });
         return;
       }
+
+      let genre = String(fd.get('genre') || '').trim();
+      if (genre === GENRE_OTHER) {
+        genre = String(fd.get('genreCustom') || '').trim();
+        if (!genre) {
+          await appAlert({ title: '입력 필요', message: '장르를 입력해주세요.' });
+          genreCustomEl?.focus();
+          return;
+        }
+      }
+
       const startDate = String(fd.get('startDate') || '');
       const endDate = String(fd.get('endDate') || '');
-      const venueName = String(fd.get('venueName') || '');
-      const venueScale = String(fd.get('venueScale') || '');
+      let venueName = String(fd.get('venueName') || '');
+      let venueScale = String(fd.get('venueScale') || '');
+      /** @type {object | null} */
+      let stageProfile = null;
+
+      if (venueName === PROJECT_VENUE_OTHER) {
+        venueName = String(fd.get('venueCustom') || '').trim();
+        if (!venueName) {
+          await appAlert({ title: '입력 필요', message: '공연장소를 입력해주세요.' });
+          venueCustomEl?.focus();
+          return;
+        }
+      }
+
+      if (venueScale === PROJECT_VENUE_OTHER) {
+        const widthM = Number(fd.get('stageWidthM'));
+        const depthM = Number(fd.get('stageDepthM'));
+        if (!validateStageSize()) {
+          await appAlert({
+            title: '무대 크기 확인',
+            message: sizeWarningEl?.textContent || '가로·세로(m)를 한도 안에서 입력해주세요.',
+          });
+          widthEl?.focus();
+          return;
+        }
+        if (!Number.isFinite(widthM) || !Number.isFinite(depthM) || widthM <= 0 || depthM <= 0) {
+          await appAlert({ title: '입력 필요', message: '무대 가로·세로(m)를 입력해주세요.' });
+          widthEl?.focus();
+          return;
+        }
+        venueScale = formatCustomScaleLabel(widthM, depthM);
+        stageProfile = {
+          ...createStageProfile({
+            id: 'custom',
+            name: '',
+            widthM,
+            depthM,
+            areaM2: widthM * depthM,
+            prosceniumWidthM: widthM,
+          }),
+        };
+      } else {
+        stageProfile = getStageProfileForVenueScale(venueName, venueScale);
+      }
+
       const meta = {
         showName,
-        genre: String(fd.get('genre') || '').trim(),
+        genre,
         startDate,
         endDate,
         showPeriod: startDate && endDate ? `${startDate} ~ ${endDate}` : '',
         venue: formatProjectVenueLabel(venueName, venueScale),
         director: String(fd.get('director') || '').trim(),
-        stageProfile: getStageProfileForVenueScale(venueName, venueScale),
+        stageProfile: stageProfile || { ...DEFAULT_STAGE_PROFILE },
       };
-      if (mode === 'create' && !meta.stageProfile) {
-        meta.stageProfile = { ...DEFAULT_STAGE_PROFILE };
-      }
       close(meta);
     });
   });
@@ -285,34 +424,120 @@ function parseIso(iso) {
   return dt;
 }
 
-function genreSelect(selected) {
+/** @param {string} selected @returns {{ genre: string, genreCustom: string }} */
+function resolveGenreInitial(selected) {
+  const value = String(selected || '').trim();
+  if (!value) return { genre: '', genreCustom: '' };
+  if (value === GENRE_OTHER) return { genre: GENRE_OTHER, genreCustom: '' };
+  if (SHOW_GENRES.includes(value) && value !== GENRE_OTHER) {
+    return { genre: value, genreCustom: '' };
+  }
+  return { genre: GENRE_OTHER, genreCustom: value };
+}
+
+/** @param {string} selected @param {string} [genreCustom] */
+function genreSelect(selected, genreCustom = '') {
   const options = [
     { value: '', label: '선택하세요' },
     ...SHOW_GENRES.map((g) => ({ value: g, label: g })),
   ];
-  return selectField('장르', 'genre', options, selected || '');
+  const otherOn = selected === GENRE_OTHER;
+  return `
+    <div class="sb-project-field">
+      <label class="sb-project-label">장르</label>
+      <div class="sb-project-select-wrap">
+        <select class="sb-project-select" name="genre">
+          ${options.map((o) => {
+            const sel = o.value === selected ? ' selected' : '';
+            return `<option value="${escapeAttr(o.value)}"${sel}>${escapeHtml(o.label)}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="sb-project-other${otherOn ? '' : ' is-hidden'}" data-role="genre-other">
+        <input class="sb-project-input" type="text" name="genreCustom"
+          placeholder="장르 직접 입력" value="${escapeAttr(genreCustom)}"
+          ${otherOn ? '' : 'disabled'} />
+      </div>
+    </div>`;
 }
 
-function venueSelect(selectedVenue) {
+/** @param {string} selectedVenue @param {string} [venueCustom] */
+function venueSelect(selectedVenue, venueCustom = '') {
   const options = getProjectVenueNames().map((v) => ({ value: v, label: v }));
-  return selectField('공연장소', 'venueName', options, selectedVenue);
+  const otherOn = selectedVenue === PROJECT_VENUE_OTHER;
+  return `
+    <div class="sb-project-field">
+      <label class="sb-project-label">공연장소</label>
+      <div class="sb-project-select-wrap">
+        <select class="sb-project-select" name="venueName">
+          ${options.map((o) => {
+            const sel = o.value === selectedVenue ? ' selected' : '';
+            return `<option value="${escapeAttr(o.value)}"${sel}>${escapeHtml(o.label)}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="sb-project-other${otherOn ? '' : ' is-hidden'}" data-role="venue-other">
+        <input class="sb-project-input" type="text" name="venueCustom"
+          placeholder="공연장소 직접 입력" value="${escapeAttr(venueCustom)}"
+          ${otherOn ? '' : 'disabled'} />
+      </div>
+    </div>`;
 }
 
-function scaleSelect(venue, selectedScale) {
+/**
+ * @param {string} venue
+ * @param {string} selectedScale
+ * @param {number} widthM
+ * @param {number} depthM
+ */
+function scaleSelect(venue, selectedScale, widthM, depthM) {
+  // 규모 기타(W×D)는 공연장소가 기타일 때만
+  const otherOn = venue === PROJECT_VENUE_OTHER;
+  const scaleValue = otherOn ? PROJECT_VENUE_OTHER : selectedScale;
+  const limits = checkStageSizeInput(widthM, depthM, PROJECT_SETUP_STAGE_TYPE).limits;
   return `
     <div class="sb-project-field">
       <label class="sb-project-label">규모</label>
       <div class="sb-project-select-wrap">
-        <select class="sb-project-select" name="venueScale">
-          ${renderScaleOptions(venue, selectedScale)}
+        <select class="sb-project-select" name="venueScale"${otherOn ? ' aria-readonly="true"' : ''}>
+          ${renderScaleOptions(venue, scaleValue)}
         </select>
+      </div>
+      <div class="sb-project-other${otherOn ? '' : ' is-hidden'}" data-role="scale-other">
+        <p class="sb-project-size-hint">
+          무대 바닥 크기(m) · 가로 ${limits.minWidthM}–${limits.maxWidthM}m · 깊이 ${limits.minDepthM}–${limits.maxDepthM}m
+        </p>
+        <div class="sb-project-size-row">
+          <label class="sb-project-size-field">
+            <span>W (m)</span>
+            <input class="sb-project-input" type="number" name="stageWidthM" step="0.5"
+              min="${limits.minWidthM}" max="${limits.maxWidthM}"
+              value="${escapeAttr(String(widthM))}" ${otherOn ? '' : 'disabled'} />
+          </label>
+          <label class="sb-project-size-field">
+            <span>D (m)</span>
+            <input class="sb-project-input" type="number" name="stageDepthM" step="0.5"
+              min="${limits.minDepthM}" max="${limits.maxDepthM}"
+              value="${escapeAttr(String(depthM))}" ${otherOn ? '' : 'disabled'} />
+          </label>
+        </div>
+        <div class="sb-project-size-warning" data-role="size-warning" hidden></div>
+        <details class="sb-project-size-details">
+          <summary>무대 크기 한도 안내</summary>
+          <div class="sb-project-size-help" data-role="size-help"></div>
+        </details>
       </div>
     </div>`;
 }
 
 /** @param {string} venue @param {string} [selectedScale] */
 function renderScaleOptions(venue, selectedScale) {
-  return getProjectScalesForVenue(venue).map((g) => {
+  // 규모「기타」(W×D 직접 입력)는 공연장소가「기타」일 때만
+  if (venue === PROJECT_VENUE_OTHER) {
+    return `<option value="${escapeAttr(PROJECT_VENUE_OTHER)}" selected>${escapeHtml(PROJECT_VENUE_OTHER)}</option>`;
+  }
+  const scales = getProjectScalesForVenue(venue);
+  return scales.map((g) => {
     const sel = g.scale === selectedScale ? ' selected' : '';
     return `<option value="${escapeAttr(g.scale)}"${sel}>${escapeHtml(g.scale)}</option>`;
   }).join('');

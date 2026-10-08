@@ -66,7 +66,7 @@ export async function runRenderStudio(opts) {
   overlay.setAttribute('aria-modal', 'true');
 
   const mode = opts.mode || 'scene';
-  const title = mode === 'all' ? '전체 씬 렌더' : '현재 씬 렌더';
+  const title = mode === 'all' ? '전체 막 렌더' : '현재 막 렌더';
   const dur = Number.isFinite(opts.durationSec) ? opts.durationSec : 0;
   const fps = Number.isFinite(opts.fps) ? opts.fps : 30;
   const durLine = dur > 0 ? `${dur.toFixed(0)}초 · ${fps} fps` : '';
@@ -78,8 +78,8 @@ export async function runRenderStudio(opts) {
           <h2 class="sb-render-studio__title">${escapeHtml(title)}</h2>
           <p class="sb-render-studio__subtitle">
             ${mode === 'all'
-    ? `총 ${opts.sceneCount ?? 0}개 씬 · WebM 1개${durLine ? ` · ${durLine}/씬` : ''}`
-    : `「${escapeHtml(opts.sceneName || '현재 씬')}」${durLine ? ` · ${durLine}` : ''}`}
+    ? `총 ${opts.sceneCount ?? 0}개 막 · WebM 1개${durLine ? ` · ${durLine}/막` : ''}`
+    : `「${escapeHtml(opts.sceneName || '현재 막')}」${durLine ? ` · ${durLine}` : ''}`}
           </p>
         </div>
         <button type="button" class="sb-render-studio__close" data-action="close" aria-label="닫기">닫기</button>
@@ -338,7 +338,7 @@ export async function runRenderStudio(opts) {
             scenes,
             switchToScene: (id) => opts.switchScene(id),
             onSceneStart: (sceneMeta, i, total) => {
-              statusEl.textContent = `씬 ${i + 1}/${total}: ${sceneMeta.name || sceneMeta.id}`;
+              statusEl.textContent = `막 ${i + 1}/${total}: ${sceneMeta.name || sceneMeta.id}`;
               if (cameraSelect.value !== 'active') {
                 applySelectedCamera();
               }

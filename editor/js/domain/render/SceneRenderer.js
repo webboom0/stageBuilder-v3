@@ -409,7 +409,7 @@ export async function renderProjectToWebM(opts) {
   } = opts;
 
   if (!scenes.length) {
-    throw new Error('렌더할 씬이 없습니다.');
+    throw new Error('렌더할 막이 없습니다.');
   }
 
   const wasPlaying = timeline.playing;
@@ -495,7 +495,7 @@ export async function renderProjectToWebM(opts) {
       }
     };
 
-    onStatus?.(hasAudio ? '전체 씬 녹화 중… (영상+오디오)' : '전체 씬 녹화 중…');
+    onStatus?.(hasAudio ? '전체 막 녹화 중… (영상+오디오)' : '전체 막 녹화 중…');
     onProgress?.(0, '시작…');
     pushCaptureFrame();
     recorder.start(1000);

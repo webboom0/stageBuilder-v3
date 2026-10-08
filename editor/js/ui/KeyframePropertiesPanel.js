@@ -68,7 +68,7 @@ export function createKeyframePropertiesPanel(opts) {
       <button type="button" class="sb-props-tab" data-tab="props" role="tab" aria-selected="false">속성</button>
     </div>
     <div class="sb-kf-props-empty" data-role="empty">
-      씬에서 <strong>모션</strong>을 선택하거나, 타임라인에서 <strong>HOUSE / Fixture</strong> 트랙을 선택하세요.
+      막에서 <strong>모션</strong>을 선택하거나, 타임라인에서 <strong>HOUSE / Fixture</strong> 트랙을 선택하세요.
     </div>
     <div class="sb-kf-props-form" data-role="form" hidden>
       <div class="sb-props-pane" data-pane="props" hidden>

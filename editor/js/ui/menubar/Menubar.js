@@ -58,11 +58,11 @@ function mountFileMenu(host, ctx) {
     onClick: () => stub(ctx, 'file:new'),
   });
   addOption(options, {
-    label: '열기…',
+    label: '이전 프로젝트 열기',
     onClick: () => stub(ctx, 'file:open'),
   });
   addOption(options, {
-    label: '프로젝트 편집…',
+    label: '프로젝트 편집',
     onClick: () => stub(ctx, 'file:manageProjects'),
   });
   addSeparator(options);
@@ -72,25 +72,25 @@ function mountFileMenu(host, ctx) {
     onClick: () => stub(ctx, 'file:save'),
   });
   addOption(options, {
-    label: '스냅샷 저장…',
+    label: '스냅샷 저장',
     onClick: () => stub(ctx, 'file:export:snapshot'),
   });
   addOption(options, {
-    label: '스냅샷에서 복원…',
+    label: '스냅샷에서 복원',
     onClick: () => stub(ctx, 'file:import:snapshot'),
   });
   addSeparator(options);
   addOption(options, {
-    label: 'ZIP 가져오기 (에셋 포함)…',
+    label: 'ZIP 가져오기 (에셋 포함)',
     onClick: () => stub(ctx, 'file:import:zip'),
   });
   addSeparator(options);
 
   const exportTitle = addOption(options, { label: '내보내기', submenu: true });
   const exportSub = createSubmenu(exportTitle, root);
-  addOption(exportSub, { label: '프로젝트 ZIP (에셋 포함)…', onClick: () => stub(ctx, 'file:export:zip') });
-  addOption(exportSub, { label: '현재 씬 렌더…', onClick: () => stub(ctx, 'file:export:renderScene') });
-  addOption(exportSub, { label: '전체 렌더…', onClick: () => stub(ctx, 'file:export:renderAll') });
+  addOption(exportSub, { label: '프로젝트 ZIP (에셋 포함)', onClick: () => stub(ctx, 'file:export:zip') });
+  addOption(exportSub, { label: '현재 막 렌더', onClick: () => stub(ctx, 'file:export:renderScene') });
+  addOption(exportSub, { label: '전체 렌더', onClick: () => stub(ctx, 'file:export:renderAll') });
 
   host.appendChild(root);
 }
@@ -111,24 +111,24 @@ function mountEditMenu(host, ctx) {
 }
 
 function mountSceneMenu(host, ctx) {
-  const { root, options } = createMenu('씬');
-  addOption(options, { label: '씬 추가', onClick: () => stub(ctx, 'scene:add') });
-  addOption(options, { label: '씬 복제', onClick: () => stub(ctx, 'scene:duplicate') });
-  addOption(options, { label: '씬 삭제', onClick: () => stub(ctx, 'scene:delete') });
-  addOption(options, { label: '이름 바꾸기…', onClick: () => stub(ctx, 'scene:rename') });
+  const { root, options } = createMenu('막');
+  addOption(options, { label: '막 추가', onClick: () => stub(ctx, 'scene:add') });
+  addOption(options, { label: '막 복제', onClick: () => stub(ctx, 'scene:duplicate') });
+  addOption(options, { label: '막 삭제', onClick: () => stub(ctx, 'scene:delete') });
+  addOption(options, { label: '막 이름 바꾸기', onClick: () => stub(ctx, 'scene:rename') });
   addSeparator(options);
-  addOption(options, { label: '이전 씬', shortcut: 'Ctrl+[', onClick: () => stub(ctx, 'scene:prev') });
-  addOption(options, { label: '다음 씬', shortcut: 'Ctrl+]', onClick: () => stub(ctx, 'scene:next') });
-  addOption(options, { label: '씬 목록…', onClick: () => stub(ctx, 'scene:list') });
+  addOption(options, { label: '이전 막', shortcut: 'Ctrl+[', onClick: () => stub(ctx, 'scene:prev') });
+  addOption(options, { label: '다음 막', shortcut: 'Ctrl+]', onClick: () => stub(ctx, 'scene:next') });
+  addOption(options, { label: '막 목록', onClick: () => stub(ctx, 'scene:list') });
   host.appendChild(root);
 }
 
 function mountLibraryMenu(host, ctx) {
-  const { root, options } = createMenu('라이브러리');
-  addOption(options, { label: '캐릭터…', onClick: () => stub(ctx, 'library:character') });
-  addOption(options, { label: '스테이지…', onClick: () => stub(ctx, 'library:stage') });
-  addOption(options, { label: '오디오…', onClick: () => stub(ctx, 'library:audio') });
-  addOption(options, { label: '비디오…', onClick: () => stub(ctx, 'library:video') });
+  const { root, options } = createMenu('공동라이브러리');
+  addOption(options, { label: '캐릭터', onClick: () => stub(ctx, 'library:character') });
+  addOption(options, { label: '소품', onClick: () => stub(ctx, 'library:stage') });
+  addOption(options, { label: '오디오', onClick: () => stub(ctx, 'library:audio') });
+  addOption(options, { label: '비디오', onClick: () => stub(ctx, 'library:video') });
   host.appendChild(root);
 }
 
@@ -266,17 +266,8 @@ function mountViewMenu(host, ctx) {
 function mountHelpMenu(host, ctx) {
   const { root, options } = createMenu('도움말');
   addOption(options, {
-    label: '사용자 튜토리얼…',
+    label: '사용자 튜토리얼',
     onClick: () => stub(ctx, 'help:tutorial'),
-  });
-  addOption(options, {
-    label: '작업 단위 테스트…',
-    onClick: () => stub(ctx, 'help:qa'),
-  });
-  addSeparator(options);
-  addOption(options, {
-    label: 'StageBuilder v4 정보',
-    onClick: () => stub(ctx, 'help:about'),
   });
   host.appendChild(root);
 }

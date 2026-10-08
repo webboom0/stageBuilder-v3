@@ -68,7 +68,7 @@ export function runProjectHub() {
               </div>
               <div class="sb-project-list__aside">
                 <div class="sb-project-list__meta-block">
-                  <div class="sb-project-list__meta">씬 ${p.sceneCount || 0}개</div>
+                  <div class="sb-project-list__meta">막 ${p.sceneCount || 0}개</div>
                   <div class="sb-project-list__meta">${escapeHtml(date)}</div>
                 </div>
                 <button type="button" class="sb-project-list__del" data-act="delete" data-id="${escapeAttr(p.id)}"
@@ -90,7 +90,7 @@ export function runProjectHub() {
           const name = delBtn.closest('.sb-project-list__item')?.querySelector('.sb-project-list__name')?.textContent || id;
           const ok = await appConfirm({
             title: '프로젝트 삭제',
-            message: `프로젝트 «${name}»을(를) 삭제할까요?\n\n씬·에셋이 모두 지워지며 되돌릴 수 없습니다.`,
+            message: `프로젝트 «${name}»을(를) 삭제할까요?\n\n막·에셋이 모두 지워지며 되돌릴 수 없습니다.`,
             danger: true,
           });
           if (!ok) return;

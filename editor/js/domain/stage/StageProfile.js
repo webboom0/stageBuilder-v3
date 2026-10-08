@@ -138,13 +138,19 @@ export const PROJECT_VENUE_GROUPS = Object.freeze([
   { venue: '청양문화예술회관', scale: '대공연장', profileId: 'cheongyang-grand' },
 ]);
 
+/** 공연장소·규모 직접 입력용 선택값 */
+export const PROJECT_VENUE_OTHER = '기타';
+
 /** @returns {string[]} */
 export function getProjectVenueNames() {
-  return [...new Set(PROJECT_VENUE_GROUPS.map((g) => g.venue))];
+  const names = [...new Set(PROJECT_VENUE_GROUPS.map((g) => g.venue))];
+  if (!names.includes(PROJECT_VENUE_OTHER)) names.push(PROJECT_VENUE_OTHER);
+  return names;
 }
 
 /** @param {string} venue */
 export function getProjectScalesForVenue(venue) {
+  if (venue === PROJECT_VENUE_OTHER) return [];
   return PROJECT_VENUE_GROUPS.filter((g) => g.venue === venue);
 }
 
@@ -164,29 +170,93 @@ export function formatProjectVenueLabel(venue, scale) {
   return `${venue}/${scale}`;
 }
 
+/** @param {number} widthM @param {number} depthM */
+export function formatCustomScaleLabel(widthM, depthM) {
+  return `직접 입력 · ${formatStageMeter(widthM)}×${formatStageMeter(depthM)}m`;
+}
+
+/** @param {string} scaleText @returns {{ widthM: number, depthM: number } | null} */
+export function parseCustomScaleLabel(scaleText) {
+  const m = String(scaleText || '').match(/직접\s*입력\s*·\s*([\d.]+)\s*[×xX]\s*([\d.]+)\s*m/i);
+  if (!m) return null;
+  const widthM = Number(m[1]);
+  const depthM = Number(m[2]);
+  if (!Number.isFinite(widthM) || !Number.isFinite(depthM) || widthM <= 0 || depthM <= 0) return null;
+  return { widthM, depthM };
+}
+
 /**
- * @param {{ stageProfile?: { id?: string } | null, venue?: string }} opts
- * @returns {{ venue: string, scale: string }}
+ * @param {{ stageProfile?: { id?: string, widthM?: number, depthM?: number } | null, venue?: string }} opts
+ * @returns {{ venue: string, scale: string, venueCustom?: string, widthM?: number, depthM?: number }}
  */
 export function resolveProjectVenueInitial(opts = {}) {
   const { stageProfile, venue: venueText } = opts;
   if (stageProfile?.id) {
-    const g = getProjectVenueGroupByProfileId(stageProfile.id);
+    const g = PROJECT_VENUE_GROUPS.find((x) => x.profileId === stageProfile.id);
     if (g) return { venue: g.venue, scale: g.scale };
   }
+
+  const knownVenues = PROJECT_VENUE_GROUPS.map((x) => x.venue);
+  /** @type {{ venue: string, venueCustom?: string }} */
+  let venuePart = { venue: PROJECT_VENUE_GROUPS[0].venue };
   if (venueText) {
-    const slash = venueText.indexOf('/');
+    const trimmed = venueText.trim();
+    const slash = trimmed.indexOf('/');
     if (slash > 0) {
-      const v = venueText.slice(0, slash);
-      const s = venueText.slice(slash + 1);
+      const v = trimmed.slice(0, slash);
+      const s = trimmed.slice(slash + 1);
       const g = getProjectVenueGroup(v, s);
       if (g) return { venue: g.venue, scale: g.scale };
+      const byFull = PROJECT_VENUE_GROUPS.find(
+        (x) => formatProjectVenueLabel(x.venue, x.scale) === trimmed,
+      );
+      if (byFull) return { venue: byFull.venue, scale: byFull.scale };
+      if (knownVenues.includes(v)) venuePart = { venue: v };
+      else venuePart = { venue: PROJECT_VENUE_OTHER, venueCustom: v };
+
+      const parsed = parseCustomScaleLabel(s);
+      if (parsed || s === PROJECT_VENUE_OTHER || s.startsWith('직접 입력')) {
+        return {
+          ...venuePart,
+          scale: PROJECT_VENUE_OTHER,
+          widthM: parsed?.widthM ?? stageProfile?.widthM ?? GRAND_HALL_DEFAULT.widthM,
+          depthM: parsed?.depthM ?? stageProfile?.depthM ?? GRAND_HALL_DEFAULT.depthM,
+        };
+      }
+      return {
+        ...venuePart,
+        scale: PROJECT_VENUE_OTHER,
+        widthM: stageProfile?.widthM ?? GRAND_HALL_DEFAULT.widthM,
+        depthM: stageProfile?.depthM ?? GRAND_HALL_DEFAULT.depthM,
+      };
     }
     const byFull = PROJECT_VENUE_GROUPS.find(
-      (g) => formatProjectVenueLabel(g.venue, g.scale) === venueText.trim(),
+      (g) => formatProjectVenueLabel(g.venue, g.scale) === trimmed,
     );
     if (byFull) return { venue: byFull.venue, scale: byFull.scale };
+    venuePart = { venue: PROJECT_VENUE_OTHER, venueCustom: trimmed };
   }
+
+  if (stageProfile && Number(stageProfile.widthM) > 0 && Number(stageProfile.depthM) > 0
+    && (stageProfile.id === 'custom' || !stageProfile.id
+      || !PROJECT_VENUE_GROUPS.some((x) => x.profileId === stageProfile.id))) {
+    return {
+      ...venuePart,
+      scale: PROJECT_VENUE_OTHER,
+      widthM: Number(stageProfile.widthM),
+      depthM: Number(stageProfile.depthM),
+    };
+  }
+
+  if (venuePart.venue === PROJECT_VENUE_OTHER) {
+    return {
+      ...venuePart,
+      scale: PROJECT_VENUE_OTHER,
+      widthM: GRAND_HALL_DEFAULT.widthM,
+      depthM: GRAND_HALL_DEFAULT.depthM,
+    };
+  }
+
   const d = PROJECT_VENUE_GROUPS[0];
   return { venue: d.venue, scale: d.scale };
 }

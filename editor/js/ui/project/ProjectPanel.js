@@ -43,14 +43,14 @@ export function createProjectPanelBody(opts) {
     <div class="sb-project-panel__main">
       <div class="sb-project-panel__scenes-head">
         <div class="sb-project-panel__scenes-lead">
-          <span class="sb-project-panel__scenes-title">씬 (막)</span>
+          <span class="sb-project-panel__scenes-title">막</span>
           <span class="sb-project-panel__dirty" data-role="dirty" hidden>저장 안 됨</span>
         </div>
         <div class="sb-project-panel__scenes-ctrls">
-          <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="save" title="씬 저장">
+          <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="save" title="막 저장">
             <i class="fas fa-save" aria-hidden="true"></i>
           </button>
-          <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="add-scene" title="씬 추가">+</button>
+          <button type="button" class="sb-dock-btn sb-dock-btn--icon" data-act="add-scene" title="막 추가">+</button>
         </div>
       </div>
       <ul class="sb-project-scene-list" data-role="scenes"></ul>
@@ -177,7 +177,7 @@ export function createProjectPanelBody(opts) {
 
     if (!scenes.length) {
 
-      listEl.innerHTML = '<li class="sb-project-scene-empty">씬 없음</li>';
+      listEl.innerHTML = '<li class="sb-project-scene-empty">막 없음</li>';
 
       return;
 
@@ -213,11 +213,11 @@ export function createProjectPanelBody(opts) {
 
             <button type="button" class="sb-project-scene-act" data-act="dup" data-id="${escapeAttr(s.id)}"
 
-              title="씬 복제"><i class="fas fa-copy" aria-hidden="true"></i></button>
+              title="막 복제"><i class="fas fa-copy" aria-hidden="true"></i></button>
 
             <button type="button" class="sb-project-scene-act del" data-act="del" data-id="${escapeAttr(s.id)}"
 
-              title="씬 삭제" ${canDelete ? '' : 'disabled'}><i class="fas fa-trash" aria-hidden="true"></i></button>
+              title="막 삭제" ${canDelete ? '' : 'disabled'}><i class="fas fa-trash" aria-hidden="true"></i></button>
 
           </span>
 
@@ -349,8 +349,8 @@ export function createProjectPanelBody(opts) {
       const store = opts.getStore();
       const scene = store?.project.scenes?.find((s) => s.id === row.dataset.id);
       const next = await appPrompt({
-        title: '씬 이름',
-        message: '씬 이름을 입력하세요.',
+        title: '막 이름',
+        message: '막 이름을 입력하세요.',
         defaultValue: scene?.name || `${row.dataset.id}`,
       });
       if (!next?.trim()) return;

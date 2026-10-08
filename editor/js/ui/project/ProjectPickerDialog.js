@@ -62,7 +62,7 @@ export function showProjectPickerDialog() {
             <li class="sb-project-list__item" data-id="${escapeAttr(p.id)}" role="button" tabindex="0">
               <div class="sb-project-list__main">
                 <div class="sb-project-list__name">${escapeHtml(p.name)}</div>
-                <div class="sb-project-list__meta">씬 ${p.sceneCount || 0}개</div>
+                <div class="sb-project-list__meta">막 ${p.sceneCount || 0}개</div>
               </div>
               <div class="sb-project-list__aside">
                 <div class="sb-project-list__meta">${escapeHtml(date)}</div>

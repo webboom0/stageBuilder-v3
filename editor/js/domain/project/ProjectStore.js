@@ -323,7 +323,7 @@ export class ProjectStore {
     const reordered = [...scenes];
     [reordered[idx], reordered[swap]] = [reordered[swap], reordered[idx]];
     const data = await apiReorderScenes(this.projectId, reordered.map((s) => s.id));
-    if (!data?.project) throw new Error('씬 순서 저장 응답이 올바르지 않습니다.');
+    if (!data?.project) throw new Error('막 순서 저장 응답이 올바르지 않습니다.');
     this.project = data.project;
   }
 
@@ -364,10 +364,10 @@ export class ProjectStore {
   async deleteScene(ctx, sceneId) {
     const scenes = this.project.scenes || [];
     if (scenes.length <= 1) {
-      throw new Error('마지막 씬은 삭제할 수 없습니다.');
+      throw new Error('마지막 막은 삭제할 수 없습니다.');
     }
     if (!scenes.some((s) => s.id === sceneId)) {
-      throw new Error('씬을 찾을 수 없습니다.');
+      throw new Error('막을 찾을 수 없습니다.');
     }
     const deletingActive = sceneId === this.activeSceneId;
     if (this.dirty) {
